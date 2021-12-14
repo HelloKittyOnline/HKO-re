@@ -43,6 +43,30 @@ namespace Server {
             b.Send(clientStream);
         }
 
+        // (0,2,3)
+        static void Send00_02_03(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x0); // first switch
+            b.Add((byte)0x2); // second switch
+            b.Add((byte)0x3); // third switch
+
+            b.AddString("01/01/9999"); // something time related
+
+            b.Send(clientStream);
+        }
+
+        // (0,2,x) // x = 2,4,5,6,7,8,9
+        static void Send00_02_02(Stream clientStream, byte x) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x0); // first switch
+            b.Add((byte)0x2); // second switch
+            b.Add((byte)x); // third switch
+
+            b.Send(clientStream);
+        }
+
         // (0,4)
         static void SendServerList(Stream clientStream) {
             var b = new PacketBuilder();
@@ -73,17 +97,20 @@ namespace Server {
         }
 
         // (0,5)
-        static void Idk05(Stream clientStream) {
+        static void Send00_05(Stream clientStream) {
             var b = new PacketBuilder();
 
             b.Add((byte)0x0); // first switch
             b.Add((byte)0x5); // second switch
 
-            b.Add(1); // count
+            int count = 1;
+            b.Add(count);
 
-            b.Add(1); // id??
-            b.AddString("Test server");
-
+            for(int i = 1; i <= count; i++) {
+                b.Add(i); // id??
+                b.AddString("Test server");
+            }
+            
             b.Send(clientStream);
         }
 
@@ -103,20 +130,99 @@ namespace Server {
             b.Send(clientStream);
         }
 
-        // (0, 12)
-        static void Idk0C(Stream clientStream) {
+        // (0, 12, x) x = 0-7
+        static void Send00_0C(Stream clientStream, byte x) {
             var b = new PacketBuilder();
 
             b.Add((byte)0x0); // first switch
             b.Add((byte)0xB); // second switch
 
-            b.Add((byte)0); // 0-7 switch
+            b.Add((byte)x); // 0-7 switch
+
+            b.Send(clientStream);
+        }
+
+        // (0, 13, x) x = 2-6
+        static void Send00_0D(Stream clientStream, int x) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x0); // first switch
+            b.Add((byte)0xD); // second switch
+
+            b.Add((short)x); // (2-6) switch
+
+            b.Send(clientStream);
+        }
+
+        // (0, 14)
+        // almost the same as (0, 11)
+        static void Send00_0E(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x0); // first switch
+            b.Add((byte)0xE); // second switch
+
+            b.Add(0); // some global
+
+            // parameters for FUN_0060699c
+            b.AddString("127.0.0.1");
+            b.Add((short)12345);
+
+            b.Send(clientStream);
+        }
+
+        // (0, 16)
+        static void Send00_10(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x0); // first switch
+            b.Add((byte)0x10); // second switch
+
+            // some weird looped shit
+
+            b.Send(clientStream);
+        }
+
+        // (0, 17)
+        static void Send00_11(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x00); // first switch
+            b.Add((byte)0x11); // second switch
+
+            b.Add((int)0); // sets some global
+
+            b.Send(clientStream);
+        }
+
+        // (0, 18)
+        static void Send00_12(Stream clientStream) { }
+
+        // (0, 99)
+        static void Send00_5A(Stream clientStream) { }
+
+        // (1, 2)
+        // trigers character creation
+        static void Send01_02(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x1); // first switch
+            b.Add((byte)0x2); // second switch
+
+            if (true) { // possibly indicates if a character already exists
+                b.Add((byte)0);
+            } else {
+                b.Add((byte)1);
+                b.AddString("idk", 2);
+                b.Add((byte)0);
+                // TODO: some more stuff
+            }
 
             b.Send(clientStream);
         }
 
         // (2, 9)
-        static void Idk29(Stream clientStream) {
+        static void Send29(Stream clientStream) {
             var b = new PacketBuilder();
 
             b.Add((byte)0x2); // first switch
@@ -137,12 +243,12 @@ namespace Server {
 
         #region Packet handlers
         static void AcceptClient(BinaryReader req, Stream res) {
-            // idk - skip 5 bytes
-            var val = req.ReadBytes(5);
+            var short1 = req.ReadInt16();
+            var short2 = req.ReadInt16(); // should be 0x0110
 
-            bool nonsense = val[0] != 0x11;
-            if (nonsense) {
-                req.ReadBytes(2);
+            var idk = req.ReadByte(); // 0x42 or 0x82
+            if (idk == 0x42) {
+                req.ReadBytes(2); // should be 00 00
             }
 
             // somehow the offsets change randomly?
@@ -150,10 +256,10 @@ namespace Server {
             var userName = Encoding.ASCII.GetString(req.ReadBytes(nameLength));
 
             // empty space
-            req.ReadBytes(64 - nameLength - (nonsense ? 3 : 0));
+            req.ReadBytes(64 - nameLength - (idk == 0x42 ? 3 : 0));
 
             int pwLength = req.ReadByte();
-            var password = Encoding.ASCII.GetString(req.ReadBytes(pwLength)); // compressed through some weird method
+            var password = Encoding.ASCII.GetString(req.ReadBytes(pwLength)); // sometimes compressed through some weird method
 
             Console.WriteLine($"{userName}, {password}");
 
@@ -185,11 +291,23 @@ namespace Server {
         }
 
         static void Idk(BinaryReader req, Stream res) {
-            var idk1 = Encoding.ASCII.GetString(req.ReadBytes(req.ReadByte()));
-            var idk2 = req.ReadInt32();
+            var idk1 = Encoding.ASCII.GetString(req.ReadBytes(req.ReadByte())); // "@"
+            var idk2 = req.ReadInt32(); // = 0
 
-            Debugger.Break();
+            //Debugger.Break();
+            Send01_02(res);
         }
+
+        static void CreateCharacter(BinaryReader req, Stream res) {
+            /*req.ReadInt16();
+
+            // same string encoding function as in AcceptClient? (004d0f24)
+            req.ReadInt16();
+            req.ReadInt16();*/
+
+            // ... compressed wstring?
+        }
+
         #endregion
 
         static void listenClient(TcpClient socket, bool lobby) {
@@ -214,20 +332,20 @@ namespace Server {
 
                 var id = (r.ReadByte() << 8) | r.ReadByte();
 
-                // S -> C:   01: SendLobby         // lobby server
-                // S <- C: 0001: AcceptClient      // send login details
-                // S -> C:  021: SendAcceptClient  // check login details
-                // S <- C: 0004: ServerList        // request server list (after License accept)
-                // S -> C:   04: SendServerList    // send server list
-                // S <- C: 0003: SelectServer      
-                // (optional) S -> C:   0B: SendChangeServer
-                // S -> C:   01: SendLobby         // realm server?
-                // S <- C: 000B: Idk
-                // S -> C: ????
+                // S -> C: 00_01  : SendLobby        // lobby server
+                // S <- C: 00_01  : AcceptClient     // send login details
+                // S -> C: 00_02_1: SendAcceptClient // check login details
+                // S <- C: 00_04  : ServerList       // request server list (after License accept)
+                // S -> C: 00_04  : SendServerList   // send server list
+                // S <- C: 00_03  : SelectServer
+                // (optional) S -> C: 00_0B: SendChangeServer // redirect to different server for load balancing
+                // S -> C: 00_01  : SendLobby        // realm server?
+                // S <- C: 00_0B: Idk
+                // S -> C: 01_02:
+                // S <- C: 01_01: CreateCharacter
 
                 switch (id) {
                     case 0x0001: // Auth
-                        Console.WriteLine(BitConverter.ToString(data, 2));
                         AcceptClient(r, clientStream); break;
                     case 0x0003: // after user selected world
                         SelectServer(r, clientStream); break;
@@ -237,6 +355,8 @@ namespace Server {
                         Idk(r, clientStream); break;
                     case 0x0063: // source location 0059b253
                         Ping(r, clientStream); break;
+                    case 0x0101: // source location 00566b0d // sent after character creation
+                        CreateCharacter(r, clientStream); break;
                     case 0x0010: // source location 0059b1ae // has something to do with T_LOADScreen
 
                     case 0x0202: // source location 005df036 // sent after (2,9)
