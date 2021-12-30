@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -110,7 +109,7 @@ namespace Server {
                 b.Add(i); // id??
                 b.AddString("Test server");
             }
-            
+
             b.Send(clientStream);
         }
 
@@ -135,7 +134,7 @@ namespace Server {
             var b = new PacketBuilder();
 
             b.Add((byte)0x0); // first switch
-            b.Add((byte)0xB); // second switch
+            b.Add((byte)0xC); // second switch
 
             b.Add((byte)x); // 0-7 switch
 
@@ -190,7 +189,9 @@ namespace Server {
             b.Add((byte)0x00); // first switch
             b.Add((byte)0x11); // second switch
 
-            b.Add((int)0); // sets some global
+            // sets some global timeout flag
+            // if more ms have been passed since then game sends 0x7F and disconnects
+            b.Add((int)1 << 30); 
 
             b.Send(clientStream);
         }
@@ -202,27 +203,70 @@ namespace Server {
         static void Send00_5A(Stream clientStream) { }
 
         // (1, 2)
-        // trigers character creation
-        static void Send01_02(Stream clientStream) {
+        // triggers character creation
+        static void SendCharacterData(Stream clientStream, bool exists) {
             var b = new PacketBuilder();
 
             b.Add((byte)0x1); // first switch
             b.Add((byte)0x2); // second switch
 
-            if (true) { // possibly indicates if a character already exists
-                b.Add((byte)0);
-            } else {
-                b.Add((byte)1);
-                b.AddString("idk", 2);
-                b.Add((byte)0);
-                // TODO: some more stuff
+            // indicates if a character already exists
+            b.Add(Convert.ToByte(exists));
+
+            if(exists) {
+                b.AddWstring("Lorem Ipsum"); // Character name
+                b.Add((byte)0); // sets T_EnterGame->data.field_0x94
+
+                b.EncodeCrazy(Array.Empty<byte>()); // ((*global_gameData)->data).ItemAttEntityIds
+
+                b.Add((short)0); // ((*global_gameData)->data).field_0x5410
+
+                // ((*global_gameData)->data).mapId
+                // index into global_T_MapList_array
+                // 0xf has something to do with tutorial
+                b.Add((int)1);
+
+                // 0     - ??    dream carnival (no map loads?)
+                // 10000 - 20000 crash
+                // 30000 - 50000 Farm (f2)
+                // 60000 - ??    nothing
+
+                var stats = new byte[256];
+
+                stats[0] = 0; stats[1] = 0; stats[2] = 0; stats[3] = 1; // overall level
+                // stats[4] = 0; stats[5] = 0; stats[6] = 0; stats[7] = 0; // idk
+                stats[9] = 1; stats[10] = 0;  // Planting
+                stats[11] = 2; stats[12] = 0; // Mining
+                stats[13] = 3; stats[14] = 0; // Woodcutting
+                stats[15] = 4; stats[16] = 0; // Gathering
+                stats[17] = 5; stats[18] = 0; // Forging
+                stats[19] = 6; stats[20] = 0; // Carpentry
+                stats[21] = 7; stats[22] = 0; // Cooking
+                stats[23] = 8; stats[24] = 0; // Tailoring
+
+                b.EncodeCrazy(stats); // ((*global_gameData)->data).field_0x911c
             }
 
             b.Send(clientStream);
         }
 
+        // (2, 1)
+        static void Send02_01(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x2); // first switch
+            b.Add((byte)0x1); // second switch
+
+            /*var data = new byte[0x388C+1];
+            data[0x388C] = 1;*/
+
+            b.EncodeCrazy(Array.Empty<byte>());
+
+            b.Send(clientStream);
+        }
+
         // (2, 9)
-        static void Send29(Stream clientStream) {
+        static void Send02_09(Stream clientStream) {
             var b = new PacketBuilder();
 
             b.Add((byte)0x2); // first switch
@@ -233,9 +277,35 @@ namespace Server {
             b.Add((short)0);
             b.Add((byte)0);
 
-            for (int i = 0; i < 64; i++) {
+            // b.EncodeCrazy(Array.Empty<byte>());
+            // b.EncodeCrazy(Array.Empty<byte>());
+
+            /*for(int i = 0; i < 64; i++) {
                 b.Add((byte)0);
-            }
+            }*/
+
+            b.Send(clientStream);
+        }
+
+        static void Send02_6E(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x02); // first switch
+            b.Add((byte)0x6E); // second switch
+
+            b.AddWstring("");
+            b.Add((int)30001); // map id?
+            b.AddString("", 1);
+
+            b.Send(clientStream); 
+        }
+        static void Send02_6F(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x02); // first switch
+            b.Add((byte)0x6E); // second switch
+            
+            b.Add((byte)0);
 
             b.Send(clientStream);
         }
@@ -243,23 +313,10 @@ namespace Server {
 
         #region Packet handlers
         static void AcceptClient(BinaryReader req, Stream res) {
-            var short1 = req.ReadInt16();
-            var short2 = req.ReadInt16(); // should be 0x0110
+            var data = PacketBuilder.DecodeCrazy(req);
 
-            var idk = req.ReadByte(); // 0x42 or 0x82
-            if (idk == 0x42) {
-                req.ReadBytes(2); // should be 00 00
-            }
-
-            // somehow the offsets change randomly?
-            int nameLength = req.ReadByte();
-            var userName = Encoding.ASCII.GetString(req.ReadBytes(nameLength));
-
-            // empty space
-            req.ReadBytes(64 - nameLength - (idk == 0x42 ? 3 : 0));
-
-            int pwLength = req.ReadByte();
-            var password = Encoding.ASCII.GetString(req.ReadBytes(pwLength)); // sometimes compressed through some weird method
+            var userName = Encoding.ASCII.GetString(data, 1, data[0]);
+            var password = Encoding.ASCII.GetString(data, 0x42, data[0x41]);
 
             Console.WriteLine($"{userName}, {password}");
 
@@ -269,7 +326,7 @@ namespace Server {
         static void ServerList(BinaryReader req, Stream res) {
             var count = req.ReadInt32();
 
-            for (int i = 0; i < count; i++) {
+            for(int i = 0; i < count; i++) {
                 var len = req.ReadByte();
                 var name = Encoding.ASCII.GetString(req.ReadBytes(len));
             }
@@ -290,24 +347,46 @@ namespace Server {
             // Console.WriteLine($"Ping {number}");
         }
 
-        static void Idk(BinaryReader req, Stream res) {
+        static void Recieve_00_0B(BinaryReader req, Stream res) {
             var idk1 = Encoding.ASCII.GetString(req.ReadBytes(req.ReadByte())); // "@"
             var idk2 = req.ReadInt32(); // = 0
 
             //Debugger.Break();
-            Send01_02(res);
+            Send00_0C(res, 1);
+            // SendCharacterData(res, false);
         }
 
         static void CreateCharacter(BinaryReader req, Stream res) {
-            /*req.ReadInt16();
+            req.ReadByte(); // 0
 
-            // same string encoding function as in AcceptClient? (004d0f24)
-            req.ReadInt16();
-            req.ReadInt16();*/
+            var data = PacketBuilder.DecodeCrazy(req);
 
-            // ... compressed wstring?
+            var name = Encoding.Unicode.GetString(data);
+            // cut of null terminated
+            name = name[..name.IndexOf((char)0)];
+
+            Console.WriteLine($"{name}");
+
+            SendCharacterData(res, true);
         }
 
+        static void Recieve_02_32(BinaryReader req, Stream res) {
+            int count = req.ReadInt32();
+            for(int i = 0; i < count; i++) {
+                int aLen = req.ReadByte();
+                var a = Encoding.ASCII.GetString(req.ReadBytes(aLen));
+
+                int bLen = req.ReadByte();
+                var b = Encoding.ASCII.GetString(req.ReadBytes(bLen));
+
+                // name : version
+                Console.WriteLine($"{a} : {b}");
+            }
+
+            // currently stuck on this
+            // TODO: figure out response message
+            // Send02_6E(clientStream);
+        }
         #endregion
 
         static void listenClient(TcpClient socket, bool lobby) {
@@ -318,19 +397,31 @@ namespace Server {
 
             SendLobby(clientStream, lobby);
 
-            while (true) {
+            while(true) {
                 var head = reader.ReadBytes(3);
-                if (head.Length == 0) {
+                if(head.Length == 0) {
                     break;
                 }
 
-                var length = reader.ReadUInt16();
-                var data = reader.ReadBytes(length); // only done to log packets
+                var data = reader.ReadBytes(reader.ReadUInt16());
+
+                if(data.Length == 1) {
+                    // source location 005bb8a9
+                    // data[0] == 0x7f
+                    break;
+                }
 
                 var ms = new MemoryStream(data);
                 var r = new BinaryReader(ms);
 
                 var id = (r.ReadByte() << 8) | r.ReadByte();
+
+#if DEBUG
+                if(id != 0x0063) { // skip ping
+                    Console.WriteLine($"S <- C: {id >> 8:X2}_{id & 0xFF:X2}:");
+                    // if(data.Length > 2) Console.WriteLine(BitConverter.ToString(data, 2));
+                }
+#endif
 
                 // S -> C: 00_01  : SendLobby        // lobby server
                 // S <- C: 00_01  : AcceptClient     // send login details
@@ -340,82 +431,135 @@ namespace Server {
                 // S <- C: 00_03  : SelectServer
                 // (optional) S -> C: 00_0B: SendChangeServer // redirect to different server for load balancing
                 // S -> C: 00_01  : SendLobby        // realm server?
-                // S <- C: 00_0B: Idk
-                // S -> C: 01_02:
-                // S <- C: 01_01: CreateCharacter
+                // S <- C: 00_0B  : Idk
+                // (optional) S -> C: 01_02: create new character
+                // (optional) S <- C: 01_01: CreateCharacter
+                // S -> C: 00_0C_1: create T_EnterGame
+                // S <- C: 01_02  : 
+                // S -> C: 01_02  : SendCharacterData
+                // S <- C: 02_32  :
+                // short pause loading
+                // S <- C: 02_01
+                // S <- C: 00_10
+                // S -> C: 02_09
+                // S <- C: 00_10
+                // S <- C: 02_02
+                // S <- C: 02_1A
+                // S <- C: 02_0B
 
-                switch (id) {
-                    case 0x0001: // Auth
-                        AcceptClient(r, clientStream); break;
-                    case 0x0003: // after user selected world
-                        SelectServer(r, clientStream); break;
-                    case 0x0004: // list of languages? sent after lobbyServer
-                        ServerList(r, clientStream); break;
-                    case 0x000B: // source location 0059b14a // sent after realmServer
-                        Idk(r, clientStream); break;
-                    case 0x0063: // source location 0059b253
-                        Ping(r, clientStream); break;
-                    case 0x0101: // source location 00566b0d // sent after character creation
-                        CreateCharacter(r, clientStream); break;
-                    case 0x0010: // source location 0059b1ae // has something to do with T_LOADScreen
+                switch(id) {
+                    case 0x00_01: // Auth
+                        AcceptClient(r, clientStream);
+                        break;
+                    case 0x00_03: // after user selected world
+                        SelectServer(r, clientStream);
+                        break;
+                    case 0x00_04: // list of languages? sent after lobbyServer
+                        ServerList(r, clientStream);
+                        break;
+                    case 0x00_0B: // source location 0059b14a // sent after realmServer
+                        Recieve_00_0B(r, clientStream);
+                        break;
+                    // case 0x00_10: // source location 0059b1ae // has something to do with T_LOADScreen // finished loading?
+                    case 0x00_63: // source location 0059b253
+                        Ping(r, clientStream);
+                        break;
 
-                    case 0x0202: // source location 005df036 // sent after (2,9)
-                    case 0x021A: // source location 005df655 // sent after 0x202
+                    case 0x01_01: // source location 00566b0d // sent after character creation
+                        CreateCharacter(r, clientStream);
+                        break;
+                    case 0x01_02:
+                        SendCharacterData(clientStream, true);
+                        break;
+                    // case 0x01_03: // Delete character
+                    /*case 0x01_05: // check character name
+                        // r.ReadInt16();
+                        // rest wstring
+                        break;*/
 
-                    case 0x0401:
-                    case 0x0402:
-                    case 0x0403:
-                    case 0x0404:
-                    case 0x0405:
-                    case 0x0407:
+                    case 0x02_01:
+                        Send00_11(clientStream);
+                        Send02_09(clientStream);
+                        break;
+                    case 0x02_32: // source location 005dfb8c //  client version information
+                        Recieve_02_32(r, clientStream);
+                        break;
 
-                    case 0x0701:
-                    case 0x0704:
+                    /*
+                    case 0x02_02: // source location 005df036 // sent after (2,9)
+                    case 0x02_05: // opening item mall? // maybe html request?
+                    case 0x02_04: // source location 005df0cb // sent after (2,9)
+                    case 0x02_1A: // source location 005df655 // sent after 0x202
 
-                    case 0x0C03:
-                    case 0x0C07:
-                    case 0x0C08:
-                    case 0x0C09:
+                    case 0x03_01: // map channel message
+                    case 0x03_02:
+                    case 0x03_05: // normal channel message
+                    case 0x03_06: // trade channel message
+                    case 0x03_08: // advice channel message
+                    case 0x03_0A:
+                    case 0x03_0B: // change chat filter
+                    case 0x03_0D: // open private message
 
-                    case 0x0D02:
-                    case 0x0D03:
-                    case 0x0D05:
-                    case 0x0D06:
-                    case 0x0D07:
-                    case 0x0D09:
-                    case 0x0D0A:
-                    case 0x0D0B:
-                    case 0x0D0C:
-                    case 0x0D0D:
-                    case 0x0D0E:
-                    case 0x0D0F:
-                    case 0x0D10:
-                    case 0x0D11:
-                    case 0x0D12:
-                    case 0x0D13:
+                    case 0x0E_14:
 
-                    case 0x0F02: // source location 00511e18
-                    case 0x0F03: // source location 00511e8c
-                    case 0x0F04: // source location 00511f75
-                    case 0x0F05: // source location 00512053
-                    case 0x0F06: // source location 005120e6
-                    case 0x0F07: // source location 00512176
-                    case 0x0F09: // source location 005121da
-                    case 0x0F0A: // source location 00512236
-                    case 0x0F0B:
-                    case 0x0F0C:
-                    case 0x0F0D:
-                    case 0x0F0E:
+                    case 0x04_01: // add friend
+                    case 0x04_02:
+                    case 0x04_03:
+                    case 0x04_04: // set status message // 1 byte, 0 = avalible, 1 = busy, 2 = away
+                    case 0x04_05: // add player to blacklist
+                    case 0x04_07:
 
-                    case 0x1101: // source location 0059b6b4
+                    case 0x07_01:
+                    case 0x07_04:
 
-                    case 0x1201:
-                    case 0x1202:
+                    case 0x09_20: // check item delivery available?
+
+                    case 0x0C_03:
+                    case 0x0C_07:
+                    case 0x0C_08:
+                    case 0x0C_09:
+
+                    case 0x0D_02:
+                    case 0x0D_03:
+                    case 0x0D_05:
+                    case 0x0D_06:
+                    case 0x0D_07:
+                    case 0x0D_09:
+                    case 0x0D_0A:
+                    case 0x0D_0B:
+                    case 0x0D_0C:
+                    case 0x0D_0D:
+                    case 0x0D_0E:
+                    case 0x0D_0F:
+                    case 0x0D_10:
+                    case 0x0D_11:
+                    case 0x0D_12:
+                    case 0x0D_13: // get pet information?
+
+                    case 0x0F_02: // source location 00511e18
+                    case 0x0F_03: // source location 00511e8c
+                    case 0x0F_04: // source location 00511f75
+                    case 0x0F_05: // source location 00512053
+                    case 0x0F_06: // source location 005120e6
+                    case 0x0F_07: // source location 00512176
+                    case 0x0F_09: // source location 005121da
+                    case 0x0F_0A: // source location 00512236
+                    case 0x0F_0B:
+                    case 0x0F_0C:
+                    case 0x0F_0D:
+                    case 0x0F_0E:
+
+                    case 0x11_01: // source location 0059b6b4
+
+                    case 0x12_01:
+                    case 0x12_02:
+
+                    case 0x13_01: // add player to group
+                    */
 
                     default:
-                        Console.WriteLine($"Unknown: {id}");
-                        if (data.Length > 2) Console.WriteLine(BitConverter.ToString(data, 2));
-                        Debugger.Break();
+                        Console.WriteLine("Unknown");
+                        if(data.Length > 2) Console.WriteLine(BitConverter.ToString(data, 2));
                         break;
                 }
             }
@@ -425,13 +569,13 @@ namespace Server {
             TcpListener server = new TcpListener(IPAddress.Any, port);
             server.Start();
 
-            while (true) {
+            while(true) {
                 var client = server.AcceptTcpClient();
 
                 Task.Run(() => {
                     try {
                         listenClient(client, lobby);
-                    } catch (Exception e) {
+                    } catch(Exception e) {
                         Console.WriteLine(e);
                     }
                     Console.WriteLine("Thread 1 done");

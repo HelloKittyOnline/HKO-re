@@ -62,7 +62,86 @@ namespace Server {
             data[3] = (byte)(length & 0xFF);
             data[4] = (byte)(length >> 8);
 
+#if DEBUG
+            Console.WriteLine($"S -> C: {data[5]:X2}_{data[6]:X2}");
+#endif
+
             stream.Write(data.ToArray(), 0, data.Count);
+        }
+
+        public void EncodeCrazy(byte[] data) {
+            Add((short)(data.Length + 1));
+            Add((short)data.Length);
+
+            if (data.Length == 0) return;
+
+            // don't bother encoding just use raw
+            Add(0x82);
+
+            foreach(var t in data) Add(t);
+        }
+
+        public static byte[] DecodeCrazy(BinaryReader req) {
+            var size = req.ReadUInt16();
+            var outSize = req.ReadUInt16();
+
+            int read = 0;
+
+            var type = req.ReadByte();
+            read += 1;
+
+            if(type == 0x82) {
+                return req.ReadBytes(size - 1);
+            }
+            if(type == 'B') {
+                // TODO: replace with array?
+                var output = new List<byte>(outSize);
+
+                var byteMask = (req.ReadByte() << 8) | req.ReadByte();
+                read += 2;
+
+                int loopCounter = 0x10;
+
+                while(read < size) {
+                    if (loopCounter == 0) {
+                        byteMask = (req.ReadByte() << 8) | req.ReadByte();
+                        read += 2;
+                        loopCounter = 0x10;
+                    }
+                    if((byteMask & 0x8000) == 0) {
+                        output.Add(req.ReadByte());
+                        read += 1;
+                    } else {
+                        var a = req.ReadByte();
+                        var b = req.ReadByte();
+                        read += 2;
+
+                        var copyCount = (ushort)((a << 4) | (b >> 4));
+
+                        if (copyCount == 0) {
+                            copyCount = (ushort)(((b << 8) | req.ReadByte()) + 0x10);
+                            var copy = req.ReadByte();
+                            read += 2;
+
+                            for(int i = 0; i < copyCount; i++) {
+                                output.Add(copy);
+                            }
+                        } else {
+                            int sVar3 = (b & 0xF) + 3;
+
+                            int off = output.Count;
+                            for (int i = 0; i < sVar3; i++) {
+                                output.Add(output[off - copyCount + i]);
+                            }
+                        }
+                    }
+                    byteMask <<= 1;
+                    loopCounter--;
+                }
+                return output.ToArray();
+            }
+
+            return null;
         }
     }
 }
