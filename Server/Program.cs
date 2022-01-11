@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -7,6 +7,37 @@ using System.Threading.Tasks;
 
 namespace Server {
     class Program {
+        // 1   | "Dream Room 1"
+        // 2   | "Dream Room 2"
+        // 3   | "Dream Room 3"
+        // 4   | "Dream Room 4"
+        // 5   | "Dream Room 5"
+        // 6   | "Dream Room 6"
+        // 7   | "Dream Room 7"
+        // 8   | "Sanrio Harbour"          | p2
+        // 9   | "Florapolis"              | p3
+        // 10  | "London"                  | p7
+        // 11  | "Paris"                   | p5
+        // 12  | "New York"                | p4
+        // 13  | nothing
+        // 14  | "Tokyo"                   | p9
+        // 15  | "Dream Carnival"
+        // 16  | "02"
+        // 17  | "Big Ben"
+        // 18  | "Buckingham Palace"
+        // 25  | "Chatting Room"
+        // 50  | "West Stars Plain"        | p5
+        // 75  | "Forbidden Museum"        | p6
+        // 100 | "Mt. Fujiyama"
+        // 150 | "eam Room 4"
+        // 200 | "Room 5"
+        // 300 | "TEST South Dream Forest" | p3
+        // 400 | nothing
+        // 10000 - 20000 crash
+        // 30000 - 50000 Farm (f2)
+        // 60000 - ??    nothing
+        private static int MapId = 14;
+
         #region Responses
         // (0,1)
         static void SendLobby(Stream clientStream, bool lobby) {
@@ -56,7 +87,7 @@ namespace Server {
         }
 
         // (0,2,x) // x = 2,4,5,6,7,8,9
-        static void Send00_02_02(Stream clientStream, byte x) {
+        static void Send00_02_XX(Stream clientStream, byte x) {
             var b = new PacketBuilder();
 
             b.Add((byte)0x0); // first switch
@@ -191,7 +222,7 @@ namespace Server {
 
             // sets some global timeout flag
             // if more ms have been passed since then game sends 0x7F and disconnects
-            b.Add((int)1 << 30); 
+            b.Add((int)1 << 30);
 
             b.Send(clientStream);
         }
@@ -202,6 +233,22 @@ namespace Server {
         // (0, 99)
         static void Send00_5A(Stream clientStream) { }
 
+
+        static void writeInvItem(BinaryWriter w) {
+            w.Write((int)0); // id
+            w.Write((int)0);
+            w.Write((int)0);
+        }
+        static void writeFriend(BinaryWriter w) {
+            // name - wchar[32]
+            for(int i = 0; i < 32; i++)
+                w.Write((short)0);
+            w.Write((int)0); // length
+        }
+        static void writePetData(BinaryWriter w) {
+            for(int i = 0; i < 0xd8; i++)
+                w.Write((byte)0);
+        }
         // (1, 2)
         // triggers character creation
         static void SendCharacterData(Stream clientStream, bool exists) {
@@ -215,36 +262,119 @@ namespace Server {
 
             if(exists) {
                 b.AddWstring("Lorem Ipsum"); // Character name
-                b.Add((byte)0); // sets T_EnterGame->data.field_0x94
 
-                b.EncodeCrazy(Array.Empty<byte>()); // ((*global_gameData)->data).ItemAttEntityIds
+                b.Add((byte)1); // gender (1 = male, else female)
+
+                var bytes = new byte[0x8c10 - 0x542C];
+                {
+                    var s = new MemoryStream(bytes);
+                    var w = new BinaryWriter(s);
+
+                    // starts at 0x542C
+                    w.Write((int)9001); // body
+                    w.Write((int)0);
+                    w.Write((int)18301); // face
+                    w.Write((int)15802); // shoes
+                    w.Write((int)14501); // pants
+                    w.Write((int)13001); // clothes
+                    w.Write((int)9051);  // hair
+                    for(int i = 7; i < 18; i++) {
+                        w.Write((int)0);
+                    }
+
+                    w.Write((int)123456); // money
+
+                    w.Write((byte)0); // status (0 = online, 1 = busy, 2 = away)
+                    w.Write((byte)0); // petId
+                    w.Write((byte)0); // emotionSomething
+                    w.Write((byte)0); // unused
+                    w.Write((byte)1); // blood type
+                    w.Write((byte)1); // birth month
+                    w.Write((byte)1); // birth day
+                    w.Write((byte)1); // constellation
+
+                    w.Write((int)0); // guild id?
+
+                    for(int i = 0; i < 10; i++)
+                        w.Write((int)0); // quick bar
+
+                    for(int i = 0; i < 76; i++)
+                        w.Write((byte)0); // idk
+
+                    for(int i = 0; i < 14; i++)
+                        writeInvItem(w); // inv1
+                    for(int i = 0; i < 6; i++)
+                        writeInvItem(w); // inv2
+                    for(int i = 0; i < 50; i++)
+                        writeInvItem(w); // inv3
+                    w.Write((byte)0); // inv3 size
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+                    for(int i = 0; i < 200; i++)
+                        writeInvItem(w); // inv4
+                    w.Write((byte)0); // inv4 size
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+
+                    for(int i = 0; i < 100; i++)
+                        writeFriend(w); // friend list
+                    w.Write((byte)0); // friend count
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+
+                    for(int i = 0; i < 50; i++)
+                        writeFriend(w); // ban list
+                    w.Write((byte)0); // ban count
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+                    w.Write((byte)0);
+
+                    for(int i = 0; i < 3; i++)
+                        writePetData(w); // pet data
+                }
+                b.EncodeCrazy(bytes); // ((*global_gameData)->data).ItemAttEntityIds
 
                 b.Add((short)0); // ((*global_gameData)->data).field_0x5410
 
-                // ((*global_gameData)->data).mapId
-                // index into global_T_MapList_array
-                // 0xf has something to do with tutorial
-                b.Add((int)1);
+                // map id
+                b.Add((int)MapId);
 
-                // 0     - ??    dream carnival (no map loads?)
-                // 10000 - 20000 crash
-                // 30000 - 50000 Farm (f2)
-                // 60000 - ??    nothing
+                var stats = new byte[60];
+                {
+                    var s = new MemoryStream(stats);
+                    var w = new BinaryWriter(s);
 
-                var stats = new byte[256];
+                    // starts at 0x911C
+                    w.Write((int)1); // overall level
+                    w.Write((int)0); // level progress
 
-                stats[0] = 0; stats[1] = 0; stats[2] = 0; stats[3] = 1; // overall level
-                // stats[4] = 0; stats[5] = 0; stats[6] = 0; stats[7] = 0; // idk
-                stats[9] = 1; stats[10] = 0;  // Planting
-                stats[11] = 2; stats[12] = 0; // Mining
-                stats[13] = 3; stats[14] = 0; // Woodcutting
-                stats[15] = 4; stats[16] = 0; // Gathering
-                stats[17] = 5; stats[18] = 0; // Forging
-                stats[19] = 6; stats[20] = 0; // Carpentry
-                stats[21] = 7; stats[22] = 0; // Cooking
-                stats[23] = 8; stats[24] = 0; // Tailoring
+                    w.Write((byte)0); // ???
+                    w.Write((byte)0); // ???
+                    w.Write((byte)0); // ???
+                    w.Write((byte)0); // unused?
 
-                b.EncodeCrazy(stats); // ((*global_gameData)->data).field_0x911c
+                    w.Write((short)1); // Planting
+                    w.Write((short)2); // Mining
+                    w.Write((short)3); // Woodcutting
+                    w.Write((short)4); // Gathering
+                    w.Write((short)5); // Forging
+                    w.Write((short)6); // Carpentry
+                    w.Write((short)7); // Cooking
+                    w.Write((short)8); // Tailoring
+
+                    w.Write((int)0); // Planting    progress
+                    w.Write((int)0); // Mining      progress
+                    w.Write((int)0); // Woodcutting progress
+                    w.Write((int)0); // Gathering   progress
+                    w.Write((int)0); // Forging     progress
+                    w.Write((int)0); // Carpentry   progress
+                    w.Write((int)0); // Cooking     progress
+                    w.Write((int)0); // Tailoring   progress
+                }
+                b.EncodeCrazy(stats);
             }
 
             b.Send(clientStream);
@@ -256,9 +386,6 @@ namespace Server {
 
             b.Add((byte)0x2); // first switch
             b.Add((byte)0x1); // second switch
-
-            /*var data = new byte[0x388C+1];
-            data[0x388C] = 1;*/
 
             b.EncodeCrazy(Array.Empty<byte>());
 
@@ -272,21 +399,39 @@ namespace Server {
             b.Add((byte)0x2); // first switch
             b.Add((byte)0x9); // second switch
 
-            b.Add((int)0);
+            b.Add((int)MapId); // map id
             b.Add((short)0);
             b.Add((short)0);
             b.Add((byte)0);
 
-            // b.EncodeCrazy(Array.Empty<byte>());
-            // b.EncodeCrazy(Array.Empty<byte>());
-
-            /*for(int i = 0; i < 64; i++) {
+            /*if(mapType == 3) {
+                b.EncodeCrazy(Array.Empty<byte>());
+                b.Add((int)0);
+                b.AddString("", 1);
                 b.Add((byte)0);
+                b.Add((byte)0);
+                b.EncodeCrazy(Array.Empty<byte>());
+                b.Add((int)0);
+            } else if(mapType == 4) {
+                b.EncodeCrazy(Array.Empty<byte>());
+                b.EncodeCrazy(Array.Empty<byte>());
             }*/
+
+            b.Add((byte)0);
+            /*
+            if(byte == 99) {
+                // have_data
+                b.Add((int)0);
+                b.AddString("", 2);
+            } else {
+                // no_data
+            }
+            */
 
             b.Send(clientStream);
         }
 
+        // (2, 6E)
         static void Send02_6E(Stream clientStream) {
             var b = new PacketBuilder();
 
@@ -294,18 +439,34 @@ namespace Server {
             b.Add((byte)0x6E); // second switch
 
             b.AddWstring("");
-            b.Add((int)30001); // map id?
+            b.Add((int)MapId); // map id?
             b.AddString("", 1);
 
-            b.Send(clientStream); 
+            b.Send(clientStream);
         }
+
+        // (2, 6F)
         static void Send02_6F(Stream clientStream) {
             var b = new PacketBuilder();
 
             b.Add((byte)0x02); // first switch
             b.Add((byte)0x6E); // second switch
-            
+
             b.Add((byte)0);
+
+            b.Send(clientStream);
+        }
+
+        // (5, 14)
+        static void Send05_14(Stream clientStream) {
+            var b = new PacketBuilder();
+
+            b.Add((byte)0x05); // first switch
+            b.Add((byte)0x14); // second switch
+
+            b.Add((byte)0x01);
+
+            b.AddString("https://google.de", 1);
 
             b.Send(clientStream);
         }
@@ -360,12 +521,26 @@ namespace Server {
             req.ReadByte(); // 0
 
             var data = PacketBuilder.DecodeCrazy(req);
+            // data.length == 124
 
-            var name = Encoding.Unicode.GetString(data);
+            var name = Encoding.Unicode.GetString(data[..64]);
             // cut of null terminated
             name = name[..name.IndexOf((char)0)];
-
             Console.WriteLine($"{name}");
+
+            var gender = data[64]; // 1 = male, 2 = female
+            var bloodType = data[65]; // 1 = O, 2 = A, 3 = B, 4 = AB
+            var birthMonth = data[66];
+            var birthDay = data[67];
+            var idk5 = new int[14];
+
+            // idk5[0] = skin id 
+            // idk5[2] = eye id
+            // idk5[6] = hair id
+            Buffer.BlockCopy(data, 68, idk5, 0, 14 * 4);
+            for(int i = 0; i < 14; i++) {
+                Console.WriteLine(idk5[i]);
+            }
 
             SendCharacterData(res, true);
         }
@@ -380,11 +555,9 @@ namespace Server {
                 var b = Encoding.ASCII.GetString(req.ReadBytes(bLen));
 
                 // name : version
-                Console.WriteLine($"{a} : {b}");
+                // Console.WriteLine($"{a} : {b}");
             }
 
-            // currently stuck on this
-            // TODO: figure out response message
             // Send02_6E(clientStream);
         }
         #endregion
@@ -406,9 +579,15 @@ namespace Server {
                 var data = reader.ReadBytes(reader.ReadUInt16());
 
                 if(data.Length == 1) {
-                    // source location 005bb8a9
-                    // data[0] == 0x7f
-                    break;
+#if DEBUG
+                    Console.WriteLine($"S <- C: {data[0]:X2}:");
+#endif
+                    /*if (data[0] == 0x7E) {
+                        // 005551be
+                    } else if (data[0] == 0x7F) {
+                        // 005bb8a9
+                    }*/
+                    continue;
                 }
 
                 var ms = new MemoryStream(data);
@@ -448,113 +627,281 @@ namespace Server {
                 // S <- C: 02_0B
 
                 switch(id) {
-                    case 0x00_01: // Auth
+                    case 0x00_01: // 0059af3e // Auth
                         AcceptClient(r, clientStream);
                         break;
-                    case 0x00_03: // after user selected world
+                    case 0x00_03: // 0059afd7 // after user selected world
                         SelectServer(r, clientStream);
                         break;
-                    case 0x00_04: // list of languages? sent after lobbyServer
+                    case 0x00_04: // 0059b08f // list of languages? sent after lobbyServer
                         ServerList(r, clientStream);
                         break;
-                    case 0x00_0B: // source location 0059b14a // sent after realmServer
+                    case 0x00_0B: // 0059b14a // source location 0059b14a // sent after realmServer
                         Recieve_00_0B(r, clientStream);
                         break;
-                    // case 0x00_10: // source location 0059b1ae // has something to do with T_LOADScreen // finished loading?
-                    case 0x00_63: // source location 0059b253
+                    case 0x00_10: // 0059b1ae // has something to do with T_LOADScreen // finished loading?
+                        break;
+                    case 0x00_63: // 0059b253
                         Ping(r, clientStream);
                         break;
 
-                    case 0x01_01: // source location 00566b0d // sent after character creation
+                    case 0x01_01: // 00566b0d // sent after character creation
                         CreateCharacter(r, clientStream);
                         break;
-                    case 0x01_02:
+                    case 0x01_02: // 00566b72
                         SendCharacterData(clientStream, true);
                         break;
-                    // case 0x01_03: // Delete character
-                    /*case 0x01_05: // check character name
+                    /*
+                    case 0x01_03: // 00566bce // Delete character
+                    case 0x01_05: // 00566c47 // check character name
                         // r.ReadInt16();
                         // rest wstring
                         break;*/
 
-                    case 0x02_01:
+                    case 0x02_01: // 005defa2
                         Send00_11(clientStream);
                         Send02_09(clientStream);
                         break;
-                    case 0x02_32: // source location 005dfb8c //  client version information
+                    case 0x02_02: // 005df036 // sent after 02_09
+                        break;
+                    /*
+                    case 0x02_04: // 005df0cb
+                    case 0x02_05: // 005df144 // open web form // maybe html request?
+                    case 0x02_06: // 005df1ca
+                    case 0x02_07: // 005df240
+                    case 0x02_08: // 005df2b4
+                    case 0x02_0A: // 005df368 // send teleport
+                    */
+                    case 0x02_0B: { // 005df415
+                            var mapId = r.ReadInt32();
+                            var hashHex = r.ReadBytes(32);
+                            break;
+                        }
+                    /*
+                    case 0x02_0C: // 005df48c
+                    case 0x02_0D: // 005df50c
+                    case 0x02_0E: // 005df580
+                    case 0x02_13: // 005df5e2
+                    */
+                    case 0x02_1A: { // 005df655 // sent after 02_09
+                            var winmTime = r.ReadInt32();
+                            break;
+                        }
+                    /*
+                    case 0x02_1f: // 005df6e3
+                    case 0x02_20: // 005df763
+                    case 0x02_21: // 005df7d8
+                    case 0x02_28: // 005df86e
+                    case 0x02_29: // 005df8e4
+                    case 0x02_2A: // 005df946
+                    case 0x02_2B: // 005df9cb
+                    case 0x02_2C: // 005dfa40
+                    case 0x02_2D: // 005dfab4
+                    */
+                    case 0x02_32: // 005dfb8c //  client version information
                         Recieve_02_32(r, clientStream);
                         break;
-
                     /*
-                    case 0x02_02: // source location 005df036 // sent after (2,9)
-                    case 0x02_05: // opening item mall? // maybe html request?
-                    case 0x02_04: // source location 005df0cb // sent after (2,9)
-                    case 0x02_1A: // source location 005df655 // sent after 0x202
+                    case 0x02_33: // 005dfc04
+                    case 0x02_34: // 005dfc78
+                    case 0x02_63: // 005dfcee
+ 
+                    case 0x03_01: // 005d2eec // map channel message
+                    case 0x03_02: // 005d2fa6
+                    case 0x03_05: // 005d3044 // normal channel message
+                    case 0x03_06: // 005d30dc // trade channel message
+                    case 0x03_07: // 005d3174
+                    case 0x03_08: // 005d320c // advice channel message
+                    case 0x03_0B: // 005d3288 change chat filter
+                    case 0x03_0C: // 005d331e
+                    case 0x03_0D: // 005d33a7 open private message
 
-                    case 0x03_01: // map channel message
-                    case 0x03_02:
-                    case 0x03_05: // normal channel message
-                    case 0x03_06: // trade channel message
-                    case 0x03_08: // advice channel message
-                    case 0x03_0A:
-                    case 0x03_0B: // change chat filter
-                    case 0x03_0D: // open private message
+                    case 0x04_01: // 0051afb7 // add friend
+                    case 0x04_02: // 0051b056 // mail
+                    case 0x04_03: // 0051b15e // delete friend
+                    case 0x04_04: // 0051b1d4 // set status message // 1 byte, 0 = avalible, 1 = busy, 2 = away
+                    case 0x04_05: // 0051b253 // add player to blacklist
+                    case 0x04_07: // 0051b31c // remove player from blacklist
 
-                    case 0x0E_14:
+                    case 0x05_01: // 00573de8
+                    case 0x05_02: //
+                    case 0x05_03: //
+                    case 0x05_04: //
+                    case 0x05_05: //
+                    case 0x05_06: //
+                    case 0x05_07: //
+                    case 0x05_08: //
+                    case 0x05_09: //
+                    case 0x05_0A: //
+                    case 0x05_0B: //
+                    case 0x05_0C: //
+                    case 0x05_11: //
+                    case 0x05_14: //
+                    case 0x05_15: //
+                    case 0x05_16: //
 
-                    case 0x04_01: // add friend
-                    case 0x04_02:
-                    case 0x04_03:
-                    case 0x04_04: // set status message // 1 byte, 0 = avalible, 1 = busy, 2 = away
-                    case 0x04_05: // add player to blacklist
-                    case 0x04_07:
+                    case 0x06_01: // 005a2513
 
-                    case 0x07_01:
-                    case 0x07_04:
+                    case 0x07_01: // 00529917
+                    case 0x07_04: // 005299a6
 
+                    case 0x08_01: //
+                    case 0x08_02: //
+                    case 0x08_03: //
+                    case 0x08_04: //
+                    case 0x08_06: //
+
+                    case 0x09_01: // 00586fd2
+                    case 0x09_02: // 
+                    case 0x09_03: // 
+                    case 0x09_06: // 
+                    case 0x09_0F: // 
+                    case 0x09_10: // 
+                    case 0x09_11: // 
                     case 0x09_20: // check item delivery available?
+                    case 0x09_21: // 
+                    case 0x09_22: // 
 
-                    case 0x0C_03:
-                    case 0x0C_07:
-                    case 0x0C_08:
-                    case 0x0C_09:
+                    case 0x0A_01: // 00581350
+                    case 0x0A_02: // 005813c4
+                    case 0x0A_03: // 0058148c
+                    case 0x0A_04: // 00581504
+                    case 0x0A_05: // 
+                    case 0x0A_06: // 
+                    case 0x0A_07: // 
+                    case 0x0A_08: // 
+                    case 0x0A_09: // 
+                    case 0x0A_0B: // 
+                    case 0x0A_0C: // 
+                    case 0x0A_0E: // 
+                    case 0x0A_0F: // 
+                    case 0x0A_16: // 
+                    case 0x0A_18: // 
+                    case 0x0A_19: // 
+                    case 0x0A_1A: // 
+                    case 0x0A_1B: // 
+                    case 0x0A_1C: // 
+                    case 0x0A_24: // 
+                    case 0x0A_25: // 
 
-                    case 0x0D_02:
-                    case 0x0D_03:
-                    case 0x0D_05:
-                    case 0x0D_06:
-                    case 0x0D_07:
-                    case 0x0D_09:
-                    case 0x0D_0A:
-                    case 0x0D_0B:
-                    case 0x0D_0C:
-                    case 0x0D_0D:
-                    case 0x0D_0E:
-                    case 0x0D_0F:
-                    case 0x0D_10:
-                    case 0x0D_11:
-                    case 0x0D_12:
-                    case 0x0D_13: // get pet information?
+                    case 0x0B_01: // 0054d96c
+                    case 0x0B_02: // 
+                    case 0x0B_03: // 
 
-                    case 0x0F_02: // source location 00511e18
-                    case 0x0F_03: // source location 00511e8c
-                    case 0x0F_04: // source location 00511f75
-                    case 0x0F_05: // source location 00512053
-                    case 0x0F_06: // source location 005120e6
-                    case 0x0F_07: // source location 00512176
-                    case 0x0F_09: // source location 005121da
-                    case 0x0F_0A: // source location 00512236
-                    case 0x0F_0B:
-                    case 0x0F_0C:
-                    case 0x0F_0D:
-                    case 0x0F_0E:
+                    case 0x0C_03: // 00537da8
+                    case 0x0C_07: // 00537e23
+                    case 0x0C_08: // 00537e98
+                    case 0x0C_09: // 00537f23
 
-                    case 0x11_01: // source location 0059b6b4
+                    case 0x0D_02: // 00536928
+                    case 0x0D_03: // 0053698a
+                    case 0x0D_05: // 00536a60
+                    case 0x0D_06: // 00536ae8
+                    case 0x0D_07: // 00536b83
+                    case 0x0D_09: // 00536bea
+                    case 0x0D_0A: // 00536c6c
+                    case 0x0D_0B: // 00536cce
+                    case 0x0D_0C: // 00536d53
+                    case 0x0D_0D: // 00536dc8
+                    case 0x0D_0E: // 00536e6e
+                    case 0x0D_0F: // 00536ee8
+                    case 0x0D_10: // 00536f73
+                    case 0x0D_11: // 00536fe8
+                    case 0x0D_12: // 0053705c
+                    case 0x0D_13: // 005370be // get pet information?
 
-                    case 0x12_01:
-                    case 0x12_02:
+                    case 0x0E_01: // 0054ddb4
+                    case 0x0E_02: //
+                    case 0x0E_03: //
+                    case 0x0E_04: //
+                    case 0x0E_05: //
+                    case 0x0E_06: //
+                    case 0x0E_07: //
+                    case 0x0E_09: //
+                    case 0x0E_0A: //
+                    case 0x0E_0B: //
+                    case 0x0E_14: //
+
+                    case 0x0F_02: // 00511e18
+                    case 0x0F_03: // 00511e8c
+                    case 0x0F_04: // 00511f75
+                    case 0x0F_05: // 00512053
+                    case 0x0F_06: // 005120e6
+                    case 0x0F_07: // 00512176
+                    case 0x0F_09: // 005121da
+                    case 0x0F_0A: // 00512236
+                    case 0x0F_0B: // 005122a4
+                    case 0x0F_0C: // 0051239d
+                    case 0x0F_0D: // 0051242c
+                    case 0x0F_0E: // 005124f7
+
+                    case 0x10_01: // 
+
+                    case 0x11_01: // 0059b6b4
+
+                    case 0x12_01: // 0052807b
+                    case 0x12_02: // 005280f6
 
                     case 0x13_01: // add player to group
+                    case 0x13_02: //
+                    case 0x13_03: //
+                    case 0x13_04: //
+                    case 0x13_05: //
+                    case 0x13_06: //
+                    case 0x13_07: //
+                    case 0x13_08: //
+                    case 0x13_09: //
+                    case 0x13_0A: //
+                    case 0x13_0B: //
+                    case 0x13_0C: //
+                    case 0x13_0D: //
+
+                    case 0x14_01: //
+
+                    case 0x15_01: //
+                    case 0x15_02: //
+                    case 0x15_03: //
+                    case 0x15_04: //
+
+                    case 0x16_01: //
+                    case 0x16_02: // start tutorial?
+
+                    case 0x17_01: // 0053a183
+                    case 0x17_02: // 
+                    case 0x17_03: // 
+                    case 0x17_04: // 
+                    case 0x17_05: // 
+                    case 0x17_06: // 
+
+                    case 0x19_01: // 
+                    case 0x19_02: // 
+                    case 0x19_03: // 
+
+                    case 0x1C_01: //
+                    case 0x1C_02: //
+                    case 0x1C_03: //
+                    case 0x1C_04: //
+                    case 0x1C_0A: //
+
+                    case 0x1F_01: // 
+                    case 0x1F_02: // 
+                    case 0x1F_03: // 
+                    case 0x1F_04: // 
+                    case 0x1F_06: // 
+                    case 0x1F_07: // 
+                    case 0x1F_0B: // 
+
+                    case 0x20_03: //
+                    case 0x20_04: //
+                    
+                    case 0x21_03: // 00538ce8
+                    
+                    case 0x22_03: // 
+                    case 0x22_04: // 
+                    case 0x22_05: // 
+                    case 0x22_06: // 
+
+                    case 0x23_01: // 005a19da
                     */
 
                     default:

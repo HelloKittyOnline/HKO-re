@@ -76,7 +76,7 @@ namespace Server {
             if (data.Length == 0) return;
 
             // don't bother encoding just use raw
-            Add(0x82);
+            Add((byte)0x82);
 
             foreach(var t in data) Add(t);
         }
