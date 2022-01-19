@@ -21,21 +21,21 @@ namespace Server {
         }
 
         public void AddString(string str, int pre = 1) {
-            switch (pre) {
+            switch(pre) {
                 case 1:
-                    if (str.Length > 255) {
+                    if(str.Length > 255) {
                         throw new ArgumentOutOfRangeException("string too long");
                     }
                     data.Add((byte)str.Length);
                     break;
                 case 2:
-                    if (str.Length > 65535) {
+                    if(str.Length > 65535) {
                         throw new ArgumentOutOfRangeException("string too long");
                     }
                     Add((short)str.Length);
                     break;
                 case 4:
-                    if (str.Length > 65535) {
+                    if(str.Length > 65535) {
                         throw new ArgumentOutOfRangeException("string too long");
                     }
                     Add(str.Length);
@@ -49,7 +49,7 @@ namespace Server {
         public void AddWstring(string str) {
             var dat = Encoding.Unicode.GetBytes(str);
 
-            if (dat.Length > 65535) {
+            if(dat.Length > 65535) {
                 throw new ArgumentOutOfRangeException("string too long");
             }
             Add((short)dat.Length);
@@ -63,17 +63,20 @@ namespace Server {
             data[4] = (byte)(length >> 8);
 
 #if DEBUG
-            Console.WriteLine($"S -> C: {data[5]:X2}_{data[6]:X2}");
+            if(data.Count >= 7) Console.WriteLine($"S -> C: {data[5]:X2}_{data[6]:X2}");
 #endif
 
-            stream.Write(data.ToArray(), 0, data.Count);
+            var arr = data.ToArray();
+            lock(stream) {
+                stream.Write(arr, 0, data.Count);
+            }
         }
 
         public void EncodeCrazy(byte[] data) {
             Add((short)(data.Length + 1));
             Add((short)data.Length);
 
-            if (data.Length == 0) return;
+            if(data.Length == 0) return;
 
             // don't bother encoding just use raw
             Add((byte)0x82);
@@ -103,7 +106,7 @@ namespace Server {
                 int loopCounter = 0x10;
 
                 while(read < size) {
-                    if (loopCounter == 0) {
+                    if(loopCounter == 0) {
                         byteMask = (req.ReadByte() << 8) | req.ReadByte();
                         read += 2;
                         loopCounter = 0x10;
@@ -118,7 +121,7 @@ namespace Server {
 
                         var copyCount = (ushort)((a << 4) | (b >> 4));
 
-                        if (copyCount == 0) {
+                        if(copyCount == 0) {
                             copyCount = (ushort)(((b << 8) | req.ReadByte()) + 0x10);
                             var copy = req.ReadByte();
                             read += 2;
@@ -130,7 +133,7 @@ namespace Server {
                             int sVar3 = (b & 0xF) + 3;
 
                             int off = output.Count;
-                            for (int i = 0; i < sVar3; i++) {
+                            for(int i = 0; i < sVar3; i++) {
                                 output.Add(output[off - copyCount + i]);
                             }
                         }
