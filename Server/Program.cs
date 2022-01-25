@@ -1,11 +1,19 @@
-﻿using System;
+using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
+using Extractor;
 
 namespace Server {
     partial class Program {
+        private static DataBase database;
+
+        private static T_Teleport[] teleporters;
+        private static T_NPCName[] npcs;
+
         static void listenClient(TcpClient socket, bool lobby) {
             Console.WriteLine($"Client {socket.Client.RemoteEndPoint} {socket.Client.LocalEndPoint}");
 
@@ -14,7 +22,10 @@ namespace Server {
 
             SendLobby(clientStream, lobby);
 
-            while(true) {
+            Account account = null;
+
+            bool running = true;
+            while(running) {
                 var head = reader.ReadBytes(3);
                 if(head.Length == 0) {
                     break;
@@ -23,15 +34,12 @@ namespace Server {
                 var data = reader.ReadBytes(reader.ReadUInt16());
 
                 if(data.Length == 1) {
-#if DEBUG
-                    Console.WriteLine($"S <- C: {data[0]:X2}:");
-#endif
-                    if (data[0] == 0x7E) { // 005551be
-                    } else if (data[0] == 0x7F) { // 005bb8a9
+                    if(data[0] == 0x7E) { // 005551be
+                    } else if(data[0] == 0x7F) { // 005bb8a9
                         // reset timeout
                         var b = new PacketBuilder();
 
-                        b.Add((byte)0x7F);
+                        b.WriteByte(0x7F);
 
                         b.Send(clientStream);
                     }
@@ -42,6 +50,11 @@ namespace Server {
                 var r = new BinaryReader(ms);
 
                 var id = (r.ReadByte() << 8) | r.ReadByte();
+
+                if(account == null && id != 1) {
+                    // invalid data
+                    break;
+                }
 
 #if DEBUG
                 if(id != 0x0063) { // skip ping
@@ -71,11 +84,18 @@ namespace Server {
                 // S -> C: 02_01
                 // S -> C: 02_09
                 // S -> C: 02_12
-                // ...
+                // S <- C: 00_10
+                // S <- C: 02_32
+                // S <- C: 02_02
+                // S <- C: 02_1A
+                // S <- C: 02_0B
 
                 switch(id) {
                     case 0x00_01: // 0059af3e // Auth
-                        AcceptClient(r, clientStream);
+                        account = AcceptClient(r, clientStream);
+                        if(account == null) { // login failed
+                            running = false;
+                        }
                         break;
                     case 0x00_03: // 0059afd7 // after user selected world
                         SelectServer(r, clientStream);
@@ -86,58 +106,69 @@ namespace Server {
                     case 0x00_0B: // 0059b14a // source location 0059b14a // sent after realmServer
                         Recieve_00_0B(r, clientStream);
                         break;
-                    // case 0x00_10: break; // 0059b1ae // has something to do with T_LOADScreen // finished loading?
+                    case 0x00_10: // 0059b1ae // has something to do with T_LOADScreen // finished loading?
+                        break;
                     case 0x00_63: // 0059b253
                         Ping(r, clientStream);
                         break;
 
                     case 0x01_01: // 00566b0d // sent after character creation
-                        CreateCharacter(r, clientStream);
+                        CreateCharacter(r, clientStream, account);
                         break;
                     case 0x01_02: // 00566b72
-                        SendCharacterData(clientStream, true);
+                        GetCharacter(r, clientStream, account.PlayerData);
+                        break;
+                    case 0x01_03: // 00566bce // Delete character
+                        DeleteCharacter(r, clientStream);
+                        account.PlayerData = null;
+                        SendCharacterData(clientStream, null);
                         break;
                     /*
-                    case 0x01_03: // 00566bce // Delete character
                     case 0x01_05: // 00566c47 // check character name
                         // r.ReadInt16();
                         // rest wstring
                         break;*/
 
                     case 0x02_01: // 005defa2
-                        Send00_11(clientStream);
-                        Send02_01(clientStream);
-                        Send02_09(clientStream);
-                        Send02_12(clientStream);
+                        Recieve_02_01(r, clientStream, account.PlayerData);
                         break;
-                    /*
-                    case 0x02_02: // 005df036 // sent after 02_09
-                    case 0x02_04: // 005df0cb
+                    case 0x02_02: // 005df036 // sent after map load
+                        break;
+                    case 0x02_04: // 005df0cb // player walking
+                        Recieve_02_04(r, clientStream, account.PlayerData);
+                        break;
                     case 0x02_05: // 005df144 // open web form // maybe html request?
-                    case 0x02_06: // 005df1ca
-                    case 0x02_07: // 005df240
-                    case 0x02_08: // 005df2b4
-                    case 0x02_0A: // 005df368 // send teleport
-                    */
-                    case 0x02_0B: { // 005df415
-                        var mapId = r.ReadInt32();
-                        var hashHex = r.ReadBytes(32);
+                        Recieve_02_05(r, clientStream);
                         break;
-                    }
+                    case 0x02_06: // 005df1ca // emotes
+                        Recieve_02_06(r, clientStream);
+                        break;
+                    case 0x02_07: // 005df240 // player rotation changed
+                        Recieve_02_07(r, clientStream);
+                        break;
+                    case 0x02_08: // 005df2b4 // player state (sitting/standing)
+                        Recieve_02_08(r, clientStream);
+                        break;
+                    case 0x02_0A: // 005df368 // teleport map
+                        ChangeMap(r, clientStream, account.PlayerData);
+                        break;
+                    case 0x02_0B: // 005df415
+                        Recieve_02_0B(r, clientStream);
+                        break;
                     /*
                     case 0x02_0C: // 005df48c
                     case 0x02_0D: // 005df50c
                     case 0x02_0E: // 005df580
                     case 0x02_13: // 005df5e2
                     */
-                    case 0x02_1A: { // 005df655 // sent after 02_09
-                        var winmTime = r.ReadInt32();
+                    case 0x02_1A: // 005df655 // sent after 02_09
+                        Recieve_02_1A(r, clientStream);
                         break;
-                    }
-                    /*
-                    case 0x02_1f: // 005df6e3
-                    case 0x02_20: // 005df763
-                    case 0x02_21: // 005df7d8
+                    // case 0x02_1f: // 005df6e3
+                    case 0x02_20: // 005df763 // change player info
+                        Recieve_02_20(r, clientStream);
+                        break;
+                    /* case 0x02_21: // 005df7d8
                     case 0x02_28: // 005df86e
                     case 0x02_29: // 005df8e4
                     case 0x02_2A: // 005df946
@@ -162,17 +193,27 @@ namespace Server {
                     case 0x03_0B: // 005d3288 change chat filter
                     case 0x03_0C: // 005d331e
                     case 0x03_0D: // 005d33a7 open private message
-
+                    */
                     case 0x04_01: // 0051afb7 // add friend
-                    case 0x04_02: // 0051b056 // mail
+                        AddFriend(r, clientStream);
+                        break;
+                    /*case 0x04_02: // 0051b056 // mail
                     case 0x04_03: // 0051b15e // delete friend
+                    */
                     case 0x04_04: // 0051b1d4 // set status message // 1 byte, 0 = avalible, 1 = busy, 2 = away
+                        SetStatus(r, clientStream);
+                        break;
                     case 0x04_05: // 0051b253 // add player to blacklist
-                    case 0x04_07: // 0051b31c // remove player from blacklist
+                        AddBlacklist(r, clientStream);
+                        break;
+                    // case 0x04_07: // 0051b31c // remove player from blacklist
 
                     case 0x05_01: // 00573de8
-                    case 0x05_02: //
-                    case 0x05_03: //
+                        Recieve_05_01(r, clientStream);
+                        break;
+                    case 0x05_02: // 00573e4a // npc data ack?
+                        break;
+                    /*case 0x05_03: //
                     case 0x05_04: //
                     case 0x05_05: //
                     case 0x05_06: //
@@ -205,8 +246,11 @@ namespace Server {
                     case 0x09_0F: // 
                     case 0x09_10: // 
                     case 0x09_11: // 
+                    */
                     case 0x09_20: // check item delivery available?
-                    case 0x09_21: // 
+                        Recieve_09_20(r, clientStream);
+                        break;
+                    /*case 0x09_21: // 
                     case 0x09_22: // 
 
                     case 0x0A_01: // 00581350
@@ -255,9 +299,11 @@ namespace Server {
                     case 0x0D_10: // 00536f73
                     case 0x0D_11: // 00536fe8
                     case 0x0D_12: // 0053705c
+                    */
                     case 0x0D_13: // 005370be // get pet information?
-
-                    case 0x0E_01: // 0054ddb4
+                        Recieve_0D_13(r, clientStream);
+                        break;
+                    /*case 0x0E_01: // 0054ddb4
                     case 0x0E_02: //
                     case 0x0E_03: //
                     case 0x0E_04: //
@@ -288,9 +334,11 @@ namespace Server {
 
                     case 0x12_01: // 0052807b
                     case 0x12_02: // 005280f6
-
-                    case 0x13_01: // add player to group
-                    case 0x13_02: //
+                    */
+                    case 0x13_01: // 00578950 // add player to group
+                        Recieve_13_01(r, clientStream);
+                        break;
+                    /*case 0x13_02: //
                     case 0x13_03: //
                     case 0x13_04: //
                     case 0x13_05: //
@@ -357,6 +405,10 @@ namespace Server {
                         break;
                 }
             }
+
+            if(account != null) {
+                Console.WriteLine($"Player {account.Username} disconnected");
+            }
         }
 
         static void Server(int port, bool lobby) {
@@ -372,12 +424,32 @@ namespace Server {
                     } catch(Exception e) {
                         Console.WriteLine(e);
                     }
-                    Console.WriteLine("Thread 1 done");
                 });
             }
         }
 
         static void Main(string[] args) {
+            database = DataBase.Load("./db.json");
+            Task.Run(() => {
+                while(true) {
+                    Thread.Sleep(60 * 1000); // saved once a minute
+                    // not sure about thread safety eh
+                    try {
+                        lock(database) {
+                            database.Save("./db.json");
+                        }
+                        Console.WriteLine("Saved Database");
+                    } catch(Exception e) {
+                        Console.WriteLine(e);
+                    }
+                }
+            });
+
+            var archive = SeanArchive.Extract("./client_table_eng.sdb");
+            teleporters = T_Teleport.Load(archive.First(x => x.Name == "teleport_list.txt"));
+            npcs = T_NPCName.Load(archive.First(x => x.Name == "npc_list.txt"));
+            // res = T_Res.Load(archive.First(x => x.Name == "res_list.txt"));
+
             Server(25000, true);
         }
     }

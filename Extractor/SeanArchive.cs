@@ -4,7 +4,7 @@ using System.Linq;
 using Ionic.Zlib;
 
 namespace Extractor {
-    static class Sdb {
+    public static class SeanArchive {
         public class Item {
             public string Name;
             public byte[] Contents;

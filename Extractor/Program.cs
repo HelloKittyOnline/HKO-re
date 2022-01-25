@@ -1,72 +1,44 @@
-﻿using System;
+using System;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Extractor {
     class Program {
-        static int PatternAt(byte[] source, byte[] pattern) {
-            // TODO: make this more efficient
-            for (int i = 0; i < source.Length; i++) {
-                if (source.Skip(i).Take(pattern.Length).SequenceEqual(pattern)) {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
-
         static void PatchSdb() {
-            var pattern = Encoding.ASCII.GetBytes("ip:");
-            var replace = Encoding.ASCII.GetBytes("127.0.0.1");
-
-            foreach (var file in Directory.GetFiles("C:/Program Files (x86)/SanrioTown/Hello Kitty Online/tables", "*.sdb")) {
-                var data = Sdb.Extract(file);
+            foreach(var file in Directory.GetFiles("D:\\Daten\\Dokumente\\C#\\HKO\\HKO\\game\\tables", "*.sdb")) {
+                var data = SeanArchive.Extract(file);
 
                 bool patched = false;
 
                 foreach(var item in data) {
-                    var pos = PatternAt(item.Contents, pattern);
-                    if (pos == -1) continue;
-                    
-                    var dat = item.Contents.ToList();
-
-                    pos += 3;
-                    dat.RemoveRange(pos, dat.Count - pos);
-                    dat.AddRange(replace);
-                    dat.Add(0);
-
-                    while (dat.Count % 4 != 0) {
-                        dat.Add(0);
-                    }
-
-                    item.Contents = dat.ToArray();
-                    
+                    if(item.Name != "lobby_info.txt") continue;
+                    var dat = new SeanDatabase(item.Contents);
+                    dat.Strings[4] = "ip:127.0.0.1";
+                    item.Contents = dat.Save();
                     patched = true;
                 }
 
-                if (!patched) continue;
+                if(!patched) continue;
 
                 var path = "C:/Program Files (x86)/SanrioTown/Hello Kitty Online/tables/" + Path.GetFileName(file);
-                var rep = Sdb.Create(data);
+                var rep = SeanArchive.Create(data);
 
-                if (!File.Exists(path + ".old")) {
+                if(!File.Exists(path + ".old")) {
                     File.Move(path, path + ".old");
                 }
                 File.WriteAllBytes(path, rep);
                 Console.WriteLine($"Patched {path}");
             }
         }
-        
+
         static void ExtractData(string dir) {
             var files = Directory.GetFiles("C:/Program Files (x86)/SanrioTown/Hello Kitty Online/data/", "*.*", SearchOption.AllDirectories);
 
             Parallel.ForEach(files, file => {
                 var outPath = Path.Combine(dir, file.Split(Path.DirectorySeparatorChar)[^2], Path.GetFileNameWithoutExtension(file));
                 Directory.CreateDirectory(outPath);
-                
-                switch (Path.GetExtension(file).ToLower()) {
+
+                switch(Path.GetExtension(file).ToLower()) {
                     case ".man": Man.Extract(file, outPath); break;
                     case ".ani": Ani.Extract(file, outPath); break;
                     case ".map": Map.Extract(file, outPath); break;
@@ -101,9 +73,6 @@ namespace Extractor {
                     ExtractData(args[1]);
                     break;
             }
-
-            // PatchSdb();
-            // ExtractData("D:/Daten/Desktop/extract/");
         }
     }
 }

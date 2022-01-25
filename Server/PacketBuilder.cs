@@ -1,49 +1,64 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace Server {
     class PacketBuilder {
-        private List<byte> data = Encoding.ASCII.GetBytes("^%*\0\0").ToList();
+        // private List<byte> data = Encoding.ASCII.GetBytes("^%*\0\0").ToList();
+        private MemoryStream buffer;
+        private BinaryWriter writer;
 
-        public void Add(byte v) {
-            data.Add(v);
+        private bool CompressMode = false;
+        private int CompressPos = 0;
+
+        public PacketBuilder() {
+            buffer = new MemoryStream();
+            writer = new BinaryWriter(buffer);
+
+            WriteByte((byte)'^');
+            WriteByte((byte)'%');
+            WriteByte((byte)'*');
+            WriteShort(0);
         }
 
-        public void Add(short v) {
-            data.AddRange(BitConverter.GetBytes(v));
+        public void WriteByte(byte v) {
+            writer.Write(v);
         }
 
-        public void Add(int v) {
-            data.AddRange(BitConverter.GetBytes(v));
+        public void WriteShort(short v) {
+            writer.Write(v);
         }
 
-        public void AddString(string str, int pre = 1) {
+        public void WriteInt(int v) {
+            writer.Write(v);
+        }
+
+        public void AddString(string str, int pre) {
             switch(pre) {
                 case 1:
                     if(str.Length > 255) {
                         throw new ArgumentOutOfRangeException("string too long");
                     }
-                    data.Add((byte)str.Length);
+                    WriteByte((byte)str.Length);
                     break;
                 case 2:
                     if(str.Length > 65535) {
                         throw new ArgumentOutOfRangeException("string too long");
                     }
-                    Add((short)str.Length);
+                    WriteShort((short)str.Length);
                     break;
                 case 4:
                     if(str.Length > 65535) {
                         throw new ArgumentOutOfRangeException("string too long");
                     }
-                    Add(str.Length);
+                    WriteInt(str.Length);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException("invalid pre size");
             }
-            data.AddRange(Encoding.ASCII.GetBytes(str));
+            writer.Write(Encoding.UTF8.GetBytes(str));
         }
 
         public void AddWstring(string str) {
@@ -52,36 +67,65 @@ namespace Server {
             if(dat.Length > 65535) {
                 throw new ArgumentOutOfRangeException("string too long");
             }
-            Add((short)dat.Length);
-            data.AddRange(dat);
+            WriteShort((short)dat.Length);
+            writer.Write(dat);
         }
 
         public void Send(Stream stream) {
+            var buf = buffer.GetBuffer();
+
             // update data length
-            var length = data.Count - 5;
-            data[3] = (byte)(length & 0xFF);
-            data[4] = (byte)(length >> 8);
+            var dataLength = buffer.Position - 5;
+            buf[3] = (byte)(dataLength & 0xFF);
+            buf[4] = (byte)(dataLength >> 8);
 
 #if DEBUG
-            if(data.Count >= 7) Console.WriteLine($"S -> C: {data[5]:X2}_{data[6]:X2}");
+            if(dataLength >= 2) Console.WriteLine($"S -> C: {buf[5]:X2}_{buf[6]:X2}");
 #endif
-
-            var arr = data.ToArray();
             lock(stream) {
-                stream.Write(arr, 0, data.Count);
+                stream.Write(buf, 0, (int)buffer.Position);
+            }
+        }
+
+        public void BeginCompress() {
+            if(CompressMode) throw new Exception("Already in compression mode");
+            CompressMode = true;
+            CompressPos = (int)buffer.Position;
+
+            WriteShort(0); // placeholder for length
+            WriteShort(0);
+            WriteByte(0x82); // don't bother encoding just use raw
+        }
+
+        public void EndCompress() {
+            if(!CompressMode) throw new Exception("Have to be in compression mode");
+            CompressMode = false;
+
+            var pos = buffer.Position;
+            var len = pos - CompressPos - 5;
+
+            Debug.Assert(len <= ushort.MaxValue);
+
+            if(len == 0) {
+                writer.Seek(-1, SeekOrigin.Current);
+            } else {
+                writer.Seek(CompressPos, SeekOrigin.Begin);
+                writer.Write((short)(len + 1));
+                writer.Write((short)len);
+                writer.Seek((int)pos, SeekOrigin.Begin);
             }
         }
 
         public void EncodeCrazy(byte[] data) {
-            Add((short)(data.Length + 1));
-            Add((short)data.Length);
+            WriteShort((short)(data.Length + 1));
+            WriteShort((short)data.Length);
 
             if(data.Length == 0) return;
 
             // don't bother encoding just use raw
-            Add((byte)0x82);
+            WriteByte(0x82);
 
-            foreach(var t in data) Add(t);
+            writer.Write(data);
         }
 
         public static byte[] DecodeCrazy(BinaryReader req) {
@@ -144,7 +188,7 @@ namespace Server {
                 return output.ToArray();
             }
 
-            return null;
+            throw new Exception("Invalid format");
         }
     }
 }

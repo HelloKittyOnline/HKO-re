@@ -20,17 +20,13 @@ namespace Extractor {
         }
 
         public static string ReadCString(this BinaryReader reader) {
-            string res = "";
-
+            List<byte> buffer = new List<byte>();
             while (true) {
                 var c = reader.ReadByte();
-                if (c == 0) {
-                    break;
-                }
-                res += (char)c;
+                if (c == 0) break;
+                buffer.Add(c);
             }
-
-            return res;
+            return Encoding.UTF8.GetString(buffer.ToArray());
         }
         public static string ReadCString(this BinaryReader reader, int length) {
             return CstrToString(reader.ReadBytes(length));

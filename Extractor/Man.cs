@@ -172,7 +172,11 @@ namespace Extractor {
             if (reader.BaseStream.Position < reader.BaseStream.Length) {
                 if (reader.ReadUInt16() == 0x3039) {
                     if (!Helper.ReadZZZ(reader, out alpha)) {
-                        alpha = useRle ? RleDecompress(reader.ReadBytes(alphaSize), width * height) : reader.ReadBytes(width * height);
+                        alpha = reader.ReadBytes(alphaSize);
+                    }
+
+                    if (useRle) {
+                        alpha = RleDecompress(alpha, width * height);
                     }
                 } else {
                     reader.BaseStream.Position -= 2;
