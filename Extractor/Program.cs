@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace Extractor {
     class Program {
         static void PatchSdb() {
-            foreach(var file in Directory.GetFiles("D:\\Daten\\Dokumente\\C#\\HKO\\HKO\\game\\tables", "*.sdb")) {
+            foreach(var file in Directory.GetFiles("C:/Program Files (x86)/SanrioTown/Hello Kitty Online/tables", "*.sdb")) {
                 var data = SeanArchive.Extract(file);
 
                 bool patched = false;
