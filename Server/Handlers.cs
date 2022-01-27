@@ -25,12 +25,12 @@ namespace Server {
         }
 
         // 00_03
-        static void SelectServer(BinaryReader req, Stream res) {
+        static void SelectServer(BinaryReader req, Stream res, PlayerData player) {
             int serverNum = req.ReadInt16();
             int worldNum = req.ReadInt16();
 
             // SendChangeServer(res);
-            SendLobby(res, false);
+            SendLobby(res, false, player.Id);
         }
 
         // 00_04

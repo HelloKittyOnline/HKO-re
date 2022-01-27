@@ -24,7 +24,7 @@ namespace Server {
 
         public static int GetId() {
             if(AvalibleIds.Count == 0) {
-                return MaxId++;
+                return ++MaxId;
             } else {
                 int id = AvalibleIds.First();
                 AvalibleIds.Remove(id);

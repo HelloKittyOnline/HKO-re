@@ -22,7 +22,7 @@ namespace Server {
             var clientStream = socket.GetStream();
             var reader = new BinaryReader(clientStream);
 
-            SendLobby(clientStream, lobby);
+            SendLobby(clientStream, lobby, 1);
 
             Account account = null;
 
@@ -100,7 +100,7 @@ namespace Server {
                         }
                         break;
                     case 0x00_03: // 0059afd7 // after user selected world
-                        SelectServer(r, clientStream);
+                        SelectServer(r, clientStream, account.PlayerData);
                         break;
                     case 0x00_04: // 0059b08f // list of languages? sent after lobbyServer
                         ServerList(r, clientStream);

@@ -23,6 +23,10 @@ namespace Server {
             WriteShort(0);
         }
 
+        public void Write(byte[] buffer) {
+            writer.Write(buffer);
+        }
+
         public void WriteByte(byte v) {
             writer.Write(v);
         }

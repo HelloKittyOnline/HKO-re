@@ -1,11 +1,12 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace Server {
     partial class Program {
         // 00_01
-        public static void SendLobby(Stream clientStream, bool lobby) {
+        public static void SendLobby(Stream clientStream, bool lobby, int playerId) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -14,7 +15,7 @@ namespace Server {
             b.AddString(lobby ? "LobbyServer" : "RealmServer", 1);
 
             b.WriteShort(0); // (*global_hko_client)->field_0xec
-            b.WriteShort(1); // (*global_hko_client)->playerId
+            b.WriteShort((short)playerId);
 
             b.Send(clientStream);
         }
@@ -321,8 +322,10 @@ namespace Server {
                 b.WriteByte(0);
             }
             // null terminated wchar string
-            for(int i = 0; i < 32; i++) {
-                b.WriteShort(0);
+            { // player name
+                var bytes = Encoding.Unicode.GetBytes(player.Name);
+                b.Write(bytes);
+                b.Write0(64 - bytes.Length);
             }
 
             // maybe this is not intended and i'm writing out of bounds here. can't tell
