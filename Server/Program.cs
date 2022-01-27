@@ -11,8 +11,10 @@ namespace Server {
     partial class Program {
         private static DataBase database;
 
-        private static T_Teleport[] teleporters;
-        private static T_NPCName[] npcs;
+        private static Teleport[] teleporters;
+        private static NPCName[] npcs;
+        private static Resource[] resources;
+        private static ResCounter[] lootTables;
 
         static void listenClient(TcpClient socket, bool lobby) {
             Console.WriteLine($"Client {socket.Client.RemoteEndPoint} {socket.Client.LocalEndPoint}");
@@ -227,9 +229,11 @@ namespace Server {
                     case 0x05_14: //
                     case 0x05_15: //
                     case 0x05_16: //
-
+                    */
                     case 0x06_01: // 005a2513
-
+                        Recieve_06_01(r, clientStream, account.PlayerData);
+                        break;
+                    /*
                     case 0x07_01: // 00529917
                     case 0x07_04: // 005299a6
 
@@ -238,12 +242,18 @@ namespace Server {
                     case 0x08_03: //
                     case 0x08_04: //
                     case 0x08_06: //
-
+                    */
                     case 0x09_01: // 00586fd2
+                        Recieve_09_01(r, clientStream, account.PlayerData);
+                        break;
+                    /*
                     case 0x09_02: // 
                     case 0x09_03: // 
+                    */
                     case 0x09_06: // 
-                    case 0x09_0F: // 
+                        SplitItem(r, clientStream, account.PlayerData);
+                        break;
+                    /*case 0x09_0F: // 
                     case 0x09_10: // 
                     case 0x09_11: // 
                     */
@@ -446,9 +456,10 @@ namespace Server {
             });
 
             var archive = SeanArchive.Extract("./client_table_eng.sdb");
-            teleporters = T_Teleport.Load(archive.First(x => x.Name == "teleport_list.txt"));
-            npcs = T_NPCName.Load(archive.First(x => x.Name == "npc_list.txt"));
-            // res = T_Res.Load(archive.First(x => x.Name == "res_list.txt"));
+            teleporters = Teleport.Load(archive.First(x => x.Name == "teleport_list.txt"));
+            npcs = NPCName.Load(archive.First(x => x.Name == "npc_list.txt"));
+            resources = Resource.Load(archive.First(x => x.Name == "res_list.txt"));
+            lootTables = ResCounter.Load(archive.First(x => x.Name == "res_counter.txt"));
 
             Server(25000, true);
         }

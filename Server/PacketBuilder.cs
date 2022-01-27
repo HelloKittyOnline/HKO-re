@@ -34,6 +34,11 @@ namespace Server {
         public void WriteInt(int v) {
             writer.Write(v);
         }
+        public void Write0(int bytes) {
+            for (int i = 0; i < bytes; i++) {
+                writer.Write((byte)0);
+            }
+        }
 
         public void AddString(string str, int pre) {
             switch(pre) {

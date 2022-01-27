@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Server {
     class Account {
@@ -12,12 +13,35 @@ namespace Server {
         public byte[] Salt { get; set; }
         public byte[] Password { get; set; }
 
+        [JsonIgnore]
+        public int PlayerId { get; set; }
         public PlayerData PlayerData { get; set; }
+    }
+
+    class IdManager {
+        private static HashSet<int> AvalibleIds = new HashSet<int>();
+        private static int MaxId = 0;
+
+        public static int GetId() {
+            if(AvalibleIds.Count == 0) {
+                return MaxId++;
+            } else {
+                int id = AvalibleIds.First();
+                AvalibleIds.Remove(id);
+                return id;
+            }
+        }
+        public static void FreeId(int id) {
+            if(id == MaxId) {
+                MaxId--;
+            } else {
+                AvalibleIds.Add(id);
+            }
+        }
     }
 
     class DataBase {
         public Dictionary<string, Account> Accounts { get; set; }
-        public int IdCounter { get; set; }
 
         public DataBase() {
             Accounts = new Dictionary<string, Account>();

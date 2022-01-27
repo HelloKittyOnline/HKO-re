@@ -176,10 +176,21 @@ namespace Server {
             b.Send(clientStream);
         }
 
-        public static void writeInvItem(PacketBuilder w) {
-            w.WriteInt(0); // id
-            w.WriteInt(0);
-            w.WriteInt(0);
+        public static void writeInvItem(PacketBuilder w, InventoryItem item) {
+            w.WriteInt(item.Id); // id
+
+            w.WriteByte(item.Count); // count
+            w.WriteByte(item.Durability); // durability
+            w.WriteByte(0); // pet something
+            w.WriteByte(0); // unused?
+
+            w.WriteByte(0); // idk
+            w.WriteByte(0); // idk
+            w.WriteByte(0); // idk
+            w.WriteByte(0); // flags
+            // f & 1 = 
+            // f & 2 = 
+            // f & 4 = scrapped?
         }
         public static void writeFriend(PacketBuilder w) {
             // name - wchar[32]
@@ -231,31 +242,26 @@ namespace Server {
                 for(int i = 0; i < 10; i++)
                     b.WriteInt(0); // quick bar
 
-                for(int i = 0; i < 76; i++)
-                    b.WriteInt(0); // idk
+                b.Write0(76); // idk
 
-                for(int i = 0; i < 14; i++)
-                    writeInvItem(b); // inv1
-                for(int i = 0; i < 6; i++)
-                    writeInvItem(b); // inv2
-                for(int i = 0; i < 50; i++)
-                    writeInvItem(b); // inv3
-                b.WriteByte(0); // inv3 size
-                b.WriteByte(0); b.WriteByte(0); b.WriteByte(0);
-                for(int i = 0; i < 200; i++)
-                    writeInvItem(b); // inv4
+                for(int i = 0; i < 14; i++) writeInvItem(b, new InventoryItem()); // inv1
+                for(int i = 0; i < 6; i++) writeInvItem(b, new InventoryItem()); // inv2
+                for(int i = 0; i < 50; i++) writeInvItem(b, player.Inventory[i]); // inv3
+                b.WriteByte((byte)player.InventorySize); // inv3 size
+                b.Write0(3); // unused
+                for(int i = 0; i < 200; i++) writeInvItem(b, new InventoryItem()); // inv4
                 b.WriteByte(0); // inv4 size
-                b.WriteByte(0); b.WriteByte(0); b.WriteByte(0);
+                b.Write0(3); // unused
 
                 for(int i = 0; i < 100; i++)
                     writeFriend(b); // friend list
                 b.WriteByte(0); // friend count
-                b.WriteByte(0); b.WriteByte(0); b.WriteByte(0);
+                b.Write0(3); // unused
 
                 for(int i = 0; i < 50; i++)
                     writeFriend(b); // ban list
                 b.WriteByte(0); // ban count
-                b.WriteByte(0); b.WriteByte(0); b.WriteByte(0);
+                b.Write0(3); // unused
 
                 for(int i = 0; i < 3; i++)
                     writePetData(b); // pet data
@@ -423,7 +429,7 @@ namespace Server {
             b.Send(clientStream);
         }
 
-        public static void writeTeleport(PacketBuilder w, Extractor.T_Teleport tp) {
+        public static void writeTeleport(PacketBuilder w, Extractor.Teleport tp) {
             w.WriteInt(tp.Id); // id
             w.WriteInt(tp.fromX); // x
             w.WriteInt(tp.fromY); // y
@@ -459,13 +465,13 @@ namespace Server {
             b.Send(clientStream);
         }
 
-        public static void writeNpcData(PacketBuilder w, Extractor.T_NPCName npc) {
+        public static void writeNpcData(PacketBuilder w, Extractor.NPCName npc) {
             w.WriteInt(npc.Id); // entity/npc id
             w.WriteInt(npc.x); // x 
             w.WriteInt(npc.y); // y
 
             w.WriteByte((byte)npc.r); // rotation
-            w.WriteByte(0); w.WriteByte(0); w.WriteByte(0); // unused
+            w.Write0(3); // unused
 
             w.WriteInt(0);
             w.WriteInt(0);
@@ -487,6 +493,44 @@ namespace Server {
             b.BeginCompress();
             foreach(var npc in valid) {
                 writeNpcData(b, npc);
+            }
+            b.EndCompress();
+
+            b.Send(clientStream);
+        }
+
+        public static void writeResData(PacketBuilder w, Extractor.Resource res) {
+            w.WriteInt(res.Id); // entity/npc id
+            w.WriteInt(res.X); // x 
+            w.WriteInt(res.Y); // y
+
+            w.WriteShort(res.NameId); // nameId
+            w.WriteShort(res.Count); // count
+
+            w.WriteByte(1); // rotation
+            w.Write0(3); // unused
+
+            w.WriteShort(res.Type1); // type 1 - 0 = gather, 1 = mine, 2 = attack, 3 = ?
+            w.WriteShort(res.Type2); // type 2 - 0 = gather, 1 = mine, 2 = attack
+
+            w.WriteByte(0); // 5 = no lan man?
+            w.Write0(3); // unused
+        }
+        // 02_17
+        public static void SendRes(Stream clientStream, int mapId) {
+            // create npcs
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x02); // first switch
+            b.WriteByte(0x17); // second switch
+
+            var valid = resources.Where(x => x.MapId == mapId).ToArray();
+
+            b.WriteInt(valid.Length); // count
+
+            b.BeginCompress();
+            foreach(var res in valid) {
+                writeResData(b, res);
             }
             b.EndCompress();
 
@@ -541,6 +585,64 @@ namespace Server {
 
             b.AddString("https://google.de", 1);
 
+            b.Send(clientStream);
+        }
+
+        // 06_01
+        public static void Send06_01(Stream clientStream, int time) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x06); // first switch
+            b.WriteByte(0x01); // second switch
+
+            b.WriteByte(2);
+            // 1  = "Item is being used"
+            // 2  = ok?
+            // 3  = "Cannot get resources right now"
+            // 4  = "Your crafting/collection tool does not meet the level requirement: %s"
+            // 5  = "You are not equipped with the right tools"
+            // 8  = "Action cancelled"
+            // 9  = "You cannot use a Scrapped Tool to collect resources"
+            // 10 = "You can't clean up the Pile of Litter because you didn't help shoo away the Litterbug"
+            // 11 = "There are other litter piles to be cleaned up. Give others a chance to clean up as well"
+
+            // if(prev == 4) itemId else harvestTime
+            b.WriteInt(time);
+
+            b.Send(clientStream);
+        }
+
+        // 09_02
+        public static void SendSetItem(Stream clientStream, byte index, InventoryItem item) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x09); // first switch
+            b.WriteByte(0x02); // second switch
+
+            b.BeginCompress();
+            writeInvItem(b, item);
+            b.EndCompress();
+
+            b.WriteByte(index); // inventory index
+
+            b.Send(clientStream);
+        }
+
+        // 09_03
+        public static void SendGetItem(Stream clientStream, byte index, InventoryItem item) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x09); // first switch
+            b.WriteByte(0x03); // second switch
+
+            b.BeginCompress();
+            writeInvItem(b, item);
+            b.EndCompress();
+
+            b.WriteByte(index); // inventory index
+            b.WriteByte(1); // bool - display special message
+            b.WriteInt(0); // if(item->id == 0) {lost item id} else {unused}
+            
             b.Send(clientStream);
         }
     }

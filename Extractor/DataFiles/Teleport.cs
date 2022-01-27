@@ -1,5 +1,5 @@
 ﻿namespace Extractor {
-    public struct T_Teleport {
+    public struct Teleport {
         public int Id { get; set; }
         public string name { get; set; }
         public string file { get; set; }
@@ -13,19 +13,19 @@
         public int toY { get; set; }
 
         public int rotation { get; set; }
-        public int[] data { get; set; }
+        // public int[] data { get; set; }
 
-        public static T_Teleport[] Load(SeanArchive.Item data) {
+        public static Teleport[] Load(SeanArchive.Item data) {
             var contents = new SeanDatabase(data.Contents);
 
-            var items = new T_Teleport[contents.ItemCount - 1];
+            var items = new Teleport[contents.ItemCount - 1];
             for(int i = 1; i < contents.ItemCount; i++) {
-                var dat = new int[contents.ItemSize];
-                for (int j = 0; j < contents.ItemSize; j++) {
+                /*var dat = new int[contents.ItemSize];
+                for(int j = 0; j < contents.ItemSize; j++) {
                     dat[j] = contents.Items[i, j];
-                }
+                }*/
 
-                items[i - 1] = new T_Teleport {
+                items[i - 1] = new Teleport {
                     Id = contents.Items[i, 0],
                     fromMap = contents.Items[i, 1],
                     fromX = contents.Items[i, 2],
@@ -36,7 +36,7 @@
                     name = contents.GetString(i, 7),
                     file = contents.GetString(i, 9),
                     rotation = contents.Items[i, 10],
-                    data = dat
+                    // data = dat
                 };
             }
 

@@ -1,5 +1,5 @@
 ﻿namespace Extractor {
-    public struct T_NPCName {
+    public struct NPCName {
         public int Id;
         public string name;
         public string file;
@@ -9,14 +9,12 @@
         public int y;
         public int r;
 
-        public static T_NPCName[] Load(SeanArchive.Item data) {
+        public static NPCName[] Load(SeanArchive.Item data) {
             var contents = new SeanDatabase(data.Contents);
 
-            var items = new T_NPCName[contents.ItemCount - 1];
-            for (int i = 1; i < contents.ItemCount; i++)
-            {
-                items[i - 1] = new T_NPCName
-                {
+            var items = new NPCName[contents.ItemCount - 1];
+            for(int i = 1; i < contents.ItemCount; i++) {
+                items[i - 1] = new NPCName {
                     Id = contents.Items[i, 0],
                     name = contents.GetString(i, 1),
                     file = contents.GetString(i, 2),
