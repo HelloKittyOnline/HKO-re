@@ -8,11 +8,26 @@ namespace Server {
         public int Id { get; set; }
         public byte Count { get; set; }
         public byte Durability { get; set; }
+
+        public void Write(PacketBuilder w) {
+            w.WriteInt(Id); // id
+
+            w.WriteByte(Count); // count
+            w.WriteByte(Durability); // durability
+            w.WriteByte(0); // pet something
+            w.WriteByte(0); // unused?
+
+            w.WriteByte(0); // idk
+            w.WriteByte(0); // idk
+            w.WriteByte(0); // idk
+            w.WriteByte(0); // flags
+            // f & 1 = 
+            // f & 2 = 
+            // f & 4 = scrapped?
+        }
     }
 
     class PlayerData {
-        [JsonIgnore] public int Id { get; } = IdManager.GetId();
-
         public int CurrentMap { get; set; } = 8; // Sanrio Harbour
         public int PositionX { get; set; } = 7730;
         public int PositionY { get; set; } = 6040;
@@ -46,7 +61,8 @@ namespace Server {
 
         public const int Level = 1; // TODO
 
-        [JsonIgnore] public int InventorySize => Math.Min(50, 25 + Level / 25);
+        [JsonIgnore] 
+        public int InventorySize => Math.Min(50, 25 + Level / 25);
         public InventoryItem[] Inventory { get; set; }
 
         // used for harvest canceling
@@ -64,9 +80,6 @@ namespace Server {
             Inventory = new InventoryItem[50];
 
             Debug.Assert(entities.Length == 18);
-        }
-        ~PlayerData() {
-            IdManager.FreeId(Id);
         }
 
         public int AddItem(int item) {

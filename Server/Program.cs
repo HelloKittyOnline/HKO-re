@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -8,21 +9,29 @@ using System.Threading.Tasks;
 using Extractor;
 
 namespace Server {
-    partial class Program {
-        private static DataBase database;
+    class MapData {
+        public Teleport[] Teleporters { get; set; }
+        public NPCName[] Npcs { get; set; }
+        public Resource[] Resources { get; set; }
+    }
 
-        private static Teleport[] teleporters;
-        private static NPCName[] npcs;
-        private static Resource[] resources;
-        private static ResCounter[] lootTables;
+    class Program {
+        internal static DataBase database;
+
+        internal static MapData[] maps;
+
+        internal static Teleport[] teleporters;
+        internal static NPCName[] npcs;
+        internal static Resource[] resources;
+        internal static ResCounter[] lootTables;
 
         static void listenClient(TcpClient socket, bool lobby) {
             Console.WriteLine($"Client {socket.Client.RemoteEndPoint} {socket.Client.LocalEndPoint}");
 
-            var clientStream = socket.GetStream();
-            var reader = new BinaryReader(clientStream);
+            var res = socket.GetStream();
+            var reader = new BinaryReader(res);
 
-            SendLobby(clientStream, lobby, 1);
+            LoginProtocol.SendLobby(res, lobby, 1);
 
             Account account = null;
 
@@ -43,25 +52,21 @@ namespace Server {
 
                         b.WriteByte(0x7F);
 
-                        b.Send(clientStream);
+                        b.Send(res);
                     }
                     continue;
                 }
 
-                var ms = new MemoryStream(data);
-                var r = new BinaryReader(ms);
-
-                var id = (r.ReadByte() << 8) | r.ReadByte();
+                var id = (data[0] << 8) | data[1];
 
                 if(account == null && id != 1) {
                     // invalid data
                     break;
                 }
-
 #if DEBUG
                 if(id != 0x0063) { // skip ping
-                    Console.WriteLine($"S <- C: {id >> 8:X2}_{id & 0xFF:X2}:");
-                    // if(data.Length > 2) Console.WriteLine(BitConverter.ToString(data, 2));
+                    Console.WriteLine($"S <- C: {id >> 8:X2}_{id & 0xFF:X2}");
+                    if(data.Length > 2) Console.WriteLine(BitConverter.ToString(data, 2));
                 }
 #endif
 
@@ -92,100 +97,38 @@ namespace Server {
                 // S <- C: 02_1A
                 // S <- C: 02_0B
 
-                switch(id) {
-                    case 0x00_01: // 0059af3e // Auth
-                        account = AcceptClient(r, clientStream);
-                        if(account == null) { // login failed
+                var ms = new MemoryStream(data);
+                var req = new BinaryReader(ms);
+
+                switch(req.ReadByte()) {
+                    case 0:
+                        LoginProtocol.Handle(req, res, ref account);
+                        if(account == null)
                             running = false;
-                        }
                         break;
-                    case 0x00_03: // 0059afd7 // after user selected world
-                        SelectServer(r, clientStream, account.PlayerData);
+                    case 1:
+                        IdkProtocol.Handle(req, res, account);
                         break;
-                    case 0x00_04: // 0059b08f // list of languages? sent after lobbyServer
-                        ServerList(r, clientStream);
+                    case 2:
+                        PlayerProtocol.Handle(req, res, account);
                         break;
-                    case 0x00_0B: // 0059b14a // source location 0059b14a // sent after realmServer
-                        Recieve_00_0B(r, clientStream);
+                    case 4:
+                        FriendProtocol.Handle(req, res, account);
                         break;
-                    case 0x00_10: // 0059b1ae // has something to do with T_LOADScreen // finished loading?
+                    case 5:
+                        NpcProtocol.Handle(req, res, account);
                         break;
-                    case 0x00_63: // 0059b253
-                        Ping(r, clientStream);
+                    case 6:
+                        ProductionProtocol.Handle(req, res, account);
+                        break;
+                    case 9:
+                        InventoryProtocol.Handle(req, res, account);
+                        break;
+                    case 0x13:
+                        GroupProtocol.Handle(req, res, account);
                         break;
 
-                    case 0x01_01: // 00566b0d // sent after character creation
-                        CreateCharacter(r, clientStream, account);
-                        break;
-                    case 0x01_02: // 00566b72
-                        GetCharacter(r, clientStream, account.PlayerData);
-                        break;
-                    case 0x01_03: // 00566bce // Delete character
-                        DeleteCharacter(r, clientStream);
-                        account.PlayerData = null;
-                        SendCharacterData(clientStream, null);
-                        break;
                     /*
-                    case 0x01_05: // 00566c47 // check character name
-                        // r.ReadInt16();
-                        // rest wstring
-                        break;*/
-
-                    case 0x02_01: // 005defa2
-                        Recieve_02_01(r, clientStream, account.PlayerData);
-                        break;
-                    case 0x02_02: // 005df036 // sent after map load
-                        break;
-                    case 0x02_04: // 005df0cb // player walking
-                        Recieve_02_04(r, clientStream, account.PlayerData);
-                        break;
-                    case 0x02_05: // 005df144 // open web form // maybe html request?
-                        Recieve_02_05(r, clientStream);
-                        break;
-                    case 0x02_06: // 005df1ca // emotes
-                        Recieve_02_06(r, clientStream);
-                        break;
-                    case 0x02_07: // 005df240 // player rotation changed
-                        Recieve_02_07(r, clientStream);
-                        break;
-                    case 0x02_08: // 005df2b4 // player state (sitting/standing)
-                        Recieve_02_08(r, clientStream);
-                        break;
-                    case 0x02_0A: // 005df368 // teleport map
-                        ChangeMap(r, clientStream, account.PlayerData);
-                        break;
-                    case 0x02_0B: // 005df415
-                        Recieve_02_0B(r, clientStream);
-                        break;
-                    /*
-                    case 0x02_0C: // 005df48c
-                    case 0x02_0D: // 005df50c
-                    case 0x02_0E: // 005df580
-                    case 0x02_13: // 005df5e2
-                    */
-                    case 0x02_1A: // 005df655 // sent after 02_09
-                        Recieve_02_1A(r, clientStream);
-                        break;
-                    // case 0x02_1f: // 005df6e3
-                    case 0x02_20: // 005df763 // change player info
-                        Recieve_02_20(r, clientStream);
-                        break;
-                    /* case 0x02_21: // 005df7d8
-                    case 0x02_28: // 005df86e
-                    case 0x02_29: // 005df8e4
-                    case 0x02_2A: // 005df946
-                    case 0x02_2B: // 005df9cb
-                    case 0x02_2C: // 005dfa40
-                    case 0x02_2D: // 005dfab4
-                    */
-                    case 0x02_32: // 005dfb8c //  client version information
-                        Recieve_02_32(r, clientStream);
-                        break;
-                    /*
-                    case 0x02_33: // 005dfc04
-                    case 0x02_34: // 005dfc78
-                    case 0x02_63: // 005dfcee
- 
                     case 0x03_01: // 005d2eec // map channel message
                     case 0x03_02: // 005d2fa6
                     case 0x03_05: // 005d3044 // normal channel message
@@ -196,43 +139,7 @@ namespace Server {
                     case 0x03_0C: // 005d331e
                     case 0x03_0D: // 005d33a7 open private message
                     */
-                    case 0x04_01: // 0051afb7 // add friend
-                        AddFriend(r, clientStream);
-                        break;
-                    /*case 0x04_02: // 0051b056 // mail
-                    case 0x04_03: // 0051b15e // delete friend
-                    */
-                    case 0x04_04: // 0051b1d4 // set status message // 1 byte, 0 = avalible, 1 = busy, 2 = away
-                        SetStatus(r, clientStream);
-                        break;
-                    case 0x04_05: // 0051b253 // add player to blacklist
-                        AddBlacklist(r, clientStream);
-                        break;
-                    // case 0x04_07: // 0051b31c // remove player from blacklist
 
-                    case 0x05_01: // 00573de8
-                        Recieve_05_01(r, clientStream);
-                        break;
-                    case 0x05_02: // 00573e4a // npc data ack?
-                        break;
-                    /*case 0x05_03: //
-                    case 0x05_04: //
-                    case 0x05_05: //
-                    case 0x05_06: //
-                    case 0x05_07: //
-                    case 0x05_08: //
-                    case 0x05_09: //
-                    case 0x05_0A: //
-                    case 0x05_0B: //
-                    case 0x05_0C: //
-                    case 0x05_11: //
-                    case 0x05_14: //
-                    case 0x05_15: //
-                    case 0x05_16: //
-                    */
-                    case 0x06_01: // 005a2513
-                        Recieve_06_01(r, clientStream, account.PlayerData);
-                        break;
                     /*
                     case 0x07_01: // 00529917
                     case 0x07_04: // 005299a6
@@ -243,26 +150,7 @@ namespace Server {
                     case 0x08_04: //
                     case 0x08_06: //
                     */
-                    case 0x09_01: // 00586fd2
-                        Recieve_09_01(r, clientStream, account.PlayerData);
-                        break;
                     /*
-                    case 0x09_02: // 
-                    case 0x09_03: // 
-                    */
-                    case 0x09_06: // 
-                        SplitItem(r, clientStream, account.PlayerData);
-                        break;
-                    /*case 0x09_0F: // 
-                    case 0x09_10: // 
-                    case 0x09_11: // 
-                    */
-                    case 0x09_20: // check item delivery available?
-                        Recieve_09_20(r, clientStream);
-                        break;
-                    /*case 0x09_21: // 
-                    case 0x09_22: // 
-
                     case 0x0A_01: // 00581350
                     case 0x0A_02: // 005813c4
                     case 0x0A_03: // 0058148c
@@ -309,11 +197,8 @@ namespace Server {
                     case 0x0D_10: // 00536f73
                     case 0x0D_11: // 00536fe8
                     case 0x0D_12: // 0053705c
-                    */
                     case 0x0D_13: // 005370be // get pet information?
-                        Recieve_0D_13(r, clientStream);
-                        break;
-                    /*case 0x0E_01: // 0054ddb4
+                    case 0x0E_01: // 0054ddb4
                     case 0x0E_02: //
                     case 0x0E_03: //
                     case 0x0E_04: //
@@ -344,23 +229,7 @@ namespace Server {
 
                     case 0x12_01: // 0052807b
                     case 0x12_02: // 005280f6
-                    */
-                    case 0x13_01: // 00578950 // add player to group
-                        Recieve_13_01(r, clientStream);
-                        break;
-                    /*case 0x13_02: //
-                    case 0x13_03: //
-                    case 0x13_04: //
-                    case 0x13_05: //
-                    case 0x13_06: //
-                    case 0x13_07: //
-                    case 0x13_08: //
-                    case 0x13_09: //
-                    case 0x13_0A: //
-                    case 0x13_0B: //
-                    case 0x13_0C: //
-                    case 0x13_0D: //
-
+                    
                     case 0x14_01: //
 
                     case 0x15_01: //
@@ -411,7 +280,6 @@ namespace Server {
 
                     default:
                         Console.WriteLine("Unknown");
-                        if(data.Length > 2) Console.WriteLine(BitConverter.ToString(data, 2));
                         break;
                 }
             }
@@ -456,10 +324,31 @@ namespace Server {
             });
 
             var archive = SeanArchive.Extract("./client_table_eng.sdb");
+
             teleporters = Teleport.Load(archive.First(x => x.Name == "teleport_list.txt"));
             npcs = NPCName.Load(archive.First(x => x.Name == "npc_list.txt"));
             resources = Resource.Load(archive.First(x => x.Name == "res_list.txt"));
             lootTables = ResCounter.Load(archive.First(x => x.Name == "res_counter.txt"));
+
+            var mapList = MapList.Load(archive.First(x => x.Name == "map_list.txt"));
+
+            // bundle all entities together to make lookup easier
+            maps = new MapData[mapList.Length];
+            for(int i = 0; i < mapList.Length; i++) {
+                var item = mapList[i];
+                if(item.Name == null)
+                    continue;
+
+                maps[i] = new MapData {
+                    Npcs = npcs.Where(x => x.MapId == item.Id).ToArray(),
+                    Resources = resources.Where(x => x.MapId == item.Id).ToArray(),
+                    Teleporters = teleporters.Where(x => x.fromMap == item.Id).ToArray()
+                };
+            }
+
+            Debug.Assert(teleporters.All(x => x.fromMap == 0 || maps[x.fromMap - 1] != null)); // all teleporters registered
+            Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId - 1] != null)); // all teleporters registered
+            Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId - 1] != null)); // all teleporters registered
 
             Server(25000, true);
         }

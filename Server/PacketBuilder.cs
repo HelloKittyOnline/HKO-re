@@ -27,6 +27,10 @@ namespace Server {
             writer.Write(buffer);
         }
 
+        public void Write(InventoryItem item) {
+            item.Write(this);
+        }
+
         public void WriteByte(byte v) {
             writer.Write(v);
         }

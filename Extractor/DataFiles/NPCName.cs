@@ -4,7 +4,7 @@
         public string name;
         public string file;
 
-        public int map;
+        public int MapId;
         public int x;
         public int y;
         public int r;
@@ -18,7 +18,7 @@
                     Id = contents.Items[i, 0],
                     name = contents.GetString(i, 1),
                     file = contents.GetString(i, 2),
-                    map = contents.Items[i, 3],
+                    MapId = contents.Items[i, 3],
                     x = contents.Items[i, 4],
                     y = contents.Items[i, 5],
                     r = contents.Items[i, 6],

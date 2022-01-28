@@ -14,8 +14,12 @@ namespace Server {
         public byte[] Password { get; set; }
 
         [JsonIgnore]
-        public int PlayerId { get; set; }
+        public int PlayerId { get; } = IdManager.GetId();
         public PlayerData PlayerData { get; set; }
+
+        ~Account() {
+            IdManager.FreeId(PlayerId);
+        }
     }
 
     class IdManager {
