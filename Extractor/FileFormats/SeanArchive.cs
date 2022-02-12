@@ -15,7 +15,7 @@ namespace Extractor {
             var reader = new BinaryReader(file);
 
             var head = reader.ReadBytes(4); // "SAR1"
-            if (head[0] != 'S' || head[1] != 'A' || head[2] != 'R' || head[3] != '1') {
+            if(head[0] != 'S' || head[1] != 'A' || head[2] != 'R' || head[3] != '1') {
                 throw new Exception("Not a sdb file");
             }
             reader.ReadInt32(); // version = 1
@@ -23,18 +23,18 @@ namespace Extractor {
             reader.ReadInt32(); // total size of file names
 
             var files = new string[fileCount];
-            for (int i = 0; i < fileCount; i++) {
+            for(int i = 0; i < fileCount; i++) {
                 files[i] = Helper.ReadCString(reader);
             }
 
             // pad to 4 bytes
-            while (file.Position % 4 != 0) {
+            while(file.Position % 4 != 0) {
                 reader.ReadByte();
             }
 
             var ret = new Item[fileCount];
 
-            for (int i = 0; i < fileCount; i++) {
+            for(int i = 0; i < fileCount; i++) {
                 var size = reader.ReadInt32();
                 var data = reader.ReadBytes(size);
 
@@ -55,7 +55,7 @@ namespace Extractor {
             writer.Write(1); // version
             writer.Write(files.Length);
             var size = files.Sum(x => x.Name.Length + 1);
-            while (size % 4 != 0) {
+            while(size % 4 != 0) {
                 size++;
             }
             writer.Write(size); // total size of file names
@@ -64,11 +64,11 @@ namespace Extractor {
                 Helper.WriteCString(writer, file.Name);
             }
 
-            while (ms.Position % 4 != 0) {
+            while(ms.Position % 4 != 0) {
                 writer.Write((byte)0);
             }
 
-            foreach (var f in files) {
+            foreach(var f in files) {
                 var temp = new MemoryStream(0);
                 var stream = new ZlibStream(temp, CompressionMode.Compress, true);
                 stream.Write(f.Contents);
@@ -84,7 +84,7 @@ namespace Extractor {
                 writer.Write(buf);
             }
 
-            while (ms.Position % 4 != 0) {
+            while(ms.Position % 4 != 0) {
                 writer.Write((byte)0);
             }
 

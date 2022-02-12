@@ -1,48 +1,59 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Extractor;
+using Server.Protocols;
 
 namespace Server {
     class MapData {
         public Teleport[] Teleporters { get; set; }
         public NPCName[] Npcs { get; set; }
-        public Resource[] Resources { get; set; }
+        public Extractor.Resource[] Resources { get; set; }
+    }
+
+    struct DialogData {
+        public int Id { get; set; }
+        public int Quest { get; set; }
+        public bool Begins { get; set; }
+        public int Previous { get; set; }
     }
 
     class Program {
         internal static DataBase database;
 
         internal static MapData[] maps;
+        internal static Dictionary<int, DialogData[]> dialogData;
 
         internal static Teleport[] teleporters;
-        internal static NPCName[] npcs;
-        internal static Resource[] resources;
+        // internal static NPCName[] npcs;
+        internal static Extractor.Resource[] resources;
         internal static ResCounter[] lootTables;
+        internal static ItemAtt[] items;
+        internal static EquAtt[] equipment;
+        internal static Quest[] quests;
 
-        static void listenClient(TcpClient socket, bool lobby) {
-            Console.WriteLine($"Client {socket.Client.RemoteEndPoint} {socket.Client.LocalEndPoint}");
+        internal static List<Client> clients = new List<Client>();
 
-            var res = socket.GetStream();
-            var reader = new BinaryReader(res);
+        static void ListenClient(Client client, bool lobby) {
+            Login.SendLobby(client, lobby);
 
-            LoginProtocol.SendLobby(res, lobby, 1);
-
-            Account account = null;
+            var uhh = new BinaryReader(client.Stream);
 
             bool running = true;
             while(running) {
-                var head = reader.ReadBytes(3);
+                var head = uhh.ReadBytes(3);
                 if(head.Length == 0) {
                     break;
                 }
 
-                var data = reader.ReadBytes(reader.ReadUInt16());
+                var data = uhh.ReadBytes(uhh.ReadUInt16());
 
                 if(data.Length == 1) {
                     if(data[0] == 0x7E) { // 005551be
@@ -52,105 +63,71 @@ namespace Server {
 
                         b.WriteByte(0x7F);
 
-                        b.Send(res);
+                        b.Send(client.Stream);
                     }
                     continue;
                 }
 
                 var id = (data[0] << 8) | data[1];
 
-                if(account == null && id != 1) {
+                if(client.Account == null && id != 1) {
                     // invalid data
                     break;
                 }
 #if DEBUG
                 if(id != 0x0063) { // skip ping
                     Console.WriteLine($"S <- C: {id >> 8:X2}_{id & 0xFF:X2}");
-                    if(data.Length > 2) Console.WriteLine(BitConverter.ToString(data, 2));
+                    if(data.Length > 2)
+                        Console.WriteLine(BitConverter.ToString(data, 2));
                 }
 #endif
 
-                // S -> C: 00_01  : SendLobby        // lobby server
-                // S <- C: 00_01  : AcceptClient     // send login details
-                // S -> C: 00_02_1: SendAcceptClient // check login details
-                // S <- C: 00_04  : ServerList       // request server list (after License accept)
-                // S -> C: 00_04  : SendServerList   // send server list
-                // S <- C: 00_03  : SelectServer
-                // (optional) S -> C: 00_0B: SendChangeServer // redirect to different server for load balancing
-                // S -> C: 00_01  : SendLobby        // realm server?
-                // S <- C: 00_0B  : Idk
-                // (optional) S -> C: 01_02: create new character
-                // (optional) S <- C: 01_01: CreateCharacter
-                // S -> C: 00_0C_1: create T_EnterGame
-                // S <- C: 01_02  : 
-                // S -> C: 01_02  : SendCharacterData
-                // S <- C: 02_32  :
-                // short pause loading
-                // S <- C: 02_01
-                // S -> C: 00_11
-                // S -> C: 02_01
-                // S -> C: 02_09
-                // S -> C: 02_12
-                // S <- C: 00_10
-                // S <- C: 02_32
-                // S <- C: 02_02
-                // S <- C: 02_1A
-                // S <- C: 02_0B
-
                 var ms = new MemoryStream(data);
-                var req = new BinaryReader(ms);
+                client.Reader = new BinaryReader(ms);
 
-                switch(req.ReadByte()) {
-                    case 0:
-                        LoginProtocol.Handle(req, res, ref account);
-                        if(account == null)
+                switch(client.ReadByte()) {
+                    case 0x00:
+                        Login.Handle(client);
+                        if(client.Account == null)
                             running = false;
                         break;
-                    case 1:
-                        IdkProtocol.Handle(req, res, account);
+                    case 0x01:
+                        CreateRole.Handle(client);
                         break;
-                    case 2:
-                        PlayerProtocol.Handle(req, res, account);
+                    case 0x02:
+                        Player.Handle(client);
                         break;
-                    case 4:
-                        FriendProtocol.Handle(req, res, account);
+                    case 0x03:
+                        Chat.Handle(client);
                         break;
-                    case 5:
-                        NpcProtocol.Handle(req, res, account);
+                    case 0x04:
+                        Friend.Handle(client);
                         break;
-                    case 6:
-                        ProductionProtocol.Handle(req, res, account);
+                    case 0x05:
+                        Npc.Handle(client);
                         break;
-                    case 9:
-                        InventoryProtocol.Handle(req, res, account);
+                    case 0x06:
+                        Protocols.Resource.Handle(client);
+                        break;
+                    case 0x09:
+                        Inventory.Handle(client);
+                        break;
+                    case 0x0C:
+                        Battle.Handle(client);
                         break;
                     case 0x13:
-                        GroupProtocol.Handle(req, res, account);
+                        Group.Handle(client);
                         break;
-
-                    /*
-                    case 0x03_01: // 005d2eec // map channel message
-                    case 0x03_02: // 005d2fa6
-                    case 0x03_05: // 005d3044 // normal channel message
-                    case 0x03_06: // 005d30dc // trade channel message
-                    case 0x03_07: // 005d3174
-                    case 0x03_08: // 005d320c // advice channel message
-                    case 0x03_0B: // 005d3288 change chat filter
-                    case 0x03_0C: // 005d331e
-                    case 0x03_0D: // 005d33a7 open private message
-                    */
-
                     /*
                     case 0x07_01: // 00529917
                     case 0x07_04: // 005299a6
 
-                    case 0x08_01: //
+                    case 0x08_01: // trade invite
                     case 0x08_02: //
                     case 0x08_03: //
                     case 0x08_04: //
                     case 0x08_06: //
-                    */
-                    /*
+
                     case 0x0A_01: // 00581350
                     case 0x0A_02: // 005813c4
                     case 0x0A_03: // 0058148c
@@ -176,11 +153,6 @@ namespace Server {
                     case 0x0B_01: // 0054d96c
                     case 0x0B_02: // 
                     case 0x0B_03: // 
-
-                    case 0x0C_03: // 00537da8
-                    case 0x0C_07: // 00537e23
-                    case 0x0C_08: // 00537e98
-                    case 0x0C_09: // 00537f23
 
                     case 0x0D_02: // 00536928
                     case 0x0D_03: // 0053698a
@@ -284,29 +256,106 @@ namespace Server {
                 }
             }
 
-            if(account != null) {
-                Console.WriteLine($"Player {account.Username} disconnected");
+            if(client.Account != null) {
+                Console.WriteLine($"Player {client.Account.Username} disconnected");
             }
         }
 
-        static void Server(int port, bool lobby) {
-            TcpListener server = new TcpListener(IPAddress.Any, port);
+        private static void Server(int port, bool lobby) {
+            var server = new TcpListener(IPAddress.Any, port);
             server.Start();
 
+            Console.WriteLine($"Listening at :{port}");
+
             while(true) {
-                var client = server.AcceptTcpClient();
+                var tcpClient = server.AcceptTcpClient();
 
                 Task.Run(() => {
+                    Console.WriteLine($"Client {tcpClient.Client.RemoteEndPoint} {tcpClient.Client.LocalEndPoint}");
+
+                    var client = new Client(tcpClient);
+                    clients.Add(client);
+
                     try {
-                        listenClient(client, lobby);
+                        ListenClient(client, lobby);
                     } catch(Exception e) {
                         Console.WriteLine(e);
                     }
+
+                    clients.Remove(client);
                 });
             }
         }
 
         static void Main(string[] args) {
+            Console.WriteLine("Starting server...");
+
+            teleporters = Teleport  .Load(archive.First(x => x.Name == "teleport_list.txt"));
+            var npcs    = NPCName   .Load(archive.First(x => x.Name == "npc_list.txt"));
+            resources   = Extractor.Resource.Load(archive.First(x => x.Name == "res_list.txt"));
+            lootTables  = ResCounter.Load(archive.First(x => x.Name == "res_counter.txt"));
+            items       = ItemAtt   .Load(archive.First(x => x.Name == "item_att.txt"));
+            equipment   = EquAtt    .Load(archive.First(x => x.Name == "equ_att.txt"));
+
+            var mapList = MapList.Load(archive.First(x => x.Name == "map_list.txt"));
+
+            var dialogs = JsonSerializer.Deserialize<JsonElement[]>(File.ReadAllText("./dialog_data.json"));
+
+            dialogData = new Dictionary<int, DialogData[]>();
+            foreach(var npc in npcs) {
+                var d = new List<DialogData>();
+
+                foreach(var dialog in dialogs) {
+                    if(dialog.GetProperty("Npc").EnumerateArray().All(x => x.GetInt32() != npc.Id)) {
+                        continue;
+                    }
+
+                    if(!dialog.TryGetProperty("Previous quests", out var prev) || prev.ValueKind != JsonValueKind.Number) {
+                        continue;
+                    }
+
+                    int quest;
+                    bool begins;
+                    if(dialog.TryGetProperty("Start", out var start)) {
+                        quest = start.GetInt32();
+                        begins = true;
+                    } else if(dialog.TryGetProperty("End", out var end)) {
+                        quest = end.GetInt32();
+                        begins = false;
+                    } else {
+                        continue;
+                    }
+
+                    d.Add(new DialogData {
+                        Id = dialog.GetProperty("Dialog").GetInt32(),
+                        Quest = quest,
+                        Begins = begins,
+                        Previous = prev.GetInt32()
+                    });
+                    // if(dialog["Previous quests"])
+                }
+
+                dialogData[npc.Id] = d.ToArray();
+            }
+
+            // bundle all entities together to make lookup easier
+            maps = new MapData[mapList.Length];
+            for(int i = 0; i < mapList.Length; i++) {
+                var item = mapList[i];
+                if(item.Name == null)
+                    continue;
+
+                maps[i] = new MapData {
+                    Npcs = npcs.Where(x => x.MapId == i).ToArray(),
+                    Resources = resources.Where(x => x.MapId == i).ToArray(),
+                    Teleporters = teleporters.Where(x => x.FromMap == i).ToArray()
+                };
+            }
+
+            Debug.Assert(teleporters.All(x => x.FromMap == 0 || maps[x.FromMap] != null)); // all teleporters registered
+            Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all teleporters registered
+            Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all teleporters registered
+
             database = DataBase.Load("./db.json");
             Task.Run(() => {
                 while(true) {
@@ -322,33 +371,6 @@ namespace Server {
                     }
                 }
             });
-
-            var archive = SeanArchive.Extract("./client_table_eng.sdb");
-
-            teleporters = Teleport.Load(archive.First(x => x.Name == "teleport_list.txt"));
-            npcs = NPCName.Load(archive.First(x => x.Name == "npc_list.txt"));
-            resources = Resource.Load(archive.First(x => x.Name == "res_list.txt"));
-            lootTables = ResCounter.Load(archive.First(x => x.Name == "res_counter.txt"));
-
-            var mapList = MapList.Load(archive.First(x => x.Name == "map_list.txt"));
-
-            // bundle all entities together to make lookup easier
-            maps = new MapData[mapList.Length];
-            for(int i = 0; i < mapList.Length; i++) {
-                var item = mapList[i];
-                if(item.Name == null)
-                    continue;
-
-                maps[i] = new MapData {
-                    Npcs = npcs.Where(x => x.MapId == item.Id).ToArray(),
-                    Resources = resources.Where(x => x.MapId == item.Id).ToArray(),
-                    Teleporters = teleporters.Where(x => x.fromMap == item.Id).ToArray()
-                };
-            }
-
-            Debug.Assert(teleporters.All(x => x.fromMap == 0 || maps[x.fromMap - 1] != null)); // all teleporters registered
-            Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId - 1] != null)); // all teleporters registered
-            Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId - 1] != null)); // all teleporters registered
 
             Server(25000, true);
         }

@@ -1,13 +1,11 @@
 ﻿using System;
-using System.IO;
-using System.Text;
 
-namespace Server {
-    class GroupProtocol {
-        public static void Handle(BinaryReader req, Stream res, Account account) {
-            switch(req.ReadByte()) {
+namespace Server.Protocols {
+    class Group {
+        public static void Handle(Client client) {
+            switch(client.ReadByte()) {
                 case 0x01: // 00578950 // add player to group
-                    Recieve_13_01(req, res);
+                    AddToGroup(client);
                     break;
                 /*case 0x13_02: //
                 case 0x13_03: //
@@ -30,11 +28,11 @@ namespace Server {
 
         #region Request
         // 13_01
-        static void Recieve_13_01(BinaryReader req, Stream res) {
-            var name = Encoding.Unicode.GetString(req.ReadBytes(req.ReadInt16()));
+        static void AddToGroup(Client client) {
+            var name = client.ReadWString();
 
-            var group = req.ReadInt32(); // group id
-            var playerId = req.ReadInt32(); // player id?
+            var group = client.ReadInt32(); // group id
+            var playerId = client.ReadInt32(); // player id?
             // playerId = 0 -> unknown
         }
         #endregion

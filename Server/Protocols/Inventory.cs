@@ -1,23 +1,23 @@
 ﻿using System;
 using System.IO;
 
-namespace Server {
-    class InventoryProtocol {
-        public static void Handle(BinaryReader req, Stream res, Account account) {
-            switch(req.ReadByte()) {
+namespace Server.Protocols {
+    class Inventory {
+        public static void Handle(Client client) {
+            switch(client.ReadByte()) {
                 case 0x01: // 00586fd2
-                    Recieve_09_01(req, res, account.PlayerData);
+                    MoveItem(client);
                     break;
                 // case 0x09_02: // 
                 // case 0x09_03: // 
                 case 0x06: // 
-                    SplitItem(req, res, account.PlayerData);
+                    SplitItem(client);
                     break;
                 // case 0x09_0F: // 
                 // case 0x09_10: // 
                 // case 0x09_11: // 
                 case 0x20: // check item delivery available?
-                    Recieve_09_20(req, res);
+                    Recieve_09_20(client);
                     break;
                 // case 0x09_21: // 
                 // case 0x09_22: //
@@ -30,12 +30,14 @@ namespace Server {
 
         #region Request
         // 09_01
-        static void Recieve_09_01(BinaryReader req, Stream res, PlayerData player) {
-            var idk1 = req.ReadByte();
-            var fromPos = req.ReadByte() - 1;
+        static void MoveItem(Client client) {
+            var idk1 = client.ReadByte();
+            var fromPos = client.ReadByte() - 1;
 
-            var idk2 = req.ReadByte();
-            var destPos = req.ReadByte() - 1;
+            var idk2 = client.ReadByte();
+            var destPos = client.ReadByte() - 1;
+
+            var player = client.Player;
 
             var from = player.Inventory[fromPos];
             var to = player.Inventory[destPos];
@@ -45,17 +47,19 @@ namespace Server {
                 player.Inventory[destPos].Id = from.Id;
                 player.Inventory[destPos].Count += from.Count;
 
-                SendSetItem(res, (byte)(fromPos + 1), player.Inventory[fromPos]);
-                SendSetItem(res, (byte)(destPos + 1), player.Inventory[destPos]);
+                SendSetItem(client.Stream, player.Inventory[fromPos], (byte)(fromPos + 1));
+                SendSetItem(client.Stream, player.Inventory[destPos], (byte)(destPos + 1));
             } else {
                 // fail
             }
         }
 
         // 09_06
-        static void SplitItem(BinaryReader req, Stream res, PlayerData player) {
-            var pos = req.ReadByte() - 1;
-            var count = req.ReadByte();
+        static void SplitItem(Client client) {
+            var pos = client.ReadByte() - 1;
+            var count = client.ReadByte();
+
+            var player = client.Player;
 
             for(int i = 0; i < player.InventorySize; i++) {
                 if(player.Inventory[i].Id != 0)
@@ -66,21 +70,21 @@ namespace Server {
 
                 player.Inventory[pos].Count -= count;
 
-                SendSetItem(res, (byte)(i + 1), player.Inventory[i]);
-                SendSetItem(res, (byte)(pos + 1), player.Inventory[pos]);
+                SendSetItem(client.Stream, player.Inventory[i], (byte)(i + 1));
+                SendSetItem(client.Stream, player.Inventory[pos], (byte)(pos + 1));
                 break;
             }
         }
 
         // 09_20
-        static void Recieve_09_20(BinaryReader req, Stream res) {
+        static void Recieve_09_20(Client client) {
             // Send09_20(res);
         }
         #endregion
 
         #region Response
         // 09_02
-        public static void SendSetItem(Stream clientStream, byte index, InventoryItem item) {
+        public static void SendSetItem(Stream clientStream, InventoryItem item, byte index) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x09); // first switch
@@ -96,7 +100,7 @@ namespace Server {
         }
 
         // 09_03
-        public static void SendGetItem(Stream clientStream, byte index, InventoryItem item) {
+        public static void SendGetItem(Stream clientStream, InventoryItem item, byte index, bool displayMessage) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x09); // first switch
@@ -107,7 +111,7 @@ namespace Server {
             b.EndCompress();
 
             b.WriteByte(index); // inventory index
-            b.WriteByte(1); // bool - display special message
+            b.WriteByte(Convert.ToByte(displayMessage)); // display special message
             b.WriteInt(0); // if(item->id == 0) {lost item id} else {unused}
 
             b.Send(clientStream);

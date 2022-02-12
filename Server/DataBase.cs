@@ -13,13 +13,7 @@ namespace Server {
         public byte[] Salt { get; set; }
         public byte[] Password { get; set; }
 
-        [JsonIgnore]
-        public int PlayerId { get; } = IdManager.GetId();
         public PlayerData PlayerData { get; set; }
-
-        ~Account() {
-            IdManager.FreeId(PlayerId);
-        }
     }
 
     class IdManager {
@@ -44,6 +38,42 @@ namespace Server {
         }
     }
 
+    public class DictionaryInt32Converter : JsonConverter<Dictionary<int, int>> {
+        public override Dictionary<int, int> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
+            if(reader.TokenType != JsonTokenType.StartObject)
+                throw new JsonException("Expected Object");
+
+            var value = new Dictionary<int, int>();
+
+            while(reader.Read()) {
+                if(reader.TokenType == JsonTokenType.EndObject) {
+                    return value;
+                }
+
+                var keyString = reader.GetString();
+
+                if(!int.TryParse(keyString, out var keyAsInt32)) {
+                    throw new JsonException($"Unable to convert \"{keyString}\" to System.Int32.");
+                }
+
+                reader.Read();
+                value.Add(keyAsInt32, reader.GetInt32());
+            }
+
+            throw new JsonException("Error Occurred");
+        }
+
+        public override void Write(Utf8JsonWriter writer, Dictionary<int, int> value, JsonSerializerOptions options) {
+            writer.WriteStartObject();
+
+            foreach(var (key, val) in value) {
+                writer.WriteNumber(key.ToString(), val);
+            }
+
+            writer.WriteEndObject();
+        }
+    }
+
     class DataBase {
         public Dictionary<string, Account> Accounts { get; set; }
 
@@ -52,10 +82,18 @@ namespace Server {
         }
 
         public void Save(string path) {
-            File.WriteAllText(path, JsonSerializer.Serialize(this));
+            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions {
+                Converters = { new DictionaryInt32Converter() }
+            }));
         }
         public static DataBase Load(string path) {
-            return File.Exists(path) ? JsonSerializer.Deserialize<DataBase>(File.ReadAllText(path)) : new DataBase();
+            var db = File.Exists(path) ? JsonSerializer.Deserialize<DataBase>(File.ReadAllText(path), new JsonSerializerOptions {
+                Converters = { new DictionaryInt32Converter() }
+            }) : new DataBase();
+            foreach (var account in db.Accounts) {
+                account.Value.PlayerData?.Init();
+            }
+            return db;
         }
 
         public Account GetPlayer(string username, string password) {

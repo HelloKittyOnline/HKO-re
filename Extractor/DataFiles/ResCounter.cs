@@ -16,8 +16,8 @@ namespace Extractor {
         public static ResCounter[] Load(SeanArchive.Item data) {
             var contents = new SeanDatabase(data.Contents);
 
-            var items = new ResCounter[contents.ItemCount - 1];
-            for(int i = 1; i < contents.ItemCount; i++) {
+            var items = new ResCounter[contents.ItemCount];
+            for(int i = 0; i < contents.ItemCount; i++) {
                 var dat = new List<Item>(10);
 
                 for(int j = 0; j < 10; j++) {
@@ -30,7 +30,7 @@ namespace Extractor {
                     });
                 }
 
-                items[i - 1] = new ResCounter {
+                items[i] = new ResCounter {
                     Id = contents.Items[i, 0],
                     Items = dat.ToArray()
                 };
@@ -43,7 +43,7 @@ namespace Extractor {
             var rand = rng.Next(10000);
 
             var total = 0;
-            foreach (var el in Items) {
+            foreach(var el in Items) {
                 total += el.Chance;
                 if(rand < total) return el.ItemId;
             }

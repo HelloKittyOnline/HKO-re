@@ -5,6 +5,10 @@ using System.IO;
 using System.Text;
 
 namespace Server {
+    interface IWriteAble {
+        public void Write(PacketBuilder b);
+    }
+
     class PacketBuilder {
         // private List<byte> data = Encoding.ASCII.GetBytes("^%*\0\0").ToList();
         private MemoryStream buffer;
@@ -27,7 +31,7 @@ namespace Server {
             writer.Write(buffer);
         }
 
-        public void Write(InventoryItem item) {
+        public void Write<T>(T item) where T : IWriteAble {
             item.Write(this);
         }
 
@@ -43,7 +47,7 @@ namespace Server {
             writer.Write(v);
         }
         public void Write0(int bytes) {
-            for (int i = 0; i < bytes; i++) {
+            for(int i = 0; i < bytes; i++) {
                 writer.Write((byte)0);
             }
         }
@@ -74,7 +78,7 @@ namespace Server {
             writer.Write(Encoding.UTF8.GetBytes(str));
         }
 
-        public void AddWstring(string str) {
+        public void WriteWString(string str) {
             var dat = Encoding.Unicode.GetBytes(str);
 
             if(dat.Length > 65535) {
@@ -93,7 +97,8 @@ namespace Server {
             buf[4] = (byte)(dataLength >> 8);
 
 #if DEBUG
-            if(dataLength >= 2) Console.WriteLine($"S -> C: {buf[5]:X2}_{buf[6]:X2}");
+            if(dataLength >= 2)
+                Console.WriteLine($"S -> C: {buf[5]:X2}_{buf[6]:X2}");
 #endif
             lock(stream) {
                 stream.Write(buf, 0, (int)buffer.Position);
@@ -101,7 +106,8 @@ namespace Server {
         }
 
         public void BeginCompress() {
-            if(CompressMode) throw new Exception("Already in compression mode");
+            if(CompressMode)
+                throw new Exception("Already in compression mode");
             CompressMode = true;
             CompressPos = (int)buffer.Position;
 
@@ -111,7 +117,8 @@ namespace Server {
         }
 
         public void EndCompress() {
-            if(!CompressMode) throw new Exception("Have to be in compression mode");
+            if(!CompressMode)
+                throw new Exception("Have to be in compression mode");
             CompressMode = false;
 
             var pos = buffer.Position;
@@ -133,7 +140,8 @@ namespace Server {
             WriteShort((short)(data.Length + 1));
             WriteShort((short)data.Length);
 
-            if(data.Length == 0) return;
+            if(data.Length == 0)
+                return;
 
             // don't bother encoding just use raw
             WriteByte(0x82);

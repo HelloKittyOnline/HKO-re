@@ -3,12 +3,12 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Server {
-    class ProductionProtocol {
-        public static void Handle(BinaryReader req, Stream res, Account account) {
-            switch(req.ReadByte()) {
+namespace Server.Protocols {
+    class Resource {
+        public static void Handle(Client client) {
+            switch(client.ReadByte()) {
                 case 0x01: // 005a2513
-                    Recieve_06_01(req, res, account.PlayerData);
+                    Recieve_06_01(client);
                     break;
                 default:
                     Console.WriteLine("Unknown");
@@ -18,39 +18,34 @@ namespace Server {
 
         #region Request
         // 06_01
-        static void Recieve_06_01(BinaryReader req, Stream res, PlayerData player) {
+        static void Recieve_06_01(Client client) {
             // gathering
 
-            var resId = req.ReadInt32();
-            var idk2 = req.ReadByte(); // 1 or 2
+            var resId = client.ReadInt32();
+            var idk2 = client.ReadByte(); // 1 or 2
 
-            var table = Program.resources[resId - 1].LootTable;
+            var table = Program.resources[resId].LootTable;
 
             // TODO: harvest time??
             const int harvestTime = 5 * 1000;
 
             if(table != 0) {
                 var source = new CancellationTokenSource();
-                player.cancelSource = source;
+                client.Player.cancelSource = source;
 
                 Task.Run(() => {
                     Thread.Sleep(harvestTime);
                     if(source.IsCancellationRequested)
                         return;
 
-                    var item = Program.lootTables[table - 1].GetRandom();
+                    var item = Program.lootTables[table].GetRandom();
                     if(item != -1) {
-                        var pos = player.AddItem(item);
-                        if(pos == -1) {
-                            // inventory full
-                        } else {
-                            InventoryProtocol.SendGetItem(res, (byte)(pos + 1), player.Inventory[pos]);
-                        }
+                        client.AddItem(item, 1);
                     }
                 });
             }
 
-            Send06_01(res, harvestTime);
+            Send06_01(client.Stream, harvestTime);
         }
         #endregion
 

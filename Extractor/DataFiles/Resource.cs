@@ -18,19 +18,12 @@
         // public int HarvestTime { get; set; }
         public int LootTable { get; set; }
 
-        // public int[] Data { get; set; }
-
         public static Resource[] Load(SeanArchive.Item data) {
             var contents = new SeanDatabase(data.Contents);
 
-            var items = new Resource[contents.ItemCount - 1];
-            for(int i = 1; i < contents.ItemCount; i++) {
-                /*var dat = new int[contents.ItemSize];
-                for(int j = 0; j < contents.ItemSize; j++) {
-                    dat[j] = contents.Items[i, j];
-                }*/
-
-                items[i - 1] = new Resource {
+            var items = new Resource[contents.ItemCount];
+            for(int i = 0; i < contents.ItemCount; i++) {
+                items[i] = new Resource {
                     Id = contents.Items[i, 0],
                     MapId = contents.Items[i, 1],
                     X = contents.Items[i, 2],
@@ -41,8 +34,7 @@
                     Tool1 = (byte)contents.Items[i, 7],
                     Tool2 = (byte)contents.Items[i, 8],
                     Type1 = (byte)contents.Items[i, 9],
-                    Type2 = (byte)contents.Items[i, 13],
-                    // Data = dat
+                    Type2 = (byte)contents.Items[i, 13]
                 };
             }
 
