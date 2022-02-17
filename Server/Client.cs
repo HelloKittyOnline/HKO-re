@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using Server.Protocols;
@@ -12,8 +12,8 @@ namespace Server {
         public NetworkStream Stream { get; }
         public BinaryReader Reader { get; set; }
 
-        public Account Account { get; set; }
-        public PlayerData Player => Account.PlayerData;
+        public string Username { get; set; }
+        public PlayerData Player { get; set; }
 
         public Client(TcpClient client) {
             Id = (short)IdManager.GetId();

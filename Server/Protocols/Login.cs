@@ -34,15 +34,27 @@ namespace Server.Protocols {
         static void AcceptClient(Client client) {
             var data = PacketBuilder.DecodeCrazy(client.Reader);
 
-            var userName = Encoding.ASCII.GetString(data, 1, data[0]);
+            var username = Encoding.ASCII.GetString(data, 1, data[0]);
             var password = Encoding.UTF7.GetString(data, 0x42, data[0x41]);
 
-            client.Account = Program.database.GetPlayer(userName, password);
+            var res = Database.Login(username, password, out var player);
 
-            if(client.Account == null) {
-                SendInvalidLogin(client.Stream);
-            } else {
-                SendAcceptClient(client.Stream);
+            switch(res) {
+                case LoginResponse.Ok:
+                    client.Player = player;
+                    client.Username = username;
+                    SendAcceptClient(client.Stream);
+                    break;
+                case LoginResponse.NoUser:
+                    SendInvalidLogin(client.Stream, 8);
+                    break;
+                case LoginResponse.InvalidPassword:
+                    SendInvalidLogin(client.Stream, 2);
+                    break;
+                case LoginResponse.AlreadyOnline:
+                    SendInvalidLogin(client.Stream, 5);
+                    break;
+                default: throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -115,12 +127,12 @@ namespace Server.Protocols {
         }
 
         // 00_02_02
-        static void SendInvalidLogin(Stream res) {
+        static void SendInvalidLogin(Stream res, byte id) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
             b.WriteByte(0x2); // second switch
-            b.WriteByte(0x2); // third switch
+            b.WriteByte(id); // third switch
 
             b.Send(res);
         }

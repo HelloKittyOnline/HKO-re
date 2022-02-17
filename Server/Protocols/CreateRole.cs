@@ -12,7 +12,7 @@ namespace Server.Protocols {
                     GetCharacter(client);
                     break;
                 case 0x03: // 00566bce // Delete character
-                    client.Account.PlayerData = null;
+                    client.Player = null;
                     SendCharacterData(client);
                     break;
                 case 0x05: // 00566c47 // check character name
@@ -42,7 +42,7 @@ namespace Server.Protocols {
                 Console.WriteLine(entities[i]);
             }
 
-            client.Account.PlayerData = new PlayerData(
+            client.Player = new PlayerData(
                 name,
                 data[64], // 1 = male, 2 = female
                 data[65], // 1 = O, 2 = A, 3 = B, 4 = AB

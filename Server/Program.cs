@@ -6,9 +6,9 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 using Extractor;
+using MySql.Data.MySqlClient;
 using Server.Protocols;
 
 namespace Server {
@@ -26,8 +26,6 @@ namespace Server {
     }
 
     class Program {
-        internal static DataBase database;
-
         internal static MapData[] maps;
         internal static Dictionary<int, DialogData[]> dialogData;
 
@@ -70,7 +68,7 @@ namespace Server {
 
                 var id = (data[0] << 8) | data[1];
 
-                if(client.Account == null && id != 1) {
+                if(client.Username == null && id != 1) {
                     // invalid data
                     break;
                 }
@@ -88,7 +86,7 @@ namespace Server {
                 switch(client.ReadByte()) {
                     case 0x00:
                         Login.Handle(client);
-                        if(client.Account == null)
+                        if(client.Username == null)
                             running = false;
                         break;
                     case 0x01:
@@ -256,8 +254,8 @@ namespace Server {
                 }
             }
 
-            if(client.Account != null) {
-                Console.WriteLine($"Player {client.Account.Username} disconnected");
+            if(client.Username != null) {
+                Console.WriteLine($"Player {client.Username} disconnected");
             }
         }
 
@@ -282,6 +280,8 @@ namespace Server {
                         Console.WriteLine(e);
                     }
 
+                    if(client.Username != null)
+                        Database.LogOut(client.Username);
                     clients.Remove(client);
                 });
             }
@@ -356,21 +356,15 @@ namespace Server {
             Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all teleporters registered
             Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all teleporters registered
 
-            database = DataBase.Load("./db.json");
-            Task.Run(() => {
-                while(true) {
-                    Thread.Sleep(60 * 1000); // saved once a minute
-                    // not sure about thread safety eh
-                    try {
-                        lock(database) {
-                            database.Save("./db.json");
-                        }
-                        Console.WriteLine("Saved Database");
-                    } catch(Exception e) {
-                        Console.WriteLine(e);
-                    }
-                }
-            });
+            var sb = new MySqlConnectionStringBuilder {
+                Server = "127.0.0.1",
+                UserID = "root",
+                Password = "",
+                Port = 3306,
+                Database = "hko"
+            };
+
+            Database.SetConnectionString(sb.ConnectionString);
 
             Server(25000, true);
         }

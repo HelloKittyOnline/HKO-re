@@ -1,21 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Data;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MySql.Data.MySqlClient;
 
 namespace Server {
-    class Account {
-        public string Username { get; set; }
-
-        public byte[] Salt { get; set; }
-        public byte[] Password { get; set; }
-
-        public PlayerData PlayerData { get; set; }
-    }
-
     class IdManager {
         private static HashSet<int> AvalibleIds = new HashSet<int>();
         private static int MaxId = 0;
@@ -74,45 +66,82 @@ namespace Server {
         }
     }
 
-    class DataBase {
-        public Dictionary<string, Account> Accounts { get; set; }
+    enum LoginResponse {
+        Ok,
+        NoUser,
+        InvalidPassword,
+        AlreadyOnline
+    }
 
-        public DataBase() {
-            Accounts = new Dictionary<string, Account>();
+    static class Database {
+        private static Dictionary<string, PlayerData> _online = new Dictionary<string, PlayerData>();
+        private static string _connectionString;
+
+        public static void SetConnectionString(string str) {
+            _connectionString = str;
         }
 
-        public void Save(string path) {
-            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions {
-                Converters = { new DictionaryInt32Converter() }
-            }));
-        }
-        public static DataBase Load(string path) {
-            var db = File.Exists(path) ? JsonSerializer.Deserialize<DataBase>(File.ReadAllText(path), new JsonSerializerOptions {
-                Converters = { new DictionaryInt32Converter() }
-            }) : new DataBase();
-            foreach (var account in db.Accounts) {
-                account.Value.PlayerData?.Init();
-            }
-            return db;
-        }
-
-        public Account GetPlayer(string username, string password) {
-            if(Accounts.TryGetValue(username, out var account)) {
-                return VerifyPassword(password, account) ? account : null;
+        public static LoginResponse Login(string username, string password, out PlayerData playerData) {
+            if(_online.ContainsKey(username)) {
+                playerData = null;
+                return LoginResponse.AlreadyOnline;
             }
 
-            Console.WriteLine($"Created account {username}");
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
 
-            var salt = GenerateSalt();
+            var command = connection.CreateCommand();
+            command.CommandText = "select * from account where username = @name";
+            command.Parameters.AddWithValue("name", username);
 
-            // create new account
-            account = new Account {
-                Username = username,
-                Salt = salt,
-                Password = HashPassword(salt, password)
-            };
-            Accounts[username] = account;
-            return account;
+            var reader = command.ExecuteReader(CommandBehavior.SingleRow);
+
+            if(!reader.Read()) {
+                playerData = null;
+                return LoginResponse.NoUser;
+            }
+
+            var buff = new byte[48];
+
+            reader.GetBytes("password", 0, buff, 0, 48);
+
+            if(!VerifyPassword(password, buff)) {
+                playerData = null;
+                return LoginResponse.InvalidPassword;
+            }
+
+            var data = reader.GetString("data");
+            playerData = JsonSerializer.Deserialize<PlayerData>(data, new JsonSerializerOptions {
+                Converters = { new DictionaryInt32Converter() }
+            });
+            playerData.Init();
+
+            _online[username] = playerData;
+
+            return LoginResponse.Ok;
+        }
+
+        public static void LogOut(string username) {
+            var data = _online[username];
+
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            command.CommandText = "update account set data = @data where username = @name";
+            command.Parameters.AddWithValue("name", username);
+
+            if(data == null) {
+                command.Parameters.AddWithValue("data", null);
+            } else {
+                command.Parameters.AddWithValue("data", JsonSerializer.Serialize(data, new JsonSerializerOptions {
+                    Converters = { new DictionaryInt32Converter() }
+                }));
+            }
+
+            command.ExecuteNonQuery();
+
+            _online.Remove(username);
         }
 
         private static byte[] GenerateSalt() {
@@ -127,9 +156,9 @@ namespace Server {
             return rfc.GetBytes(256 / 8);
         }
 
-        private static bool VerifyPassword(string password, Account account) {
-            var hash = HashPassword(account.Salt, password);
-            return hash.SequenceEqual(account.Password);
+        private static bool VerifyPassword(string password, byte[] account) {
+            var hash = HashPassword(account[..16], password);
+            return hash.SequenceEqual(account[16..]);
         }
     }
 }

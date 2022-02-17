@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
@@ -90,6 +90,8 @@ namespace Server {
             Inventory = new InventoryItem[50];
             Equipment = new InventoryItem[14];
             QuestFlags = new Dictionary<int, int>();
+
+            Init();
 
             Debug.Assert(entities.Length == 18);
         }
