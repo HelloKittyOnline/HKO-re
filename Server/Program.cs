@@ -42,16 +42,19 @@ namespace Server {
         static void ListenClient(Client client, bool lobby) {
             Login.SendLobby(client, lobby);
 
-            var uhh = new BinaryReader(client.Stream);
+            var reader = new BinaryReader(client.Stream, Encoding.Default, true);
 
             bool running = true;
             while(running) {
-                var head = uhh.ReadBytes(3);
-                if(head.Length == 0) {
+                var head = new byte[3];
+
+                var task = client.Stream.ReadAsync(head, 0, 3, client.Token);
+                task.Wait();
+                if(task.Result != 3 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
                     break;
                 }
 
-                var data = uhh.ReadBytes(uhh.ReadUInt16());
+                var data = reader.ReadBytes(reader.ReadUInt16());
 
                 if(data.Length == 1) {
                     if(data[0] == 0x7E) { // 005551be
@@ -253,35 +256,44 @@ namespace Server {
                         break;
                 }
             }
-
-            if(client.Username != null) {
-                Console.WriteLine($"Player {client.Username} disconnected");
-            }
         }
 
-        private static void Server(int port, bool lobby) {
+        private static void Server(int port, bool lobby, CancellationToken token) {
             var server = new TcpListener(IPAddress.Any, port);
             server.Start();
+            token.Register(server.Stop);
 
             Console.WriteLine($"Listening at :{port}");
 
             while(true) {
-                var tcpClient = server.AcceptTcpClient();
+                TcpClient tcpClient;
+                try {
+                    // throws if cancellation token is triggered
+                    tcpClient = server.AcceptTcpClient();
+                } catch when(token.IsCancellationRequested) {
+                    break;
+                }
 
-                Task.Run(() => {
-                    Console.WriteLine($"Client {tcpClient.Client.RemoteEndPoint} {tcpClient.Client.LocalEndPoint}");
+                Console.WriteLine($"Client {tcpClient.Client.RemoteEndPoint} {tcpClient.Client.LocalEndPoint}");
 
-                    var client = new Client(tcpClient);
-                    clients.Add(client);
+                var client = new Client(tcpClient);
+                clients.Add(client);
 
+                client.RunTask = Task.Run(() => {
                     try {
                         ListenClient(client, lobby);
+                    } catch when(client.Token.IsCancellationRequested) {
+                        // ignore canceled
                     } catch(Exception e) {
                         Console.WriteLine(e);
                     }
 
-                    if(client.Username != null)
+                    client.TcpClient.Close();
+
+                    if(client.Username != null) {
                         Database.LogOut(client.Username);
+                        Console.WriteLine($"Player {client.Username} disconnected");
+                    }
                     clients.Remove(client);
                 });
             }
@@ -289,6 +301,21 @@ namespace Server {
 
         static void Main(string[] args) {
             Console.WriteLine("Starting server...");
+
+            CancellationTokenSource serverTokenSource = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) => {
+                e.Cancel = true;
+
+                foreach(var client in clients) {
+                    client.TokenSource.Cancel();
+                }
+
+                Task.WaitAll(clients.Select(x => x.RunTask).ToArray());
+                serverTokenSource.Cancel();
+            };
+
+            quests = Quest.Load(SeanArchive.Extract("./c_quest_eng.sdb"));
+            var archive = SeanArchive.Extract("./client_table_eng.sdb");
 
             teleporters = Teleport  .Load(archive.First(x => x.Name == "teleport_list.txt"));
             var npcs    = NPCName   .Load(archive.First(x => x.Name == "npc_list.txt"));
@@ -366,7 +393,7 @@ namespace Server {
 
             Database.SetConnectionString(sb.ConnectionString);
 
-            Server(25000, true);
+            Server(25000, true, serverTokenSource.Token);
         }
     }
 }

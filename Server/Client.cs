@@ -1,6 +1,8 @@
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Server.Protocols;
 
 namespace Server {
@@ -15,12 +17,18 @@ namespace Server {
         public string Username { get; set; }
         public PlayerData Player { get; set; }
 
+        public CancellationTokenSource TokenSource { get; }
+        public CancellationToken Token => TokenSource.Token;
+        public Task RunTask;
+
         public Client(TcpClient client) {
             Id = (short)IdManager.GetId();
             InGame = false;
-            
+
             TcpClient = client;
             Stream = TcpClient.GetStream();
+
+            TokenSource = new CancellationTokenSource();
         }
 
         ~Client() {
