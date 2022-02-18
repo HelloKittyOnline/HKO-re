@@ -365,10 +365,10 @@ namespace Server {
 
                     int quest;
                     bool begins;
-                    if(dialog.TryGetProperty("Start", out var start)) {
+                    if(dialog.TryGetProperty("Start", out var start) && start.ValueKind == JsonValueKind.Number) {
                         quest = start.GetInt32();
                         begins = true;
-                    } else if(dialog.TryGetProperty("End", out var end)) {
+                    } else if(dialog.TryGetProperty("End", out var end) && end.ValueKind == JsonValueKind.Number) {
                         quest = end.GetInt32();
                         begins = false;
                     } else {
