@@ -21,7 +21,7 @@ namespace Server.Protocols {
                     CheckName(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 01_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 01_{id:X2}");
                     break;
             }
         }

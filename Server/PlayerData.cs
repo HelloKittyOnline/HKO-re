@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using System.Threading;
+using Extractor;
+using Server.Protocols;
 
 namespace Server {
     struct InventoryItem : IWriteAble {
@@ -56,21 +58,22 @@ namespace Server {
         public int[] DisplayEntities { get; private set; }
 
         public int Money { get; set; }
-        /*public int Tokens { get; set; }
-        public int Money { get; set; }
-        public int Tickets { get; set; }*/
+        public int NormalTokens { get; set; }
+        public int SpecialTokens { get; set; }
+        public int Tickets { get; set; }
 
         [JsonIgnore] public int Hp => 100;
         [JsonIgnore] public int MaxHp => 100;
         [JsonIgnore] public int Sta => 100;
         [JsonIgnore] public int MaxSta => 100;
 
-        public const int Level = 1; // TODO
+        public short[] Levels { get; set; }
+        public int[] Exp { get; set; }
 
         public Dictionary<int, int> QuestFlags { get; set; }
 
         [JsonIgnore]
-        public int InventorySize => Math.Min(50, 25 + Level / 25);
+        public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
         public InventoryItem[] Inventory { get; set; }
         public InventoryItem[] Equipment { get; set; }
 
@@ -93,6 +96,12 @@ namespace Server {
             Equipment = new InventoryItem[14];
             QuestFlags = new Dictionary<int, int>();
             Quickbar = new int[10];
+            Levels = new short[9];
+            Exp = new int[9];
+
+            for(int i = 0; i < 9; i++) {
+                Levels[i] = 1;
+            }
 
             Init();
 
@@ -112,6 +121,32 @@ namespace Server {
                 var slot = equ.GetEntSlot();
 
                 DisplayEntities[slot] = item.Id;
+            }
+        }
+
+        public void AddExpAction(Client client, Skill skill, int level) {
+            AddExp(client, skill, (int)(600 / Math.Pow(2, Levels[(int)skill] - level + 1)));
+        }
+
+        public void AddExp(Client client, Skill skill, int gain) {
+            var level = Levels[(int)skill];
+
+            if(skill != Skill.General) {
+                AddExp(client, Skill.General, gain / 2);
+            }
+
+            var required = Program.skills[level].GetExp(skill);
+            Exp[(int)skill] += gain;
+            Player.SendSkillChange(client, skill, true);
+
+            if(required == 0 || Exp[(int)skill] < required)
+                return;
+
+            Levels[(int)skill]++;
+            Exp[(int)skill] -= required;
+
+            if(skill == Skill.General) {
+                Protocols.Inventory.SendSetInventorySize(client);
             }
         }
 
@@ -145,46 +180,29 @@ namespace Server {
         }
 
         public void WriteLevels(PacketBuilder b) {
-            b.WriteInt(1); // overall level
-            b.WriteInt(0); // level progress
+            b.WriteInt(Levels[0]); // overall level
+            b.WriteInt(Exp[0]); // level progress
 
             b.WriteByte(0); // ???
             b.WriteByte(0); // ???
             b.WriteByte(0); // ???
             b.WriteByte(0); // unused?
 
-            b.WriteShort(1); // Planting
-            b.WriteShort(1); // Mining
-            b.WriteShort(1); // Woodcutting
-            b.WriteShort(1); // Gathering
-            b.WriteShort(1); // Forging
-            b.WriteShort(1); // Carpentry
-            b.WriteShort(1); // Cooking
-            b.WriteShort(1); // Tailoring
+            // skill levels
+            for(int i = 1; i <= 8; i++) {
+                b.WriteShort((short)Levels[i]);
+            }
 
-            b.WriteInt(0); // Planting    progress
-            b.WriteInt(0); // Mining      progress
-            b.WriteInt(0); // Woodcutting progress
-            b.WriteInt(0); // Gathering   progress
-            b.WriteInt(0); // Forging     progress
-            b.WriteInt(0); // Carpentry   progress
-            b.WriteInt(0); // Cooking     progress
-            b.WriteInt(0); // Tailoring   progress
+            // skill exp
+            for(int i = 1; i <= 8; i++) {
+                b.WriteInt(Exp[i]);
+            }
         }
 
         public byte GetConstellation() {
-            // 1 : AQU
-            // 2 : PIS
-            // 3 : ARI
-            // 4 : TAU
-            // 5 : GEM
-            // 6 : CAN
-            // 7 : LEO
-            // 8 : VIR
-            // 9 : LIB
-            // 10: SCO
-            // 11: SAG
-            // 12: CAP
+            // 1 : AQU // 2 : PIS // 3 : ARI // 4 : TAU
+            // 5 : GEM // 6 : CAN // 7 : LEO // 8 : VIR
+            // 9 : LIB // 10: SCO // 11: SAG // 12: CAP
             return (byte)(BirthMonth switch {
                 01 => BirthDay < 20 ? 12 : 01,
                 02 => BirthDay < 19 ? 01 : 02,

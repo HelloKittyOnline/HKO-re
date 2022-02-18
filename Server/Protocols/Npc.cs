@@ -36,7 +36,7 @@ namespace Server.Protocols {
                 case 0x05_16: // 00574580
                 */
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 05_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 05_{id:X2}");
                     break;
             }
         }

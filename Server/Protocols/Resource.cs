@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Extractor;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
@@ -12,7 +13,7 @@ namespace Server.Protocols {
                     Recieve_06_01(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 06_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 06_{id:X2}");
                     break;
             }
         }
@@ -23,34 +24,46 @@ namespace Server.Protocols {
             // gathering
 
             var resId = client.ReadInt32();
-            var idk2 = client.ReadByte(); // 1 or 2
+            var action = client.ReadByte(); // 1 or 2
 
-            var table = Program.resources[resId].LootTable;
+            var resource = Program.resources[resId];
 
             // TODO: harvest time??
             const int harvestTime = 5 * 1000;
 
-            if(table != 0) {
-                var source = new CancellationTokenSource();
-                client.Player.cancelSource = source;
+            var source = new CancellationTokenSource();
+            client.Player.cancelSource = source;
 
-                Task.Run(() => {
-                    Thread.Sleep(harvestTime);
-                    if(source.IsCancellationRequested)
-                        return;
+            Task.Run(() => {
+                Thread.Sleep(harvestTime);
+                if(source.IsCancellationRequested)
+                    return;
 
-                    var item = Program.lootTables[table].GetRandom();
-                    if(item != -1) {
-                        client.AddItem(item, 1);
-                    }
-                });
-            }
+                var item = Program.lootTables[resource.LootTable].GetRandom();
+                if(item != -1) {
+                    client.AddItem(item, 1);
+                }
+
+                var type = action switch {
+                    1 => resource.Type1,
+                    2 => resource.Type2,
+                    _ => throw new ArgumentOutOfRangeException()
+                };
+
+                client.Player.AddExpAction(client, type switch {
+                    0 => Skill.Gathering,
+                    1 => Skill.Mining,
+                    2 => Skill.Woodcutting,
+                    3 => Skill.Farming, // ?
+                    _ => throw new ArgumentOutOfRangeException()
+                }, resource.Level);
+            });
 
             Send06_01(client, harvestTime);
         }
         #endregion
 
-        #region Request
+        #region Response
         // 06_01
         static void Send06_01(Client client, int time) {
             var b = new PacketBuilder();

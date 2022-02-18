@@ -39,6 +39,7 @@ namespace Server {
         internal static ItemAtt[] items;
         internal static EquAtt[] equipment;
         internal static Quest[] quests;
+        internal static SkillInfo[] skills;
 
         internal static List<Client> clients = new List<Client>();
 
@@ -267,12 +268,12 @@ namespace Server {
                         */
 
                         default:
-                            client.Logger.LogWarning($"Unknown Packet {data[0]}_{data[1]}");
+                            client.Logger.LogWarning($"Unknown Packet {data[0]:X2}_{data[1]:X2}");
                             break;
                     }
                 } catch(Exception e) {
                     client.Logger.LogError(e, BitConverter.ToString(data));
-                    throw;
+                    break;
                 }
             }
         }
@@ -343,6 +344,7 @@ namespace Server {
             lootTables  = ResCounter.Load(archive.First(x => x.Name == "res_counter.txt"));
             items       = ItemAtt   .Load(archive.First(x => x.Name == "item_att.txt"));
             equipment   = EquAtt    .Load(archive.First(x => x.Name == "equ_att.txt"));
+            skills      = SkillInfo .Load(archive.First(x => x.Name == "skill_exp.txt"));
 
             var mapList = MapList.Load(archive.First(x => x.Name == "map_list.txt"));
 

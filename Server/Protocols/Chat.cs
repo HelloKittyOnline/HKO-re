@@ -16,7 +16,7 @@ namespace Server.Protocols {
                 case 0xC: Recieve0C(client); break; // 005d331e
                 case 0xD: Recieve0D(client); break; // 005d33a7 open private message
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 03_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 03_{id:X2}");
                     break;
             }
         }
@@ -35,7 +35,7 @@ namespace Server.Protocols {
             var msg = client.ReadWString();
 
             // broadcast message
-            foreach (var _client in Program.clients) {
+            foreach(var _client in Program.clients) {
                 // if(_client == client) continue;
                 Send05(_client, client, msg);
             }
@@ -93,7 +93,7 @@ namespace Server.Protocols {
             b.WriteShort(sender.Id);
             b.WriteWString(sender.Player.Name);
             b.WriteWString(msg);
-            
+
             b.Send(client);
         }
         #endregion

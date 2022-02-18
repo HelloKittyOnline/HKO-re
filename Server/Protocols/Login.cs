@@ -24,7 +24,7 @@ namespace Server.Protocols {
                     Ping(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 00_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 00_{id:X2}");
                     break;
             }
         }
@@ -58,7 +58,8 @@ namespace Server.Protocols {
                     SendInvalidLogin(client, 5);
                     client.Close();
                     break;
-                default: throw new ArgumentOutOfRangeException();
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -89,6 +90,7 @@ namespace Server.Protocols {
             var idk2 = client.ReadInt32(); // = 0
 
             Send00_0C(client, 1);
+            SendTimoutVal(client);
             // SendCharacterData(res, false);
         }
 

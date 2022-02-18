@@ -22,7 +22,7 @@ namespace Server.Protocols {
                 case 0x13_0D: //
                 */
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 13_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 13_{id:X2}");
                     break;
             }
         }

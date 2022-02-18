@@ -75,19 +75,19 @@ namespace Extractor {
 
         public int GetEntSlot() {
             return Type switch {
-                // EquipType.Head => 0,
-                // EquipType.Eyes => 0,
-                // EquipType.Mouth => 0,
-                // EquipType.Ears => 0,
-                // EquipType.Neck => 0,
+                EquipType.Head => 16,
+                EquipType.Eyes => 15,
+                EquipType.Mouth => 14,
+                EquipType.Ears => 13,
+                EquipType.Neck => 12,
                 EquipType.Top => 5,
                 EquipType.Pants => 4,
                 EquipType.Shoes => 3,
                 EquipType.Hands => 7,
-                // EquipType.AccessoryTop => 0,
-                // EquipType.AccessoryPants => 0,
-                // EquipType.AccessoryShoes => 0,
-                // EquipType.AccessoryHeld => 0,
+                EquipType.AccessoryTop => 8,
+                EquipType.AccessoryPants => 9,
+                EquipType.AccessoryShoes => 10,
+                EquipType.AccessoryHeld => 11,
                 _ => throw new Exception("Unexpected type")
             };
         }

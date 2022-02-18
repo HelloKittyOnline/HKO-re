@@ -4,12 +4,12 @@ namespace Server.Protocols {
     struct MobData : IWriteAble {
         public int Id { get; set; }
         public int AttId { get; set; }
-        
+
         public int X { get; set; }
         public int Y { get; set; }
         public byte Direction { get; set; }
         public byte Speed => 10;
-        
+
         public int Hp { get; set; }
         public int MaxHp { get; set; }
         public int Disabled { get; set; }
@@ -18,7 +18,7 @@ namespace Server.Protocols {
         public int MoveX { get; set; }
         public int MoveY { get; set; }
 
-        
+
         public void Write(PacketBuilder b) {
             b.WriteInt(Id);
             b.WriteInt(X);
@@ -40,14 +40,14 @@ namespace Server.Protocols {
     class Battle {
         public static void Handle(Client client) {
             var id = client.ReadByte();
-            switch (id) {
+            switch(id) {
                 case 3: // 00537da8
                 case 7: // 00537e23
                 case 8: // 00537e98
                 case 9: // 00537f23
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 0C_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 0C_{id:X2}");
                     break;
             }
         }

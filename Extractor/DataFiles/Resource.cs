@@ -6,7 +6,7 @@
         public int Y { get; set; }
 
         public short NameId { get; set; }
-        public short Count { get; set; }
+        public short Level { get; set; }
         // public byte Rotation { get; set; }
 
         public int Tool1 { get; set; }
@@ -29,7 +29,7 @@
                     X = contents.Items[i, 2],
                     Y = contents.Items[i, 3],
                     NameId = (short)contents.Items[i, 4],
-                    Count = (short)contents.Items[i, 5],
+                    Level = (short)contents.Items[i, 5],
                     LootTable = contents.Items[i, 6],
                     Tool1 = (byte)contents.Items[i, 7],
                     Tool2 = (byte)contents.Items[i, 8],

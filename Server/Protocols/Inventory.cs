@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
@@ -29,7 +28,7 @@ namespace Server.Protocols {
                 // case 0x09_22: // 0058751f
 
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 09_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 09_{id:X2}");
                     break;
             }
         }
@@ -86,7 +85,7 @@ namespace Server.Protocols {
         static void ConsumeItem(Client client) {
             var slot = client.ReadByte();
             var b = client.ReadInt16();
-            
+
             var c = client.ReadInt32();
             var d = client.ReadInt32();
             var e = client.ReadInt32();
@@ -97,7 +96,7 @@ namespace Server.Protocols {
             var slot = client.ReadByte();
             var inventory = client.ReadByte();
 
-            switch (inventory) {
+            switch(inventory) {
                 case 1:
                     client.Player.Inventory[slot - 1] = InventoryItem.Empty;
                     SendSetItem(client, InventoryItem.Empty, slot);
@@ -112,6 +111,18 @@ namespace Server.Protocols {
         #endregion
 
         #region Response
+        // 09_01
+        public static void SendSetMoney(Client client) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x09); // first switch
+            b.WriteByte(0x01); // second switch
+
+            b.WriteInt(client.Player.Money);
+
+            b.Send(client);
+        }
+
         // 09_02
         public static void SendSetItem(Client client, InventoryItem item, byte index) {
             var b = new PacketBuilder();
@@ -142,6 +153,18 @@ namespace Server.Protocols {
             b.WriteByte(index); // inventory index
             b.WriteByte(Convert.ToByte(displayMessage)); // display special message
             b.WriteInt(0); // if(item->id == 0) {lost item id} else {unused}
+
+            b.Send(client);
+        }
+
+        // 09_0B
+        public static void SendSetInventorySize(Client client) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x09); // first switch
+            b.WriteByte(0x0B); // second switch
+
+            b.WriteByte((byte)client.Player.InventorySize);
 
             b.Send(client);
         }

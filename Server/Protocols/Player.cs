@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Text;
 using Extractor;
 using Microsoft.Extensions.Logging;
@@ -73,7 +74,7 @@ namespace Server.Protocols {
                 case 0x63: // 005dfcee*/
 
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 02_{id}");
+                    client.Logger.LogWarning($"Unknown Packet 02_{id:X2}");
                     break;
             }
         }
@@ -105,7 +106,6 @@ namespace Server.Protocols {
         static void EnterGame(Client client) {
             client.ReadByte(); // idk
 
-            Login.SendTimoutVal(client);
             SendPlayerData(client);
             SendPlayerHpSta(client);
 
@@ -681,6 +681,21 @@ namespace Server.Protocols {
             b.Send(client);
         }
 
+        // 02_0E
+        public static void SendSkillChange(Client client, Skill skill, bool showMessage) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x02); // first switch
+            b.WriteByte(0x0E); // second switch
+
+            b.WriteByte((byte)skill);
+            b.WriteShort(client.Player.Levels[(int)skill]);
+            b.WriteInt(client.Player.Exp[(int)skill]);
+            b.WriteByte(Convert.ToByte(showMessage));
+
+            b.Send(client);
+        }
+
         // 02_12
         static void SendPlayerHpSta(Client client) {
             var b = new PacketBuilder();
@@ -810,7 +825,7 @@ namespace Server.Protocols {
             w.WriteInt(res.Y); // y
 
             w.WriteShort(res.NameId); // nameId
-            w.WriteShort(res.Count); // count
+            w.WriteShort(res.Level); // count
 
             w.WriteByte(1); // rotation
             w.Write0(3); // unused
