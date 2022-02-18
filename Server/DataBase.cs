@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
 
 namespace Server {
@@ -90,6 +91,8 @@ namespace Server {
             var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
+            LogRequest("select * from account where username = @name");
+
             var command = connection.CreateCommand();
             command.CommandText = "select * from account where username = @name";
             command.Parameters.AddWithValue("name", username);
@@ -127,6 +130,8 @@ namespace Server {
             var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
+            LogRequest("update account set data = @data where username = @name");
+
             var command = connection.CreateCommand();
             command.CommandText = "update account set data = @data where username = @name";
             command.Parameters.AddWithValue("name", username);
@@ -142,6 +147,11 @@ namespace Server {
             command.ExecuteNonQuery();
 
             _online.Remove(username);
+        }
+
+        private static void LogRequest(string query) {
+            var logger = Program.loggerFactory.CreateLogger("Database");
+            logger.LogInformation($"Executing Query \"{query}\"");
         }
 
         private static byte[] GenerateSalt() {

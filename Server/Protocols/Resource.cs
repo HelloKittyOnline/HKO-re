@@ -1,17 +1,18 @@
 ﻿using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class Resource {
         public static void Handle(Client client) {
-            switch(client.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x01: // 005a2513
                     Recieve_06_01(client);
                     break;
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 06_{id}");
                     break;
             }
         }
@@ -45,13 +46,13 @@ namespace Server.Protocols {
                 });
             }
 
-            Send06_01(client.Stream, harvestTime);
+            Send06_01(client, harvestTime);
         }
         #endregion
 
         #region Request
         // 06_01
-        static void Send06_01(Stream clientStream, int time) {
+        static void Send06_01(Client client, int time) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x06); // first switch
@@ -71,7 +72,7 @@ namespace Server.Protocols {
             // if(prev == 4) itemId else harvestTime
             b.WriteInt(time);
 
-            b.Send(clientStream);
+            b.Send(client);
         }
         #endregion
     }

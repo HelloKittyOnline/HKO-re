@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class CreateRole {
         public static void Handle(Client client) {
-            switch(client.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x01: // 00566b0d // sent after character creation
                     CreateCharacter(client);
                     break;
@@ -19,7 +21,7 @@ namespace Server.Protocols {
                     CheckName(client);
                     break;
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 01_{id}");
                     break;
             }
         }
@@ -38,9 +40,6 @@ namespace Server.Protocols {
 
             var entities = new int[18];
             Buffer.BlockCopy(data, 68, entities, 0, 14 * 4);
-            for(int i = 0; i < 14; i++) {
-                Console.WriteLine(entities[i]);
-            }
 
             client.Player = new PlayerData(
                 name,
@@ -99,7 +98,7 @@ namespace Server.Protocols {
                 b.EndCompress();
             }
 
-            b.Send(client.Stream);
+            b.Send(client);
         }
         #endregion
     }

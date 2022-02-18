@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Server {
     interface IWriteAble {
@@ -88,7 +89,7 @@ namespace Server {
             writer.Write(dat);
         }
 
-        public void Send(Stream stream) {
+        public void Send(Client client) {
             var buf = buffer.GetBuffer();
 
             // update data length
@@ -96,12 +97,11 @@ namespace Server {
             buf[3] = (byte)(dataLength & 0xFF);
             buf[4] = (byte)(dataLength >> 8);
 
-#if DEBUG
             if(dataLength >= 2)
-                Console.WriteLine($"S -> C: {buf[5]:X2}_{buf[6]:X2}");
-#endif
-            lock(stream) {
-                stream.Write(buf, 0, (int)buffer.Position);
+                client.Logger.LogTrace($"S -> C: {buf[5]:X2}_{buf[6]:X2}");
+
+            lock(client.Stream) {
+                client.Stream.Write(buf, 0, (int)buffer.Position);
             }
         }
 

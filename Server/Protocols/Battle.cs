@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+﻿using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     struct MobData : IWriteAble {
@@ -40,19 +39,20 @@ namespace Server.Protocols {
 
     class Battle {
         public static void Handle(Client client) {
-            switch (client.ReadByte()) {
+            var id = client.ReadByte();
+            switch (id) {
                 case 3: // 00537da8
                 case 7: // 00537e23
                 case 8: // 00537e98
                 case 9: // 00537f23
                     break;
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 0C_{id}");
                     break;
             }
         }
 
-        public static void Send0C_01(Stream res, MobData[] mobs) {
+        public static void Send0C_01(Client client, MobData[] mobs) {
             // create npcs
             var b = new PacketBuilder();
 
@@ -67,7 +67,7 @@ namespace Server.Protocols {
             }
             b.EndCompress();
 
-            b.Send(res);
+            b.Send(client);
         }
     }
 }

@@ -1,8 +1,9 @@
-using System.IO;
+﻿using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Server.Protocols;
 
 namespace Server {
@@ -17,9 +18,11 @@ namespace Server {
         public string Username { get; set; }
         public PlayerData Player { get; set; }
 
-        public CancellationTokenSource TokenSource { get; }
+        private CancellationTokenSource TokenSource;
         public CancellationToken Token => TokenSource.Token;
         public Task RunTask;
+
+        public ILogger Logger { get; set; }
 
         public Client(TcpClient client) {
             Id = (short)IdManager.GetId();
@@ -29,10 +32,15 @@ namespace Server {
             Stream = TcpClient.GetStream();
 
             TokenSource = new CancellationTokenSource();
+            Logger = Program.loggerFactory.CreateLogger("Client");
         }
 
         ~Client() {
             IdManager.FreeId(Id);
+        }
+
+        public void Close() {
+            TokenSource.Cancel();
         }
 
         public void AddItem(int item, int count) {
@@ -40,7 +48,7 @@ namespace Server {
             if(pos == -1) {
                 // inventory full
             } else {
-                Inventory.SendGetItem(Stream, Player.Inventory[pos], (byte)(pos + 1), true);
+                Inventory.SendGetItem(this, Player.Inventory[pos], (byte)(pos + 1), true);
             }
         }
 
@@ -52,6 +60,9 @@ namespace Server {
 
         public string ReadWString() {
             return Encoding.Unicode.GetString(ReadBytes(ReadUInt16()));
+        }
+        public string ReadString() {
+            return Encoding.UTF8.GetString(ReadBytes(ReadByte()));
         }
     }
 }

@@ -1,11 +1,11 @@
-﻿using System;
-using System.Drawing;
-using System.IO;
+﻿using System.Drawing;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class Chat {
         public static void Handle(Client client) {
-            switch(client.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x1: Recieve01(client); break; // 005d2eec // map channel message
                 case 0x2: Recieve02(client); break; // 005d2fa6
                 case 0x5: Recieve05(client); break; // 005d3044 // normal channel message
@@ -16,7 +16,7 @@ namespace Server.Protocols {
                 case 0xC: Recieve0C(client); break; // 005d331e
                 case 0xD: Recieve0D(client); break; // 005d33a7 open private message
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 03_{id}");
                     break;
             }
         }
@@ -37,7 +37,7 @@ namespace Server.Protocols {
             // broadcast message
             foreach (var _client in Program.clients) {
                 // if(_client == client) continue;
-                Send05(_client.Stream, client, msg);
+                Send05(_client, client, msg);
             }
         }
 
@@ -68,7 +68,7 @@ namespace Server.Protocols {
         #endregion
 
         #region Response
-        public static void Send03(Stream res, string sender, string msg, Color color) {
+        public static void Send03(Client client, string sender, string msg, Color color) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -81,10 +81,10 @@ namespace Server.Protocols {
             b.WriteByte(color.G);
             b.WriteByte(color.B);
 
-            b.Send(res);
+            b.Send(client);
         }
 
-        public static void Send05(Stream res, Client sender, string msg) {
+        public static void Send05(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -94,7 +94,7 @@ namespace Server.Protocols {
             b.WriteWString(sender.Player.Name);
             b.WriteWString(msg);
             
-            b.Send(res);
+            b.Send(client);
         }
         #endregion
     }

@@ -1,9 +1,10 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class Friend {
         public static void Handle(Client client) {
-            switch(client.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x01: // 0051afb7 // add friend
                     AddFriend(client);
                     break;
@@ -19,7 +20,7 @@ namespace Server.Protocols {
                 // case 0x04_07: // 0051b31c // remove player from blacklist
 
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 04_{id}");
                     break;
             }
         }

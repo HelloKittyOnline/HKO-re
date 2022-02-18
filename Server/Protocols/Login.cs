@@ -1,11 +1,12 @@
 ﻿using System;
-using System.IO;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class Login {
         public static void Handle(Client client) {
-            switch(client.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x00_01: // 0059af3e // Auth
                     AcceptClient(client);
                     break;
@@ -22,9 +23,8 @@ namespace Server.Protocols {
                 case 0x00_63: // 0059b253
                     Ping(client);
                     break;
-
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 00_{id}");
                     break;
             }
         }
@@ -41,18 +41,22 @@ namespace Server.Protocols {
 
             switch(res) {
                 case LoginResponse.Ok:
+                    client.Logger = Program.loggerFactory.CreateLogger($"Client[\"{username}\"]");
                     client.Player = player;
                     client.Username = username;
-                    SendAcceptClient(client.Stream);
+                    SendAcceptClient(client);
                     break;
                 case LoginResponse.NoUser:
-                    SendInvalidLogin(client.Stream, 8);
+                    SendInvalidLogin(client, 8);
+                    client.Close();
                     break;
                 case LoginResponse.InvalidPassword:
-                    SendInvalidLogin(client.Stream, 2);
+                    SendInvalidLogin(client, 2);
+                    client.Close();
                     break;
                 case LoginResponse.AlreadyOnline:
-                    SendInvalidLogin(client.Stream, 5);
+                    SendInvalidLogin(client, 5);
+                    client.Close();
                     break;
                 default: throw new ArgumentOutOfRangeException();
             }
@@ -76,7 +80,7 @@ namespace Server.Protocols {
                 var name = Encoding.ASCII.GetString(client.ReadBytes(len));
             }
 
-            SendServerList(client.Stream);
+            SendServerList(client);
         }
 
         // 00_0B
@@ -84,7 +88,7 @@ namespace Server.Protocols {
             var idk1 = Encoding.ASCII.GetString(client.ReadBytes(client.ReadByte())); // "@"
             var idk2 = client.ReadInt32(); // = 0
 
-            Send00_0C(client.Stream, 1);
+            Send00_0C(client, 1);
             // SendCharacterData(res, false);
         }
 
@@ -106,13 +110,13 @@ namespace Server.Protocols {
             b.AddString(lobby ? "LobbyServer" : "RealmServer", 1);
 
             b.WriteShort(0); // (*global_hko_client)->field_0xec
-            b.WriteShort((short)client.Id);
+            b.WriteShort(client.Id);
 
-            b.Send(client.Stream);
+            b.Send(client);
         }
 
         // 00_02_01
-        static void SendAcceptClient(Stream res) {
+        static void SendAcceptClient(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -123,22 +127,22 @@ namespace Server.Protocols {
             b.AddString("", 1); // appended to username??
             b.AddString("", 1); // blowfish encrypted stuff???
 
-            b.Send(res);
+            b.Send(client);
         }
 
         // 00_02_02
-        static void SendInvalidLogin(Stream res, byte id) {
+        static void SendInvalidLogin(Client client, byte id) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
             b.WriteByte(0x2); // second switch
             b.WriteByte(id); // third switch
 
-            b.Send(res);
+            b.Send(client);
         }
 
         // 00_02_03
-        static void SendPlayerBanned(Stream res) {
+        static void SendPlayerBanned(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -147,11 +151,11 @@ namespace Server.Protocols {
 
             b.AddString("01/01/1999", 1); // unban timeout (01/01/1999 = never)
 
-            b.Send(res);
+            b.Send(client);
         }
 
         // 00_04
-        static void SendServerList(Stream res) {
+        static void SendServerList(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -176,11 +180,11 @@ namespace Server.Protocols {
             }
 
 
-            b.Send(res);
+            b.Send(client);
         }
 
         // 00_05
-        static void Send00_05(Stream clientStream) {
+        static void Send00_05(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -194,11 +198,11 @@ namespace Server.Protocols {
                 b.AddString("Test server", 1);
             }
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 00_0B
-        static void SendChangeServer(Stream clientStream) {
+        static void SendChangeServer(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -210,11 +214,11 @@ namespace Server.Protocols {
             b.AddString("127.0.0.1", 1); // address
             b.WriteShort(12345); // port
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 00_0C_x // x = 0-7
-        static void Send00_0C(Stream clientStream, byte x) {
+        static void Send00_0C(Client client, byte x) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -222,11 +226,11 @@ namespace Server.Protocols {
 
             b.WriteByte(x); // 0-7 switch
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 00_0D_x // x = 2-6
-        static void Send00_0D(Stream clientStream, short x) {
+        static void Send00_0D(Client client, short x) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -234,12 +238,12 @@ namespace Server.Protocols {
 
             b.WriteShort(x); // (2-6) switch
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 00_0E
         // almost the same as 00_0B
-        static void Send00_0E(Stream clientStream) {
+        static void Send00_0E(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0); // first switch
@@ -251,11 +255,11 @@ namespace Server.Protocols {
             b.AddString("127.0.0.1", 1);
             b.WriteShort(12345);
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 00_11
-        public static void SendTimoutVal(Stream clientStream, int ms = 65536) {
+        public static void SendTimoutVal(Client client, int ms = 65536) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x00); // first switch
@@ -265,7 +269,7 @@ namespace Server.Protocols {
             // if more ms have been passed since then game sends 0x7F and disconnects
             b.WriteInt(ms);
 
-            b.Send(clientStream);
+            b.Send(client);
         }
         #endregion
     }

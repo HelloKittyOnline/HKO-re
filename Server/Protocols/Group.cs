@@ -1,9 +1,10 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class Group {
         public static void Handle(Client client) {
-            switch(client.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x01: // 00578950 // add player to group
                     AddToGroup(client);
                     break;
@@ -21,7 +22,7 @@ namespace Server.Protocols {
                 case 0x13_0D: //
                 */
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 13_{id}");
                     break;
             }
         }

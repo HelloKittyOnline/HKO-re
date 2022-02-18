@@ -1,17 +1,13 @@
-﻿using System;
-using System.IO;
 using System.Linq;
 using System.Text;
 using Extractor;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class Player {
         public static void Handle(Client client) {
-            var req = client.Reader;
-            var res = client.Stream;
-            var account = client.Account;
-
-            switch(req.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x01: // 005defa2
                     EnterGame(client);
                     break;
@@ -36,7 +32,7 @@ namespace Server.Protocols {
                     TakeTeleport(client);
                     break;
                 case 0x0B: // 005df415
-                    CheckMapHash(req, res);
+                    CheckMapHash(client);
                     break;
                 case 0x0C: // 005df48c
                     EquipItem(client);
@@ -49,7 +45,7 @@ namespace Server.Protocols {
                 case 0x13: // 005df5e2
                 */
                 case 0x1A: // 005df655 // sent after 02_09
-                    Recieve_02_1A(req, res);
+                    Recieve_02_1A(client);
                     break;
                 // case 0x1f: // 005df6e3
                 case 0x20: // 005df763 // change player info
@@ -67,7 +63,7 @@ namespace Server.Protocols {
                 case 0x2D: // 005dfab4
                 */
                 case 0x32: // 005dfb8c //  client version information
-                    Recieve_02_32(req, res);
+                    Recieve_02_32(client);
                     break;
                 /*
                 case 0x33: // 005dfc04
@@ -75,7 +71,7 @@ namespace Server.Protocols {
                 case 0x63: // 005dfcee*/
 
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 02_{id}");
                     break;
             }
         }
@@ -85,20 +81,20 @@ namespace Server.Protocols {
 
             SendChangeMap(client);
 
-            SendNpcs(client.Stream, map.Npcs);
-            SendTeleporters(client.Stream, map.Teleporters);
-            SendRes(client.Stream, map.Resources);
+            SendNpcs(client, map.Npcs);
+            SendTeleporters(client, map.Teleporters);
+            SendRes(client, map.Resources);
 
             var others = Program.clients.Where(other =>
                 other != client && other.InGame &&
                 other.Player.CurrentMap == client.Player.CurrentMap
             ).ToArray();
 
-            SendAddPlayers(client.Stream, others);
+            SendAddPlayers(client, others);
 
             var packet = BuildAddPlayers(new[] { client });
             foreach(var other in others) {
-                packet.Send(other.Stream);
+                packet.Send(other);
             }
         }
 
@@ -107,7 +103,7 @@ namespace Server.Protocols {
         static void EnterGame(Client client) {
             client.ReadByte(); // idk
 
-            Login.SendTimoutVal(client.Stream);
+            Login.SendTimoutVal(client);
             SendPlayerData(client);
             SendPlayerHpSta(client);
 
@@ -134,7 +130,7 @@ namespace Server.Protocols {
             var packet = BuildMovePlayer(client);
             foreach(var other in Program.clients) {
                 if(other != client && other.InGame) {
-                    packet.Send(other.Stream);
+                    packet.Send(other);
                 }
             }
         }
@@ -149,7 +145,7 @@ namespace Server.Protocols {
             var packet = BuildPlayerStatus(client);
             foreach(var other in Program.clients) {
                 if(other != client && other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other.Stream);
+                    packet.Send(other);
                 }
             }
         }
@@ -165,7 +161,7 @@ namespace Server.Protocols {
             var packet = BuildPlayerEmote(client, emote);
             foreach(var other in Program.clients) {
                 if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other.Stream);
+                    packet.Send(other);
                 }
             }
         }
@@ -187,7 +183,7 @@ namespace Server.Protocols {
             var packet = BuildRotatePlayer(client);
             foreach(var other in Program.clients) {
                 if(other != client && other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other.Stream);
+                    packet.Send(other);
                 }
             }
         }
@@ -204,7 +200,7 @@ namespace Server.Protocols {
             var packet = BuildPlayerState(client);
             foreach(var other in Program.clients) {
                 if(other != client && other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other.Stream);
+                    packet.Send(other);
                 }
             }
         }
@@ -228,15 +224,15 @@ namespace Server.Protocols {
             var packet = BuildDeletePlayer(client);
             foreach(var other in Program.clients) {
                 if(other != client && other.InGame && other.Player.CurrentMap == tp.FromMap) {
-                    packet.Send(other.Stream);
+                    packet.Send(other);
                 }
             }
         }
 
         // 02_0B
-        static void CheckMapHash(BinaryReader req, Stream res) {
-            var mapId = req.ReadInt32();
-            var hashHex = req.ReadBytes(32);
+        static void CheckMapHash(Client client) {
+            var mapId = client.ReadInt32();
+            var hashHex = client.ReadBytes(32);
         }
 
         // 02_0C
@@ -265,11 +261,11 @@ namespace Server.Protocols {
 
             // swap currently equipped item to inventory
             player.Inventory[inventorySlot - 1] = equipped;
-            Inventory.SendSetItem(client.Stream, equipped, inventorySlot);
+            Inventory.SendSetItem(client, equipped, inventorySlot);
 
             // equip item
             player.Equipment[type - 1] = item;
-            SendSetEquItem(client.Stream, item, type);
+            SendSetEquItem(client, item, type);
 
             int slot = equ.GetEntSlot();
 
@@ -296,8 +292,8 @@ namespace Server.Protocols {
             }
 
             player.Equipment[equipSlot - 1] = InventoryItem.Empty;
-            SendSetEquItem(client.Stream, InventoryItem.Empty, equipSlot);
-            Inventory.SendSetItem(client.Stream, item, (byte)(pos + 1));
+            SendSetEquItem(client, InventoryItem.Empty, equipSlot);
+            Inventory.SendSetItem(client, item, (byte)(pos + 1));
 
             var att = Program.items[item.Id];
             var equ = Program.equipment[att.SubId];
@@ -308,8 +304,8 @@ namespace Server.Protocols {
         }
 
         // 02_1A
-        static void Recieve_02_1A(BinaryReader req, Stream res) {
-            var winmTime = req.ReadInt32();
+        static void Recieve_02_1A(Client client) {
+            var winmTime = client.ReadInt32();
         }
 
         // 02_20
@@ -336,14 +332,11 @@ namespace Server.Protocols {
         }
 
         // 02_32
-        static void Recieve_02_32(BinaryReader req, Stream res) {
-            int count = req.ReadInt32();
+        static void Recieve_02_32(Client client) {
+            int count = client.ReadInt32();
             for(int i = 0; i < count; i++) {
-                int aLen = req.ReadByte();
-                var name = Encoding.ASCII.GetString(req.ReadBytes(aLen));
-
-                int bLen = req.ReadByte();
-                var version = Encoding.ASCII.GetString(req.ReadBytes(bLen));
+                var name = client.ReadString();
+                var version = client.ReadString();
 
                 // Console.WriteLine($"{name} : {version}");
             }
@@ -475,7 +468,7 @@ namespace Server.Protocols {
 
             b.EndCompress();
 
-            b.Send(client.Stream);
+            b.Send(client);
         }
 
         // 02_02
@@ -523,8 +516,8 @@ namespace Server.Protocols {
             return b;
         }
         // 02_02
-        static void SendAddPlayers(Stream res, Client[] clients) {
-            BuildAddPlayers(clients).Send(res);
+        static void SendAddPlayers(Client client, Client[] clients) {
+            BuildAddPlayers(clients).Send(client);
         }
 
         // 02_03
@@ -645,7 +638,7 @@ namespace Server.Protocols {
             }
             */
 
-            b.Send(client.Stream);
+            b.Send(client);
         }
 
         // 02_0C
@@ -662,7 +655,7 @@ namespace Server.Protocols {
                 b.WriteInt(client.Player.DisplayEntities[i]);
             }
 
-            b.Send(client.Stream);
+            b.Send(client);
         }
 
         // 02_12
@@ -683,7 +676,7 @@ namespace Server.Protocols {
             b.WriteInt(player.MaxSta); // sta max
             b.EndCompress();
 
-            b.Send(client.Stream);
+            b.Send(client);
         }
 
         // 02_0F
@@ -699,11 +692,11 @@ namespace Server.Protocols {
             b.WriteInt(player.PositionX); // x
             b.WriteInt(player.PositionY); // y
 
-            b.Send(client.Stream);
+            b.Send(client);
         }
 
         // 02_11
-        static void SendSetEquItem(Stream clientStream, InventoryItem item, byte position) {
+        static void SendSetEquItem(Client client, InventoryItem item, byte position) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x02); // first switch
@@ -717,7 +710,7 @@ namespace Server.Protocols {
             b.WriteByte(1); // action
             b.WriteByte(0); // play sound
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         static void writeTeleport(PacketBuilder w, Teleport tp) {
@@ -738,7 +731,7 @@ namespace Server.Protocols {
             w.WriteShort(0); // stringId
             w.WriteInt(0); // keyItem
         }
-        static void SendTeleporters(Stream clientStream, Teleport[] teleporters) {
+        static void SendTeleporters(Client client, Teleport[] teleporters) {
             // 02_14 and 02_15
             var b = new PacketBuilder();
 
@@ -753,7 +746,7 @@ namespace Server.Protocols {
             }
             b.EndCompress();
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         static void writeNpcData(PacketBuilder w, NPCName npc) {
@@ -770,7 +763,7 @@ namespace Server.Protocols {
             w.WriteInt(0);
         }
         // 02_16
-        static void SendNpcs(Stream clientStream, NPCName[] npcs) {
+        static void SendNpcs(Client client, NPCName[] npcs) {
             // create npcs
             var b = new PacketBuilder();
 
@@ -785,7 +778,7 @@ namespace Server.Protocols {
             }
             b.EndCompress();
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         static void writeResData(PacketBuilder w, Extractor.Resource res) {
@@ -806,7 +799,7 @@ namespace Server.Protocols {
             w.Write0(3); // unused
         }
         // 02_17
-        static void SendRes(Stream clientStream, Extractor.Resource[] resources) {
+        static void SendRes(Client client, Extractor.Resource[] resources) {
             // create npcs
             var b = new PacketBuilder();
 
@@ -821,11 +814,11 @@ namespace Server.Protocols {
             }
             b.EndCompress();
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 02_6E
-        static void Send02_6E(Stream clientStream) {
+        static void Send02_6E(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x02); // first switch
@@ -835,11 +828,11 @@ namespace Server.Protocols {
             b.WriteInt(8); // map id?
             b.AddString("", 1);
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 02_6F
-        static void Send02_6F(Stream clientStream) {
+        static void Send02_6F(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x02); // first switch
@@ -847,7 +840,7 @@ namespace Server.Protocols {
 
             b.WriteByte(0);
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         #endregion

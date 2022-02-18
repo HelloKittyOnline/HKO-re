@@ -1,10 +1,11 @@
-﻿using System;
-using System.IO;
+using System;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     class Inventory {
         public static void Handle(Client client) {
-            switch(client.ReadByte()) {
+            var id = client.ReadByte();
+            switch(id) {
                 case 0x01: // 00586fd2
                     MoveItem(client);
                     break;
@@ -23,7 +24,7 @@ namespace Server.Protocols {
                 // case 0x09_22: //
 
                 default:
-                    Console.WriteLine("Unknown");
+                    client.Logger.LogWarning($"Unknown Packet 09_{id}");
                     break;
             }
         }
@@ -47,8 +48,8 @@ namespace Server.Protocols {
                 player.Inventory[destPos].Id = from.Id;
                 player.Inventory[destPos].Count += from.Count;
 
-                SendSetItem(client.Stream, player.Inventory[fromPos], (byte)(fromPos + 1));
-                SendSetItem(client.Stream, player.Inventory[destPos], (byte)(destPos + 1));
+                SendSetItem(client, player.Inventory[fromPos], (byte)(fromPos + 1));
+                SendSetItem(client, player.Inventory[destPos], (byte)(destPos + 1));
             } else {
                 // fail
             }
@@ -70,8 +71,8 @@ namespace Server.Protocols {
 
                 player.Inventory[pos].Count -= count;
 
-                SendSetItem(client.Stream, player.Inventory[i], (byte)(i + 1));
-                SendSetItem(client.Stream, player.Inventory[pos], (byte)(pos + 1));
+                SendSetItem(client, player.Inventory[i], (byte)(i + 1));
+                SendSetItem(client, player.Inventory[pos], (byte)(pos + 1));
                 break;
             }
         }
@@ -84,7 +85,7 @@ namespace Server.Protocols {
 
         #region Response
         // 09_02
-        public static void SendSetItem(Stream clientStream, InventoryItem item, byte index) {
+        public static void SendSetItem(Client client, InventoryItem item, byte index) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x09); // first switch
@@ -96,11 +97,11 @@ namespace Server.Protocols {
 
             b.WriteByte(index); // inventory index
 
-            b.Send(clientStream);
+            b.Send(client);
         }
 
         // 09_03
-        public static void SendGetItem(Stream clientStream, InventoryItem item, byte index, bool displayMessage) {
+        public static void SendGetItem(Client client, InventoryItem item, byte index, bool displayMessage) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x09); // first switch
@@ -114,7 +115,7 @@ namespace Server.Protocols {
             b.WriteByte(Convert.ToByte(displayMessage)); // display special message
             b.WriteInt(0); // if(item->id == 0) {lost item id} else {unused}
 
-            b.Send(clientStream);
+            b.Send(client);
         }
         #endregion
     }
