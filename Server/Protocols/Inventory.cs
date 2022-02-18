@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
@@ -9,19 +10,23 @@ namespace Server.Protocols {
                 case 0x01: // 00586fd2
                     MoveItem(client);
                     break;
-                // case 0x09_02: // 
-                // case 0x09_03: // 
-                case 0x06: // 
+                // case 0x09_02: // 00587048
+                // case 0x09_03: // 005870bc
+                case 0x06: // 0058714a
                     SplitItem(client);
                     break;
-                // case 0x09_0F: // 
-                // case 0x09_10: // 
-                // case 0x09_11: // 
-                case 0x20: // check item delivery available?
+                case 0x0F: // 00587207
+                    ConsumeItem(client);
+                    break;
+                case 0x10: // 005872a6
+                    DeleteItem(client);
+                    break;
+                // case 0x09_11: // 0058731c
+                case 0x20: // 005873ea check item delivery available?
                     Recieve_09_20(client);
                     break;
-                // case 0x09_21: // 
-                // case 0x09_22: //
+                // case 0x09_21: // 00587492
+                // case 0x09_22: // 0058751f
 
                 default:
                     client.Logger.LogWarning($"Unknown Packet 09_{id}");
@@ -74,6 +79,29 @@ namespace Server.Protocols {
                 SendSetItem(client, player.Inventory[i], (byte)(i + 1));
                 SendSetItem(client, player.Inventory[pos], (byte)(pos + 1));
                 break;
+            }
+        }
+
+        // 09_0F
+        static void ConsumeItem(Client client) {
+            var slot = client.ReadByte();
+            var b = client.ReadInt16();
+            
+            var c = client.ReadInt32();
+            var d = client.ReadInt32();
+            var e = client.ReadInt32();
+        }
+
+        // 09_10
+        static void DeleteItem(Client client) {
+            var slot = client.ReadByte();
+            var inventory = client.ReadByte();
+
+            switch (inventory) {
+                case 1:
+                    client.Player.Inventory[slot - 1] = InventoryItem.Empty;
+                    SendSetItem(client, InventoryItem.Empty, slot);
+                    break;
             }
         }
 

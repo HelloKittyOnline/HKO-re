@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
@@ -60,10 +60,10 @@ namespace Server {
         public int Money { get; set; }
         public int Tickets { get; set; }*/
 
-        public int Hp { get; set; } = 100;
-        public int MaxHp { get; set; } = 100;
-        public int Sta { get; set; } = 100;
-        public int MaxSta { get; set; } = 100;
+        [JsonIgnore] public int Hp => 100;
+        [JsonIgnore] public int MaxHp => 100;
+        [JsonIgnore] public int Sta => 100;
+        [JsonIgnore] public int MaxSta => 100;
 
         public const int Level = 1; // TODO
 
@@ -73,6 +73,8 @@ namespace Server {
         public int InventorySize => Math.Min(50, 25 + Level / 25);
         public InventoryItem[] Inventory { get; set; }
         public InventoryItem[] Equipment { get; set; }
+
+        public int[] Quickbar { get; set; }
 
         // used for harvest canceling
         internal CancellationTokenSource cancelSource;
@@ -90,6 +92,7 @@ namespace Server {
             Inventory = new InventoryItem[50];
             Equipment = new InventoryItem[14];
             QuestFlags = new Dictionary<int, int>();
+            Quickbar = new int[10];
 
             Init();
 

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
 using Extractor;
 using Microsoft.Extensions.Logging;
@@ -47,7 +47,9 @@ namespace Server.Protocols {
                 case 0x1A: // 005df655 // sent after 02_09
                     Recieve_02_1A(client);
                     break;
-                // case 0x1f: // 005df6e3
+                case 0x1f: // 005df6e3 // set quickbar item
+                    SetQuickbar(client);
+                    break;
                 case 0x20: // 005df763 // change player info
                     SetPlayerInfo(client);
                     break;
@@ -308,6 +310,14 @@ namespace Server.Protocols {
             var winmTime = client.ReadInt32();
         }
 
+        // 02_1F
+        static void SetQuickbar(Client client) {
+            var slot = client.ReadByte();
+            var itemId = client.ReadInt32();
+
+            client.Player.Quickbar[slot - 1] = itemId;
+        }
+
         // 02_20
         static void SetPlayerInfo(Client client) {
             var data = PacketBuilder.DecodeCrazy(client.Reader); // 970 bytes
@@ -406,7 +416,7 @@ namespace Server.Protocols {
             b.WriteInt(0); // guild id?
 
             for(int i = 0; i < 10; i++)
-                b.WriteInt(0); // quick bar
+                b.WriteInt(player.Quickbar[i]); // quick bar
 
             b.Write0(76); // idk
 
@@ -440,13 +450,26 @@ namespace Server.Protocols {
             for(int i = 0; i < 3; i++)
                 writePetData(b); // pet data
 
-            b.Write0(1000); // quest flags
+            var questBytes = new byte[1000];
+            foreach(var (key, val) in player.QuestFlags) {
+                if(val == 2) {
+                    questBytes[key >> 3] |= (byte)(1 << (key & 7));
+                }
+            }
+            b.Write(questBytes); // quest flags
 
+            var currentQuests = player.QuestFlags.Where(x => x.Value == 1).ToArray();
             // active quests
             for(int i = 0; i < 10; i++) {
-                b.WriteInt(0); // questId
-                b.WriteByte(0); // flags1
-                b.WriteByte(0); // flags2
+                if(i < currentQuests.Length) {
+                    b.WriteInt(currentQuests[i].Key); // questId
+                    b.WriteByte(0); // flags1
+                    b.WriteByte(0); // flags2
+                } else {
+                    b.WriteInt(0); // questId
+                    b.WriteByte(0); // flags1
+                    b.WriteByte(0); // flags2
+                }
                 b.Write0(2); // unused
             }
 

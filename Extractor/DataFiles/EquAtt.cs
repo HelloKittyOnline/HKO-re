@@ -83,7 +83,7 @@ namespace Extractor {
                 EquipType.Top => 5,
                 EquipType.Pants => 4,
                 EquipType.Shoes => 3,
-                // EquipType.Hands => 0,
+                EquipType.Hands => 7,
                 // EquipType.AccessoryTop => 0,
                 // EquipType.AccessoryPants => 0,
                 // EquipType.AccessoryShoes => 0,
