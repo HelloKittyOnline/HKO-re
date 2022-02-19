@@ -112,7 +112,18 @@ namespace Extractor {
                         obj.count = int.Parse(exp.Value.Replace(",", ""));
                     } else if(friendPlace.Success) {
                         obj.type = 3;
-                        obj.map = friendPlace.Value;
+                        obj.map = friendPlace.Value switch {
+                            "Sanrio Harbour" => 1,
+                            "Sanrio Habour" => 1,
+                            "Florapolis" => 2,
+                            "London" => 3,
+                            "Paris" => 4,
+                            "Beijing" => 5,
+                            "Tokyo" => 6,
+                            "New York" => 7,
+                            "Sanrio" => 2, // ?
+                            _ => throw new ArgumentOutOfRangeException()
+                        };
                         obj.count = int.Parse(friendCount.Value.Replace(",", ""));
                     } else if(money.Success) {
                         obj.type = 4;

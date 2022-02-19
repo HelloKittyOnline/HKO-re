@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
+using Extractor;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
@@ -74,8 +75,23 @@ namespace Server.Protocols {
 
         static void HandleReward(Client client, dynamic r, int selected) {
             switch(r.type) {
-                case 1:
-                    client.AddItem(r.item, r.count);
+                case 1: // item
+                    client.AddItem((int)r.item, (int)r.count);
+                    break;
+                case 2: // exp
+                    client.Player.AddExp(client, Skill.General, (int)r.count);
+                    break;
+                case 3: // friendship
+                    client.Player.Friendship[r.map - 1] += r.count;
+                    SendSetFriendship(client, (byte)r.map);
+                    break;
+                case 4: // money
+                    client.Player.Money += r.count;
+                    Inventory.SendSetMoney(client);
+                    break;
+                case 5: // select
+                    Debugger.Break();
+                    HandleReward(client, r.sub[selected - 1], 0);
                     break;
                 default:
                     Debugger.Break();
@@ -210,7 +226,7 @@ namespace Server.Protocols {
             var b = new PacketBuilder();
 
             b.WriteByte(0x05); // first switch
-            b.WriteByte(0x06); // second switch
+            b.WriteByte(0x07); // second switch
 
             // something timer related
             b.WriteInt(questId);
@@ -258,6 +274,19 @@ namespace Server.Protocols {
             b.WriteByte(0x0C); // second switch
 
             b.WriteInt(questId);
+
+            b.Send(client);
+        }
+
+        // 05_0F
+        public static void SendSetFriendship(Client client, byte village) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x05); // first switch
+            b.WriteByte(0x0F); // second switch
+
+            b.WriteByte(village);
+            b.WriteShort(client.Player.Friendship[village - 1]);
 
             b.Send(client);
         }

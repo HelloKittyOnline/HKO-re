@@ -69,6 +69,7 @@ namespace Server {
 
         public short[] Levels { get; set; }
         public int[] Exp { get; set; }
+        public short[] Friendship { get; set; }
 
         public Dictionary<int, int> QuestFlags { get; set; }
 
@@ -98,6 +99,7 @@ namespace Server {
             Quickbar = new int[10];
             Levels = new short[9];
             Exp = new int[9];
+            Friendship = new short[7];
 
             for(int i = 0; i < 9; i++) {
                 Levels[i] = 1;
@@ -137,17 +139,16 @@ namespace Server {
 
             var required = Program.skills[level].GetExp(skill);
             Exp[(int)skill] += gain;
-            Player.SendSkillChange(client, skill, true);
 
-            if(required == 0 || Exp[(int)skill] < required)
-                return;
+            if(required != 0 && Exp[(int)skill] >= required) {
+                Levels[(int)skill]++;
+                Exp[(int)skill] -= required;
 
-            Levels[(int)skill]++;
-            Exp[(int)skill] -= required;
-
-            if(skill == Skill.General) {
-                Protocols.Inventory.SendSetInventorySize(client);
+                if(skill == Skill.General) {
+                    Protocols.Inventory.SendSetInventorySize(client);
+                }
             }
+            Player.SendSkillChange(client, skill, true);
         }
 
         public int AddItem(int item, int count) {

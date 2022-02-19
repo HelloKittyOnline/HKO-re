@@ -478,7 +478,12 @@ namespace Server.Protocols {
             b.WriteByte(0);
             b.WriteByte(0);
 
-            b.Write0(2 * 40); // short array
+            // 40 shorts // village friendship
+            foreach (var item in player.Friendship) {
+                b.WriteShort(item);
+            }
+            b.Write0(2 * (40 - player.Friendship.Length));
+
             b.Write0(128); // byte array
 
             player.WriteLevels(b);
