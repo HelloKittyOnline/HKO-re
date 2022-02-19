@@ -290,7 +290,9 @@ namespace Server {
                 TcpClient tcpClient;
                 try {
                     // throws if cancellation token is triggered
-                    tcpClient = server.AcceptTcpClient();
+                    var task = server.AcceptTcpClientAsync();
+                    task.Wait(token);
+                    tcpClient = task.Result;
                 } catch when(token.IsCancellationRequested) {
                     break;
                 }
