@@ -34,10 +34,17 @@ namespace Server.Protocols {
             var source = new CancellationTokenSource();
             client.Player.cancelSource = source;
 
+            source.Token.Register(() => {
+                Send06_01(client, 8, 0);
+                client.Player.cancelSource = null;
+            });
+
             Task.Run(() => {
                 Thread.Sleep(harvestTime);
                 if(source.IsCancellationRequested)
                     return;
+
+                client.Player.cancelSource = null;
 
                 var item = Program.lootTables[resource.LootTable].GetRandom();
                 if(item != -1) {
@@ -57,26 +64,30 @@ namespace Server.Protocols {
                     3 => Skill.Farming, // ?
                     _ => throw new ArgumentOutOfRangeException()
                 }, resource.Level);
+
+                Send06_01(client, 7, 0);
             });
 
-            Send06_01(client, harvestTime);
+            Send06_01(client, 2, harvestTime);
         }
         #endregion
 
         #region Response
         // 06_01
-        static void Send06_01(Client client, int time) {
+        static void Send06_01(Client client, byte type, int time) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x06); // first switch
             b.WriteByte(0x01); // second switch
 
-            b.WriteByte(2);
+            b.WriteByte(type);
             // 1  = "Item is being used"
-            // 2  = ok?
+            // 2  = start
             // 3  = "Cannot get resources right now"
             // 4  = "Your crafting/collection tool does not meet the level requirement: %s"
             // 5  = "You are not equipped with the right tools"
+            // 6  = nothing?
+            // 7  = end
             // 8  = "Action cancelled"
             // 9  = "You cannot use a Scrapped Tool to collect resources"
             // 10 = "You can't clean up the Pile of Litter because you didn't help shoo away the Litterbug"
