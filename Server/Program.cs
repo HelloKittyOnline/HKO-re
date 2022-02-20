@@ -314,7 +314,7 @@ namespace Server {
                     client.TcpClient.Close();
 
                     if(client.Username != null) {
-                        Database.LogOut(client.Username);
+                        Database.LogOut(client.Username, client.Player);
                         client.Logger.LogInformation($"Player {client.Username} disconnected");
                     }
                     clients.Remove(client);

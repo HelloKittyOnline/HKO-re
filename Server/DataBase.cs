@@ -75,7 +75,7 @@ namespace Server {
     }
 
     static class Database {
-        private static Dictionary<string, PlayerData> _online = new Dictionary<string, PlayerData>();
+        private static HashSet<string> _online = new HashSet<string>();
         private static string _connectionString;
 
         public static void SetConnectionString(string str) {
@@ -83,7 +83,7 @@ namespace Server {
         }
 
         public static LoginResponse Login(string username, string password, out PlayerData playerData) {
-            if(_online.ContainsKey(username)) {
+            if(_online.Contains(username)) {
                 playerData = null;
                 return LoginResponse.AlreadyOnline;
             }
@@ -113,20 +113,21 @@ namespace Server {
                 return LoginResponse.InvalidPassword;
             }
 
-            var data = reader.GetString("data");
-            playerData = JsonSerializer.Deserialize<PlayerData>(data, new JsonSerializerOptions {
-                Converters = { new DictionaryInt32Converter() }
-            });
-            playerData.Init();
+            if (!reader.IsDBNull("data")) {
+                var data = reader.GetString("data");
+                playerData = JsonSerializer.Deserialize<PlayerData>(data, new JsonSerializerOptions {
+                    Converters = { new DictionaryInt32Converter() }
+                });
+                playerData.Init();
+            } else {
+                playerData = null;
+            }
 
-            _online[username] = playerData;
-
+            _online.Add(username);
             return LoginResponse.Ok;
         }
 
-        public static void LogOut(string username) {
-            var data = _online[username];
-
+        public static void LogOut(string username, PlayerData data) {
             var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
