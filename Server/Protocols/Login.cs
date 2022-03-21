@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class Login {
+    static class Login {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {
@@ -109,7 +109,7 @@ namespace Server.Protocols {
             b.WriteByte(0x0); // first switch
             b.WriteByte(0x1); // second switch
 
-            b.AddString(lobby ? "LobbyServer" : "RealmServer", 1);
+            b.WriteString(lobby ? "LobbyServer" : "RealmServer", 1);
 
             b.WriteShort(0); // (*global_hko_client)->field_0xec
             b.WriteShort(client.Id);
@@ -125,9 +125,9 @@ namespace Server.Protocols {
             b.WriteByte(0x2); // second switch
             b.WriteByte(0x1); // third switch
 
-            b.AddString("", 1);
-            b.AddString("", 1); // appended to username??
-            b.AddString("", 1); // blowfish encrypted stuff???
+            b.WriteString("", 1);
+            b.WriteString("", 1); // appended to username??
+            b.WriteString("", 1); // blowfish encrypted stuff???
 
             b.Send(client);
         }
@@ -151,7 +151,7 @@ namespace Server.Protocols {
             b.WriteByte(0x2); // second switch
             b.WriteByte(0x3); // third switch
 
-            b.AddString("01/01/1999", 1); // unban timeout (01/01/1999 = never)
+            b.WriteString("01/01/1999", 1); // unban timeout (01/01/1999 = never)
 
             b.Send(client);
         }
@@ -197,7 +197,7 @@ namespace Server.Protocols {
 
             for(int i = 1; i <= count; i++) {
                 b.WriteInt(i); // id??
-                b.AddString("Test server", 1);
+                b.WriteString("Test server", 1);
             }
 
             b.Send(client);
@@ -213,7 +213,7 @@ namespace Server.Protocols {
             b.WriteInt(1); // sets some global var
 
             // address of game server?
-            b.AddString("127.0.0.1", 1); // address
+            b.WriteString("127.0.0.1", 1); // address
             b.WriteShort(12345); // port
 
             b.Send(client);
@@ -254,7 +254,7 @@ namespace Server.Protocols {
             b.WriteInt(0); // some global
 
             // parameters for FUN_0060699c
-            b.AddString("127.0.0.1", 1);
+            b.WriteString("127.0.0.1", 1);
             b.WriteShort(12345);
 
             b.Send(client);

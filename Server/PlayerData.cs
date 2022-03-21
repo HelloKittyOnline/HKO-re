@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
@@ -79,6 +79,17 @@ namespace Server {
         public InventoryItem[] Equipment { get; set; }
 
         public int[] Quickbar { get; set; }
+
+        [JsonIgnore]
+        public ChatFlags ChatFlags { get; set; }
+
+        public string Location { get; set; } = "";
+        public string FavoriteFood { get; set; } = "";
+        public string FavoriteMovie { get; set; } = "";
+        public string FavoriteMusic { get; set; } = "";
+        public string FavoritePerson { get; set; } = "";
+        public string Hobbies { get; set; } = "";
+        public string Introduction { get; set;  } = "";
 
         // used for harvest canceling
         internal CancellationTokenSource cancelSource;

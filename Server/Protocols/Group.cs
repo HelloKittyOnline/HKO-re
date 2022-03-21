@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class Group {
+    static class Group {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {

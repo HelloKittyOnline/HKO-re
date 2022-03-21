@@ -1,29 +1,30 @@
 ﻿using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    struct MobData : IWriteAble {
+    class MobData : IWriteAble {
         public int Id { get; set; }
-        public int AttId { get; set; }
 
+        // data
+        public int MobId { get; set; }
         public int X { get; set; }
         public int Y { get; set; }
         public byte Direction { get; set; }
         public byte Speed => 10;
-
         public int Hp { get; set; }
         public int MaxHp { get; set; }
-        public int Disabled { get; set; }
+        public int Dead { get; set; }
         public byte State { get; set; }
 
-        public int MoveX { get; set; }
-        public int MoveY { get; set; }
-
+        // TODO: ai state
+        public bool InCombat { get; set; }
+        public int CurrX => X;
+        public int CurrY => Y;
 
         public void Write(PacketBuilder b) {
             b.WriteInt(Id);
-            b.WriteInt(X);
-            b.WriteInt(Y);
-            b.WriteInt(AttId);
+            b.WriteInt(CurrX);
+            b.WriteInt(CurrY);
+            b.WriteInt(MobId);
 
             b.WriteShort(Speed);
             b.WriteByte(Direction);
@@ -31,20 +32,27 @@ namespace Server.Protocols {
 
             b.WriteInt(Hp);
             b.WriteInt(MaxHp);
-            b.WriteInt(Disabled);
-            b.WriteInt(MoveX);
-            b.WriteInt(MoveY);
+            b.WriteInt(Dead);
+            b.WriteInt(CurrX);
+            b.WriteInt(CurrY);
         }
     }
 
-    class Battle {
+    static class Battle {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {
                 case 3: // 00537da8
+                    AttackMob(client);
+                    break;
                 case 7: // 00537e23
-                case 8: // 00537e98
-                case 9: // 00537f23
+                    TakeBreak(client);
+                    break;
+                case 8: // petting pet? 00537e98
+                    Recieve08(client);
+                    break;
+                case 9: // feeding pet? 00537f23
+                    Recieve09(client);
                     break;
                 default:
                     client.Logger.LogWarning($"Unknown Packet 0C_{id:X2}");
@@ -52,8 +60,32 @@ namespace Server.Protocols {
             }
         }
 
-        public static void Send0C_01(Client client, MobData[] mobs) {
-            // create npcs
+        #region Request
+        // 0C_03
+        private static void AttackMob(Client client) {
+            var mobEntId = client.ReadInt32();
+        }
+
+        // 0C_07
+        private static void TakeBreak(Client client) {
+            // after defeat message box ok
+        }
+
+        // 0C_08
+        private static void Recieve08(Client client) {
+            var petEntId = client.ReadInt32();
+
+        }
+        // 0C_09
+        private static void Recieve09(Client client) {
+            var petEntId = client.ReadInt32();
+            var invSlot = client.ReadByte();
+        }
+        #endregion
+
+        #region Response
+        // 0C_01
+        public static void SendMobs(Client client, MobData[] mobs) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x0C); // first switch
@@ -69,5 +101,48 @@ namespace Server.Protocols {
 
             b.Send(client);
         }
+
+        // 0C_02
+        public static PacketBuilder BuildMobMove(MobData mob) {
+            // if (mob.Hp == 0) return;
+
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x0C); // first switch
+            b.WriteByte(0x02); // second switch
+
+            b.WriteInt(mob.Id); // count
+            b.WriteShort((short)mob.CurrX);
+            b.WriteShort((short)mob.CurrY);
+            b.WriteShort(mob.Speed);
+
+            b.WriteByte(0); // unused
+            b.WriteByte(0); // if == 2 play sound
+
+            // b.Send(client);
+
+            return b;
+        }
+
+        // 0C_02
+        public static void DoDamage(Client client) {
+            // if(mob.Hp == 0) return;
+
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x0C); // first switch
+            b.WriteByte(0x02); // second switch
+
+            b.WriteShort(0); // source player id
+            b.WriteInt(0); // mob id
+
+            b.WriteShort(0); // damage 1 displayed in 250ms
+            b.WriteShort(0); // damage 2 displayed in 550ms
+            b.WriteShort(0); // damage 3 displayed in 850ms
+
+            b.Send(client);
+        }
+
+        #endregion
     }
 }

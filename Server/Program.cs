@@ -126,147 +126,86 @@ namespace Server {
                         case 0x06:
                             Protocols.Resource.Handle(client);
                             break;
+                        case 0x07:
+                            Production.Handle(client);
+                            break;
+                        case 0x08:
+                            Trade.Handle(client);
+                            break;
                         case 0x09:
                             Inventory.Handle(client);
+                            break;
+                        case 0x0A:
+                            Farm.Handle(client);
+                            break;
+                        case 0x0B:
+                            Store.Handle(client);
                             break;
                         case 0x0C:
                             Battle.Handle(client);
                             break;
+                        case 0x0D:
+                            Pet.Handle(client);
+                            break;
+                        case 0x0E:
+                            Guild.Handle(client);
+                            break;
+                        case 0x0F:
+                            Hompy.Handle(client);
+                            break;
+                        // case 0x10: Bingo.Handle(client); break;
+                        // case 0x10_01: //
+                        case 0x11:
+                            NPCWalk.Handle(client);
+                            break;
+                        // case 0x12: ???
+                        // case 0x12_01: // 0052807b
+                        // case 0x12_02: // 005280f6
                         case 0x13:
                             Group.Handle(client);
                             break;
-                        /*
-                        case 0x07_01: // 00529917
-                        case 0x07_04: // 005299a6
-
-                        case 0x08_01: // trade invite
-                        case 0x08_02: //
-                        case 0x08_03: //
-                        case 0x08_04: //
-                        case 0x08_06: //
-
-                        case 0x0A_01: // 00581350
-                        case 0x0A_02: // 005813c4
-                        case 0x0A_03: // 0058148c
-                        case 0x0A_04: // 00581504
-                        case 0x0A_05: //
-                        case 0x0A_06: //
-                        case 0x0A_07: //
-                        case 0x0A_08: //
-                        case 0x0A_09: //
-                        case 0x0A_0B: //
-                        case 0x0A_0C: //
-                        case 0x0A_0E: //
-                        case 0x0A_0F: //
-                        case 0x0A_16: //
-                        case 0x0A_18: //
-                        case 0x0A_19: //
-                        case 0x0A_1A: //
-                        case 0x0A_1B: //
-                        case 0x0A_1C: //
-                        case 0x0A_24: //
-                        case 0x0A_25: //
-
-                        case 0x0B_01: // 0054d96c
-                        case 0x0B_02: //
-                        case 0x0B_03: //
-
-                        case 0x0D_02: // 00536928
-                        case 0x0D_03: // 0053698a
-                        case 0x0D_05: // 00536a60
-                        case 0x0D_06: // 00536ae8
-                        case 0x0D_07: // 00536b83
-                        case 0x0D_09: // 00536bea
-                        case 0x0D_0A: // 00536c6c
-                        case 0x0D_0B: // 00536cce
-                        case 0x0D_0C: // 00536d53
-                        case 0x0D_0D: // 00536dc8
-                        case 0x0D_0E: // 00536e6e
-                        case 0x0D_0F: // 00536ee8
-                        case 0x0D_10: // 00536f73
-                        case 0x0D_11: // 00536fe8
-                        case 0x0D_12: // 0053705c
-                        case 0x0D_13: // 005370be // get pet information?
-                        case 0x0E_01: // 0054ddb4
-                        case 0x0E_02: //
-                        case 0x0E_03: //
-                        case 0x0E_04: //
-                        case 0x0E_05: //
-                        case 0x0E_06: //
-                        case 0x0E_07: //
-                        case 0x0E_09: //
-                        case 0x0E_0A: //
-                        case 0x0E_0B: //
-                        case 0x0E_14: //
-
-                        case 0x0F_02: // 00511e18
-                        case 0x0F_03: // 00511e8c
-                        case 0x0F_04: // 00511f75
-                        case 0x0F_05: // 00512053
-                        case 0x0F_06: // 005120e6
-                        case 0x0F_07: // 00512176
-                        case 0x0F_09: // 005121da
-                        case 0x0F_0A: // 00512236
-                        case 0x0F_0B: // 005122a4
-                        case 0x0F_0C: // 0051239d
-                        case 0x0F_0D: // 0051242c
-                        case 0x0F_0E: // 005124f7
-
-                        case 0x10_01: //
-
-                        case 0x11_01: // 0059b6b4
-
-                        case 0x12_01: // 0052807b
-                        case 0x12_02: // 005280f6
-
-                        case 0x14_01: //
-
-                        case 0x15_01: //
-                        case 0x15_02: //
-                        case 0x15_03: //
-                        case 0x15_04: //
-
-                        case 0x16_01: //
-                        case 0x16_02: // start tutorial?
-
-                        case 0x17_01: // 0053a183
-                        case 0x17_02: //
-                        case 0x17_03: //
-                        case 0x17_04: //
-                        case 0x17_05: //
-                        case 0x17_06: //
-
-                        case 0x19_01: //
-                        case 0x19_02: //
-                        case 0x19_03: //
-
-                        case 0x1C_01: //
-                        case 0x1C_02: //
-                        case 0x1C_03: //
-                        case 0x1C_04: //
-                        case 0x1C_0A: //
-
-                        case 0x1F_01: //
-                        case 0x1F_02: //
-                        case 0x1F_03: //
-                        case 0x1F_04: //
-                        case 0x1F_06: //
-                        case 0x1F_07: //
-                        case 0x1F_0B: //
-
-                        case 0x20_03: //
-                        case 0x20_04: //
-
-                        case 0x21_03: // 00538ce8
-
-                        case 0x22_03: //
-                        case 0x22_04: //
-                        case 0x22_05: //
-                        case 0x22_06: //
-
-                        case 0x23_01: // 005a19da
-                        */
-
+                        case 0x14:
+                            Redeem.Handle(client);
+                            break;
+                        case 0x15:
+                            Food4Friends.Handle(client);
+                            break;
+                        case 0x16:
+                            Tutorial.Handle(client);
+                            break;
+                        case 0x17:
+                            PODLeaderboard.Handle(client);
+                            break;
+                        case 0x18:
+                            PODHousing.Handle(client);
+                            break;
+                        case 0x19:
+                            EarthDay.Handle(client);
+                            break;
+                        case 0x1A:
+                            MoleAwarenessEvent.Handle(client);
+                            break;
+                        case 0x1B:
+                            Achievement.Handle(client);
+                            break;
+                        case 0x1C:
+                            Flash.Handle(client);
+                            break;
+                        case 0x1F:
+                            CityCookOff.Handle(client);
+                            break;
+                        case 0x20:
+                            ChocolateDefense.Handle(client);
+                            break;
+                        case 0x21:
+                            Cheer.Handle(client);
+                            break;
+                        case 0x22:
+                            BirthdayEvent.Handle(client);
+                            break;
+                        case 0x23:
+                            Mail.Handle(client);
+                            break;
                         default:
                             client.Logger.LogWarning($"Unknown Packet {data[0]:X2}_{data[1]:X2}");
                             break;

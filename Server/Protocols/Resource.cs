@@ -5,7 +5,7 @@ using Extractor;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class Resource {
+    static class Resource {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {

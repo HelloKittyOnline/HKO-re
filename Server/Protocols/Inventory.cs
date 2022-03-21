@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class Inventory {
+    static class Inventory {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {

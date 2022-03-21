@@ -5,7 +5,7 @@ using Extractor;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class Npc {
+    static class Npc {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {
@@ -300,7 +300,7 @@ namespace Server.Protocols {
 
             b.WriteByte(0x01);
 
-            b.AddString("https://google.de", 1);
+            b.WriteString("https://google.de", 1);
 
             b.Send(client);
         }

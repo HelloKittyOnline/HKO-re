@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class CreateRole {
+    static class CreateRole {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {

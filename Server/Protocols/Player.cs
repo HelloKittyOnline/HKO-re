@@ -1,11 +1,13 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Extractor;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class Player {
+    static class Player {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {
@@ -66,7 +68,7 @@ namespace Server.Protocols {
                 case 0x2D: // 005dfab4
                 */
                 case 0x32: // 005dfb8c //  client version information
-                    Recieve_02_32(client);
+                    CheckPackageVersions(client);
                     break;
                 /*
                 case 0x33: // 005dfc04
@@ -322,14 +324,21 @@ namespace Server.Protocols {
         static void SetPlayerInfo(Client client) {
             var data = PacketBuilder.DecodeCrazy(client.Reader); // 970 bytes
 
-            // TODO: null trim
-            var birth = Encoding.ASCII.GetString(data, 1, data[0]); // 0 - 37
-            var phone = Encoding.ASCII.GetString(data, 39, data[38]); // 38 - 63
+            var favoriteFood = Encoding.UTF7.GetString(data, 1, data[0]); // 0 - 37
+            var favoriteMovie = Encoding.UTF7.GetString(data, 39, data[38]); // 38 - 63
             var location = Encoding.Unicode.GetString(data, 64, 36 * 2); // 63 - 135
-            var email = Encoding.ASCII.GetString(data, 137, data[136]); // 136 - 201
-            var favorite = Encoding.Unicode.GetString(data, 202, 64 * 2); // 202 - 329
-            var hobby = Encoding.Unicode.GetString(data, 330, 160 * 2); // 330 - 649
-            var intro = Encoding.Unicode.GetString(data, 650, 160 * 2); // 650 - 969
+            var favoriteMusic = Encoding.UTF7.GetString(data, 137, data[136]); // 136 - 201
+            var favoritePerson = Encoding.Unicode.GetString(data, 202, 64 * 2); // 202 - 329
+            var hobbies = Encoding.Unicode.GetString(data, 330, 160 * 2); // 330 - 649
+            var introduction = Encoding.Unicode.GetString(data, 650, 160 * 2); // 650 - 969
+
+            client.Player.Location = location.TrimEnd('\0');
+            client.Player.FavoriteFood = favoriteFood;
+            client.Player.FavoriteMovie = favoriteMovie;
+            client.Player.FavoriteMusic = favoriteMusic;
+            client.Player.FavoritePerson = favoritePerson.TrimEnd('\0');
+            client.Player.Hobbies = hobbies.TrimEnd('\0');
+            client.Player.Introduction = introduction.TrimEnd('\0');
         }
 
         // 02_21
@@ -342,16 +351,24 @@ namespace Server.Protocols {
         }
 
         // 02_32
-        static void Recieve_02_32(Client client) {
+        static void CheckPackageVersions(Client client) {
             int count = client.ReadInt32();
+
+            var result = new List<string>();
             for(int i = 0; i < count; i++) {
                 var name = client.ReadString();
                 var version = client.ReadString();
 
-                // Console.WriteLine($"{name} : {version}");
+                if(version != "v0109090002") {
+                    result.Add(name);
+                }
             }
 
-            // Send02_6E(clientStream);
+            // send in reverse to not confuse client?
+            result.Reverse();
+            foreach(var item in result) {
+                SendUpdatePackage(client, 0, item);
+            }
         }
         #endregion
 
@@ -479,7 +496,7 @@ namespace Server.Protocols {
             b.WriteByte(0);
 
             // 40 shorts // village friendship
-            foreach (var item in player.Friendship) {
+            foreach(var item in player.Friendship) {
                 b.WriteShort(item);
             }
             b.Write0(2 * (40 - player.Friendship.Length));
@@ -494,6 +511,44 @@ namespace Server.Protocols {
 
             // TODO: finish figuring out the rest
 
+            // 0x4018
+
+            b.Write0(0x82e0 - 0x4018);
+
+            void padString(string str, int len) {
+                var bytes = Encoding.UTF7.GetBytes(str);
+                b.WriteByte((byte)bytes.Length);
+                b.Write(bytes);
+                b.Write0(len - bytes.Length - 1);
+            }
+            void padWString(string str, int len) {
+                var bytes = Encoding.Unicode.GetBytes(str);
+                b.Write(bytes);
+                b.Write0(len - bytes.Length);
+            };
+
+            // 0x82e0
+            padString(player.FavoriteFood, 38);
+            padString(player.FavoriteMovie, 26);
+            padWString(player.Location, 36 * 2);
+            padString(client.Player.FavoriteMusic, 66);
+            padWString(client.Player.FavoritePerson, 64 * 2);
+            padWString(player.Hobbies, 160 * 2);
+            padWString(player.Introduction, 160 * 2);
+
+            // 0x86aa
+            b.Write0(0x9320 - 0x86aa);
+            // 0x9320
+
+            b.WriteInt(player.NormalTokens);
+            b.WriteInt(player.SpecialTokens);
+            b.WriteInt(player.Tickets);
+
+            // 0x932c
+            b.Write0(0x96d0 - 0x932c);
+            // 0x96d0
+
+            Debug.Assert(b.CompressSize == 38608, "invalid PlayerData size");
             b.EndCompress();
 
             b.Send(client);
@@ -861,15 +916,15 @@ namespace Server.Protocols {
         }
 
         // 02_6E
-        static void Send02_6E(Client client) {
+        static void SendUpdatePackage(Client client, int mapId, string package) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x02); // first switch
             b.WriteByte(0x6E); // second switch
 
-            b.WriteWString("");
-            b.WriteInt(8); // map id?
-            b.AddString("", 1);
+            b.WriteWString(""); // special message
+            b.WriteInt(mapId); // map id
+            b.WriteString(package, 1); // package name
 
             b.Send(client);
         }
@@ -879,7 +934,7 @@ namespace Server.Protocols {
             var b = new PacketBuilder();
 
             b.WriteByte(0x02); // first switch
-            b.WriteByte(0x6E); // second switch
+            b.WriteByte(0x6F); // second switch
 
             b.WriteByte(0);
 

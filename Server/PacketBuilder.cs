@@ -53,37 +53,37 @@ namespace Server {
             }
         }
 
-        public void AddString(string str, int pre) {
+        public void WriteString(string str, int pre) {
             switch(pre) {
                 case 1:
                     if(str.Length > 255) {
-                        throw new ArgumentOutOfRangeException("string too long");
+                        throw new ArgumentOutOfRangeException("str", "string too long");
                     }
                     WriteByte((byte)str.Length);
                     break;
                 case 2:
                     if(str.Length > 65535) {
-                        throw new ArgumentOutOfRangeException("string too long");
+                        throw new ArgumentOutOfRangeException("str", "string too long");
                     }
                     WriteShort((short)str.Length);
                     break;
                 case 4:
                     if(str.Length > 65535) {
-                        throw new ArgumentOutOfRangeException("string too long");
+                        throw new ArgumentOutOfRangeException("str", "string too long");
                     }
                     WriteInt(str.Length);
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException("invalid pre size");
+                    throw new ArgumentOutOfRangeException("pre", "invalid pre size");
             }
-            writer.Write(Encoding.UTF8.GetBytes(str));
+            writer.Write(Encoding.UTF7.GetBytes(str));
         }
 
         public void WriteWString(string str) {
             var dat = Encoding.Unicode.GetBytes(str);
 
             if(dat.Length > 65535) {
-                throw new ArgumentOutOfRangeException("string too long");
+                throw new ArgumentOutOfRangeException("str", "string too long");
             }
             WriteShort((short)dat.Length);
             writer.Write(dat);
@@ -115,6 +115,8 @@ namespace Server {
             WriteShort(0);
             WriteByte(0x82); // don't bother encoding just use raw
         }
+
+        public long CompressSize => buffer.Position - CompressPos - 5;
 
         public void EndCompress() {
             if(!CompressMode)
