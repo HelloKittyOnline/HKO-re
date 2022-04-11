@@ -359,7 +359,7 @@ namespace Server.Protocols {
                 var name = client.ReadString();
                 var version = client.ReadString();
 
-                if(version != "v0109090002") {
+                if(version != "v0109090007") {
                     result.Add(name);
                 }
             }

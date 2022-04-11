@@ -113,7 +113,7 @@ namespace Server {
                 return LoginResponse.InvalidPassword;
             }
 
-            if (!reader.IsDBNull("data")) {
+            if(!reader.IsDBNull("data")) {
                 var data = reader.GetString("data");
                 playerData = JsonSerializer.Deserialize<PlayerData>(data, new JsonSerializerOptions {
                     Converters = { new DictionaryInt32Converter() }

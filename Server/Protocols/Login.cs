@@ -35,7 +35,7 @@ namespace Server.Protocols {
             var data = PacketBuilder.DecodeCrazy(client.Reader);
 
             var username = Encoding.ASCII.GetString(data, 1, data[0]);
-            var password = Encoding.UTF7.GetString(data, 0x42, data[0x41]);
+            var password = Encoding.UTF8.GetString(data, 0x42, data[0x41]);
 
             var res = Database.Login(username, password, out var player);
 
