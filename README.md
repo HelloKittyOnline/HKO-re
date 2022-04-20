@@ -97,6 +97,8 @@ Now, we need to update HKO so all of the maps are installed.
 
 **3**. Extract `tables.tar` into the Hello Kitty Online Program Files tables folder.
 
+**4**. Replace the text in every file in the `ver` folder with `v0109090007` **EXCEPT FOR** `version_pc.txt`!
+
 ***
 ## Booting Hello Kitty Online
 
