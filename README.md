@@ -22,7 +22,7 @@ If you want to join the public server, look no further! The instructions below w
 3) Change the text to say `http://hko.evidentfla.me:8080/single/leading.txt` (You may need administrator privileges to save the changes)
 4) Navigate to https://hko.evidentfla.me in your web browser, sign in with your Discord account, and create your username and password (You will use this to sign in to HKO)
 5) Run Hello Kitty Online from your Desktop or Start Menu
-6) It will now download and update Hello Kitty Online with the latest maps and files. This will take a long time as HKO itself throttles the download speed, not the server. Go to the store, come back, eat dinner, and *maybe* it will be done. Your internet speed doesn't necessarily matter.
+6) It will now download and update Hello Kitty Online with the latest maps and files. Ignore the 403 error as that is normal. This will take a long time as HKO itself throttles the download speed, not the server. Go to the store, come back, eat dinner, and *maybe* it will be done. Your internet speed doesn't necessarily matter.
 
 **Note**: While it may seem that it is close to 100%, the percentage counter is for each individual patch. There are 5 total patches amounting to just under 5GB. HKO artificially limits the download speed, meaning it will take a while. On a gigabit connection, it took roughly 2.5 hours to download through HKO. Expect slower connections to be about the same. Remember, HKO was built in 2008.
 
