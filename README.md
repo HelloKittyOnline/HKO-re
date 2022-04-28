@@ -1,10 +1,45 @@
 # HKO Reverse Engineering Project
 
-## About
-This is the main repo for the Hello Kitty Online Server Project. It includes the Extractors and the Server itself
+Join us on Discord! https://discord.gg/7Yh52hU2NE
 
 ***
-## Requirements
+## About
+This is the main repo for the Hello Kitty Online Server Project. It includes the Extractors and the Server itself
+***
+## Joining the Public Server
+
+If you want to join the public server, look no further! The instructions below will help you get set up. If you want to set up a local server for testing/development, jump to [Requirements](#requirements-for-self-hosted-server)
+
+### Things You'll need:
+1) Hello Kitty Online Installer: https://archive.org/details/pod-19902-setup
+2) An internet browser
+3) A Discord account
+4) That's it!
+
+### Steps:
+1) Install Hello Kitty Online like normal, accepting all of the standard install options.
+2) After Hello Kitty is Installed, open this file in notepad or any other text editor: `C:\Program Files (x86)\SanrioTown\Hello Kitty Online\Leading.ini`
+3) Change the text to say `http://hko.evidentfla.me:8080/single/leading.txt` (You may need administrator privileges to save the changes)
+4) Navigate to https://hko.evidentfla.me in your web browser, sign in with your Discord account, and create your username and password (You will use this to sign in to HKO)
+5) Run Hello Kitty Online from your Desktop or Start Menu
+6) It will now download and update Hello Kitty Online with the latest maps and files. This will take a long time as HKO itself throttles the download speed, not the server. Go to the store, come back, eat dinner, and *maybe* it will be done. Your internet speed doesn't necessarily matter.
+
+**Note**: While it may seem that it is close to 100%, the percentage counter is for each individual patch. There are 5 total patches amounting to just under 5GB. HKO artificially limits the download speed, meaning it will take a while. On a gigabit connection, it took roughly 2.5 hours to download through HKO. Expect slower connections to be about the same. Remember, HKO was built in 2008.
+
+7) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
+8) Login with the username and password you created earlier
+9) Select `World 1` and enter the game!
+10) Have Fun!
+
+If you find any issues:
+
+1) Check the [Issues](https://github.com/HKOServer/HKO-re/issues) tab! We may already know of the issue and are working on it!
+2) Check the [Discord Server](https://discord.gg/7Yh52hU2NE)! We are willing to help figure out any issues you may have in the #bugs channel.
+3) Open an Issue!
+
+***
+
+## Requirements for Self-Hosted Server
 
 1. dotNet core 3.1
 2. MySQL or MariaDB
