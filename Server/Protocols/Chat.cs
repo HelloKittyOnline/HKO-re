@@ -1,30 +1,33 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
+    [Flags]
     enum ChatFlags {
-        Normal = 0x1,
-        Range = 0x2,
+        Map = 0x1,
+        Local = 0x2,
         Guild = 0x4,
         Trade = 0x8,
         Private = 0x10,
         System = 0x20,
-        Help = 0x40,
+        Advice = 0x40
     }
 
     static class Chat {
         public static void Handle(Client client) {
             var id = client.ReadByte();
             switch(id) {
-                case 0x1: RecieveMapChannel(client); break; // 005d2eec // map channel message
-                case 0x2: Recieve02(client); break; // 005d2fa6
-                case 0x5: RecieveNormalChannel(client); break; // 005d3044 // normal channel message
-                case 0x6: RecieveTradeChannel(client); break; // 005d30dc // trade channel message
-                case 0x7: Recieve07(client); break; // 005d3174
-                case 0x8: RecieveAdviceChannel(client); break; // 005d320c // advice channel message
+                case 0x1: ReceiveMapChannel(client); break; // 005d2eec // map channel message
+                case 0x2: ReceivePrivateMessage(client); break; // 005d2fa6 // private message
+                case 0x5: ReceiveNormalChannel(client); break; // 005d3044 // normal channel message
+                case 0x6: ReceiveTradeChannel(client); break; // 005d30dc // trade channel message
+                case 0x7: Receive07(client); break; // 005d3174
+                case 0x8: ReceiveAdviceChannel(client); break; // 005d320c // advice channel message
                 case 0xB: SetChatFilter(client); break; // 005d3288 change chat filter
-                case 0xC: Recieve0C(client); break; // 005d331e
-                case 0xD: Recieve0D(client); break; // 005d33a7 open private message
+                case 0xC: ReceivePrivateChatStatus(client); break; // 005d331e
+                case 0xD: ReceiveOpenPrivateMessage(client); break; // 005d33a7 open private message
                 default:
                     client.Logger.LogWarning($"Unknown Packet 03_{id:X2}");
                     break;
@@ -32,54 +35,102 @@ namespace Server.Protocols {
         }
 
         #region Request
-        static void RecieveMapChannel(Client client) {
-            var msg = client.ReadWString();
-        }
-
-        static void Recieve02(Client client) {
-            var str1 = client.ReadWString();
-            var str2 = client.ReadWString();
-        }
-
-        static void RecieveNormalChannel(Client client) {
+        // 03_01
+        static void ReceiveMapChannel(Client client) {
             var msg = client.ReadWString();
 
-            // broadcast message
-            foreach(var _client in Program.clients) {
-                // if(_client == client) continue;
-                SendNormalMessage(_client, client, msg);
+            foreach(var other in Program.clients) {
+                if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Map) != 0) {
+                    SendMapChannel(other, client, msg);
+                }
             }
         }
 
-        static void RecieveTradeChannel(Client client) {
+        // 03_02
+        static void ReceivePrivateMessage(Client client) {
+            var username = client.ReadWString();
+            var message = client.ReadWString();
+
+            var other = Program.clients.FirstOrDefault(x => x.Player.Name == username);
+            if(other == null || !other.InGame) return;
+            
+            SendPrivateMessage(client, other, client.Player.Name, message);
+            if((other.Player.ChatFlags & ChatFlags.Private) != 0)
+                SendPrivateMessage(other, client, client.Player.Name, message);
+        }
+
+        // 03_05
+        static void ReceiveNormalChannel(Client client) {
+            var msg = client.ReadWString();
+
+            // broadcast message
+            foreach(var other in Program.clients) {
+                // todo: maybe based on player distance?
+                if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Local) != 0) {
+                    SendNormalChannel(other, client, msg);
+                }
+            }
+        }
+
+        // 03_06
+        static void ReceiveTradeChannel(Client client) {
+            var msg = client.ReadWString();
+
+            // broadcast message
+            foreach(var other in Program.clients) {
+                if (other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Trade) != 0) {
+                    SendTradeChannel(other, client, msg);
+                }
+            }
+        }
+
+        // 03_07
+        static void Receive07(Client client) {
             var msg = client.ReadWString();
         }
 
-        static void Recieve07(Client client) {
+        // 03_08
+        static void ReceiveAdviceChannel(Client client) {
             var msg = client.ReadWString();
+
+            // broadcast message
+            foreach(var other in Program.clients) {
+                if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Advice) != 0) {
+                    SendAdviceChannel(other, client, msg);
+                }
+            }
         }
 
-        static void RecieveAdviceChannel(Client client) {
-            var msg = client.ReadWString();
-        }
-
+        // 03_0B
         static void SetChatFilter(Client client) {
             client.Player.ChatFlags = (ChatFlags)client.ReadInt32();
         }
 
-        static void Recieve0C(Client client) {
-            /*var msg = client.ReadWString();
-            var msg = client.ReadWString();*/
+        // 03_0C
+        static void ReceivePrivateChatStatus(Client client) {
+            var open = client.ReadByte() != 0;
+            var username = client.ReadWString();
+
+            // what am i supposed to do with this?
         }
 
-        static void Recieve0D(Client client) {
-            var msg = client.ReadWString();
+        // 03_0D
+        static void ReceiveOpenPrivateMessage(Client client) {
+            var playerName = client.ReadWString();
+
+            var other = Program.clients.FirstOrDefault(x => x.InGame && x.Player.Name == playerName);
+
+            if(other == null) {
+
+            } else {
+                SendOpenPrivateMessage(client, other);
+            }
         }
         #endregion
 
         #region Response
         // 03_01
-        public static void Send01(Client client, Client sender, string msg) {
+        static void SendMapChannel(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -93,21 +144,21 @@ namespace Server.Protocols {
         }
 
         // 03_02
-        public static void Send02(Client client, Client sender, string msg) {
+        static void SendPrivateMessage(Client client, Client other, string sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
             b.WriteByte(0x02); // second switch
-            
-            b.WriteWString("");
-            b.WriteWString("");
-            b.WriteWString("");
+
+            b.WriteWString(other.Player.Name);
+            b.WriteWString(sender);
+            b.WriteWString(msg);
 
             b.Send(client);
         }
 
         // 03_03
-        public static void Send03(Client client, string sender, string msg, Color color) {
+        static void Send03(Client client, string sender, string msg, Color color) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -124,7 +175,7 @@ namespace Server.Protocols {
         }
 
         // 03_05
-        public static void SendNormalMessage(Client client, Client sender, string msg) {
+        static void SendNormalChannel(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -138,7 +189,7 @@ namespace Server.Protocols {
         }
 
         // 03_06
-        public static void Send06(Client client, Client sender, string msg) {
+        static void SendTradeChannel(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -152,7 +203,7 @@ namespace Server.Protocols {
         }
 
         // 03_07
-        public static void Send07(Client client, Client sender, string msg) {
+        static void Send07(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -166,7 +217,7 @@ namespace Server.Protocols {
         }
 
         // 03_08
-        public static void Send08(Client client, Client sender, string msg) {
+        static void SendAdviceChannel(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -180,7 +231,7 @@ namespace Server.Protocols {
         }
 
         // 03_09
-        public static void Send09(Client client, Client sender, string msg) {
+        static void Send09(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -194,7 +245,7 @@ namespace Server.Protocols {
         }
 
         // 03_0C
-        public static void Send0C(Client client, Client sender, string msg) {
+        static void Send0C(Client client, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -208,13 +259,13 @@ namespace Server.Protocols {
         }
 
         // 03_0D
-        public static void Send0D(Client client, Client sender, string msg) {
+        static void SendOpenPrivateMessage(Client client, Client other) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
             b.WriteByte(0x0D); // second switch
 
-            b.WriteWString("");
+            b.WriteWString(other.Player.Name);
 
             b.Send(client);
         }
