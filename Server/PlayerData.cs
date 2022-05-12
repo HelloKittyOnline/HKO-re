@@ -2,13 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
-using System.Threading;
 using Extractor;
 using Server.Protocols;
 
 namespace Server {
     struct InventoryItem : IWriteAble {
-        public static InventoryItem Empty => new InventoryItem();
+        public static readonly InventoryItem Empty = new InventoryItem();
 
         public int Id { get; set; }
         public byte Count { get; set; }
@@ -33,9 +32,24 @@ namespace Server {
     }
 
     class PlayerData {
-        public int CurrentMap { get; set; } = 8; // Sanrio Harbour
-        public int PositionX { get; set; } = 7730;
-        public int PositionY { get; set; } = 6040;
+        public int CurrentMap { get; set; } = 1; // Dream Room 1
+        [JsonIgnore]
+        public MapData Map {
+            get {
+                if(CurrentMap < 30000) {
+                    return Program.maps[CurrentMap];
+                }
+
+                if (CurrentMap % 10 == 7) {
+                    return Program.maps[4]; // wtf
+                }
+                
+                return Program.maps[CurrentMap % 10];
+            }
+        }
+
+        public int PositionX { get; set; } = 352;
+        public int PositionY { get; set; } = 688;
         public byte Rotation { get; set; }
         [JsonIgnore]
         public byte Speed => 200;
@@ -89,10 +103,9 @@ namespace Server {
         public string FavoriteMusic { get; set; } = "";
         public string FavoritePerson { get; set; } = "";
         public string Hobbies { get; set; } = "";
-        public string Introduction { get; set;  } = "";
+        public string Introduction { get; set; } = "";
 
-        // used for harvest canceling
-        internal CancellationTokenSource cancelSource;
+        public byte[] ProductionFlags { get; set; }
 
         public PlayerData() { }
         public PlayerData(string name, byte gender, byte bloodType, byte birthMonth, byte birthDay, int[] entities) {
@@ -111,6 +124,7 @@ namespace Server {
             Levels = new short[9];
             Exp = new int[9];
             Friendship = new short[7];
+            ProductionFlags = new byte[576];
 
             for(int i = 0; i < 9; i++) {
                 Levels[i] = 1;
@@ -123,6 +137,10 @@ namespace Server {
 
         internal void Init() {
             // Dynamically load Display Entities
+
+            // todo: remove down the line
+            ProductionFlags ??= new byte[576];
+
             DisplayEntities = new int[18];
             BaseEntities.CopyTo(DisplayEntities, 0);
             foreach(var item in Equipment) {
@@ -162,27 +180,43 @@ namespace Server {
             Player.SendSkillChange(client, skill, true);
         }
 
-        public int AddItem(int item, int count) {
+        [Obsolete("Use client.AddItem instead.")]
+        public int AddItem(int itemId, int count) {
             int open = -1;
 
+            var itemData = Program.items[itemId];
+
             // add to existing stack or create new stack
-            // todo: check item limit/handle item overflow
+            // todo: handle item overflow
             for(int i = 0; i < InventorySize; i++) {
-                var asd = Inventory[i];
-                if(asd.Id == 0 && open == -1) {
+                var invItem = Inventory[i];
+                if(invItem.Id == 0 && open == -1) {
                     open = i;
                 }
-                if(asd.Id == item && asd.Count < 99) {
+                if(invItem.Id == itemId && invItem.Count < itemData.StackLimit) {
                     Inventory[i].Count += (byte)count;
                     return i;
                 }
             }
 
             if(open != -1) {
-                Inventory[open].Id = item;
+                Inventory[open].Id = itemId;
                 Inventory[open].Count += (byte)count;
             }
             return open;
+        }
+
+        public bool HasItem(int itemId, int count = 1) {
+            return GetItemCount(itemId) >= count;
+        }
+        public int GetItemCount(int itemId) {
+            int count = 0;
+            for (int i = 0; i < InventorySize; i++) {
+                if (Inventory[i].Id == itemId) {
+                    count += Inventory[i].Count;
+                }
+            }
+            return count;
         }
 
         public void WriteEntities(PacketBuilder b) {

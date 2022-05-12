@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading;
-using System.Threading.Tasks;
 using Extractor;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +9,7 @@ namespace Server.Protocols {
             var id = client.ReadByte();
             switch(id) {
                 case 0x01: // 005a2513
-                    Recieve_06_01(client);
+                    HarvestResource(client);
                     break;
                 default:
                     client.Logger.LogWarning($"Unknown Packet 06_{id:X2}");
@@ -20,7 +19,7 @@ namespace Server.Protocols {
 
         #region Request
         // 06_01
-        static void Recieve_06_01(Client client) {
+        static void HarvestResource(Client client) {
             // gathering
 
             var resId = client.ReadInt32();
@@ -31,20 +30,10 @@ namespace Server.Protocols {
             // TODO: harvest time??
             const int harvestTime = 5 * 1000;
 
-            var source = new CancellationTokenSource();
-            client.Player.cancelSource = source;
-
-            source.Token.Register(() => {
-                Send06_01(client, 8, 0);
-                client.Player.cancelSource = null;
-            });
-
-            Task.Run(() => {
+            client.StartAction(token => {
                 Thread.Sleep(harvestTime);
-                if(source.IsCancellationRequested)
+                if(token.IsCancellationRequested)
                     return;
-
-                client.Player.cancelSource = null;
 
                 var item = Program.lootTables[resource.LootTable].GetRandom();
                 if(item != -1) {
@@ -66,6 +55,8 @@ namespace Server.Protocols {
                 }, resource.Level);
 
                 Send06_01(client, 7, 0);
+            }, () => {
+                Send06_01(client, 8, 0);
             });
 
             Send06_01(client, 2, harvestTime);

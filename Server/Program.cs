@@ -15,12 +15,6 @@ using MySql.Data.MySqlClient;
 using Server.Protocols;
 
 namespace Server {
-    class MapData {
-        public Teleport[] Teleporters { get; set; }
-        public NPCName[] Npcs { get; set; }
-        public Extractor.Resource[] Resources { get; set; }
-    }
-
     struct DialogData {
         public int Id { get; set; }
         public int Quest { get; set; }
@@ -40,6 +34,7 @@ namespace Server {
         internal static EquAtt[] equipment;
         internal static Quest[] quests;
         internal static SkillInfo[] skills;
+        internal static ProdRule[] prodRules;
 
         internal static List<Client> clients = new List<Client>();
 
@@ -286,6 +281,7 @@ namespace Server {
             items       = ItemAtt   .Load(archive.First(x => x.Name == "item_att.txt"));
             equipment   = EquAtt    .Load(archive.First(x => x.Name == "equ_att.txt"));
             skills      = SkillInfo .Load(archive.First(x => x.Name == "skill_exp.txt"));
+            prodRules   = ProdRule  .Load(archive.First(x => x.Name == "prod_rule.txt"));
 
             var mapList = MapList.Load(archive.First(x => x.Name == "map_list.txt"));
 

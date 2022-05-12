@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -10,6 +10,8 @@ using Ionic.Zlib;
 
 namespace Extractor {
     static class Helper {
+        static Encoding big5 = CodePagesEncodingProvider.Instance.GetEncoding(950); // Chinese big5 encoding
+
         public static byte[] ExtractZlib(byte[] data) {
             var memStream = new MemoryStream(data);
             var stream = new ZlibStream(memStream, CompressionMode.Decompress);
@@ -26,25 +28,42 @@ namespace Extractor {
                 if (c == 0) break;
                 buffer.Add(c);
             }
-            return Encoding.UTF8.GetString(buffer.ToArray());
+            return big5.GetString(buffer.ToArray());
         }
         public static string ReadCString(this BinaryReader reader, int length) {
             return CstrToString(reader.ReadBytes(length));
         }
+
+        // only used by sean database/archive
         public static void WriteCString(this BinaryWriter writer, string s) {
             foreach (var t in s) {
                 writer.Write((byte)t);
             }
             writer.Write((byte)0);
         }
+
+        public static void WriteCString(this BinaryWriter writer, string s, int length) {
+            var bytes = big5.GetBytes(s);
+
+            if (bytes.Length + 1 > length) {
+                throw new ArgumentOutOfRangeException(nameof(s), "string to big for given window");
+            }
+            
+            writer.Write(bytes);
+            writer.Write((byte)0); // null terminator
+
+            for (int i = bytes.Length + 1; i < length; i++) {
+                writer.Write((byte)0);
+            }
+        }
+
         private static string CstrToString(byte[] data) {
             int inx = Array.FindIndex(data, 0, x => x == 0); //search for 0
 
-            // should be Encoding.GetEncoding(950) but that's not supported by .net
             if (inx >= 0)
-                return Encoding.ASCII.GetString(data, 0, inx);
+                return big5.GetString(data, 0, inx);
 
-            return Encoding.ASCII.GetString(data);
+            return big5.GetString(data);
         }
 
         public static bool ReadZZZ(BinaryReader reader, out byte[] output) {

@@ -61,7 +61,7 @@ namespace Extractor {
             writer.Write(size); // total size of file names
 
             foreach(var file in files) {
-                Helper.WriteCString(writer, file.Name);
+                writer.WriteCString(file.Name);
             }
 
             while(ms.Position % 4 != 0) {

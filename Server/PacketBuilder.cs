@@ -79,6 +79,16 @@ namespace Server {
             writer.Write(Encoding.UTF7.GetBytes(str));
         }
 
+        // writes length prefixed and padded utf-7 string
+        public void WritePadString(string str, int length) {
+            var bytes = Encoding.UTF7.GetBytes(str);
+
+            WriteByte((byte)bytes.Length);
+            Write(bytes);
+            Write0(length - bytes.Length - 1);
+        }
+
+        // writes length prefixed utf-16 string
         public void WriteWString(string str) {
             var dat = Encoding.Unicode.GetBytes(str);
 
@@ -87,6 +97,17 @@ namespace Server {
             }
             WriteShort((short)dat.Length);
             writer.Write(dat);
+        }
+
+        // writes utf-16 string and pads to length
+        public void WritePadWString(string str, int length) {
+            var bytes = Encoding.Unicode.GetBytes(str);
+
+            if(bytes.Length + 2 > length) { // keep space for null terminator
+                throw new ArgumentOutOfRangeException(nameof(str), "string too long");
+            }
+            writer.Write(bytes);
+            Write0(length - bytes.Length);
         }
 
         public void Send(Client client) {

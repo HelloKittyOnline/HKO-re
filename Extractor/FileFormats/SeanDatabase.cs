@@ -67,7 +67,7 @@ namespace Extractor {
 
             w.Write(Strings.Count);
             foreach(var s in Strings) {
-                Helper.WriteCString(w, s.Value);
+                w.WriteCString(s.Value);
             }
 
             for(int i = 0; i < padding; i++) {

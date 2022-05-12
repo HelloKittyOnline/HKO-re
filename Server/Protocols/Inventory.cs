@@ -1,4 +1,5 @@
 ﻿using System;
+using Extractor;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
@@ -15,7 +16,7 @@ namespace Server.Protocols {
                     SplitItem(client);
                     break;
                 case 0x0F: // 00587207
-                    ConsumeItem(client);
+                    UseItem(client);
                     break;
                 case 0x10: // 005872a6
                     DeleteItem(client);
@@ -81,14 +82,57 @@ namespace Server.Protocols {
             }
         }
 
+        static bool GetBit(this byte[] data, int index) {
+            return (data[index >> 3] & (1 << (index & 7))) != 0;
+        }
+        static void SetBit(this byte[] data, int index) {
+            data[index >> 3] |= (byte)(1 << (index & 7));
+        }
+
         // 09_0F
-        static void ConsumeItem(Client client) {
+        static void UseItem(Client client) {
             var slot = client.ReadByte();
             var b = client.ReadInt16();
 
             var c = client.ReadInt32();
             var d = client.ReadInt32();
             var e = client.ReadInt32();
+
+            if(slot - 1 >= client.Player.InventorySize)
+                return;
+
+            var item = client.Player.Inventory[slot - 1];
+            if(item.Id == 0)
+                return;
+
+            var itemData = Program.items[item.Id];
+
+            if(itemData.Type == ItemType.Item_Guide) {
+                var prodRule = itemData.SubId;
+
+                var prodData = Program.prodRules[prodRule];
+                var skill = prodData.GetSkill();
+
+                if(client.Player.Levels[(int)skill] < prodData.RequiredLevel) {
+                    SendUsedSkillBook(client, SkillUsedFlag.LevelNotMet, prodRule);
+                    return;
+                }
+
+                // SkillUsedFlag.WrongItem ???
+
+                client.Player.ProductionFlags.GetBit(prodRule);
+
+                if(client.Player.ProductionFlags.GetBit(prodRule)) {
+                    SendUsedSkillBook(client, SkillUsedFlag.AlreadyKnow, prodRule);
+                    return;
+                }
+
+                client.Player.Inventory[slot - 1] = InventoryItem.Empty;
+                client.Player.ProductionFlags.SetBit(prodRule);
+                SendSetItem(client, InventoryItem.Empty, slot);
+
+                SendUsedSkillBook(client, SkillUsedFlag.Success, prodRule);
+            }
         }
 
         // 09_10
@@ -124,7 +168,7 @@ namespace Server.Protocols {
         }
 
         // 09_02
-        public static void SendSetItem(Client client, InventoryItem item, byte index) {
+        public static void SendSetItem(Client client, InventoryItem item, int index) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x09); // first switch
@@ -134,7 +178,7 @@ namespace Server.Protocols {
             b.Write(item);
             b.EndCompress();
 
-            b.WriteByte(index); // inventory index
+            b.WriteByte((byte)index); // inventory index
 
             b.Send(client);
         }
@@ -165,6 +209,36 @@ namespace Server.Protocols {
             b.WriteByte(0x0B); // second switch
 
             b.WriteByte((byte)client.Player.InventorySize);
+
+            b.Send(client);
+        }
+
+        public enum SkillUsedFlag {
+            Success = 1,
+            LevelNotMet = 2,
+            AlreadyKnow = 3,
+            WrongItem = 4,
+            Failed = 5
+        }
+
+        // 09_5B
+        static void SendUsedSkillBook(Client client, SkillUsedFlag type, int prodId) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x09); // first switch
+            b.WriteByte(0x5B); // second switch
+
+            // 1 = Skill learned successfully
+            // 2 = You cannot learn this skill: level requirement not met
+            // 3 = You already know this skill
+            // 4 = Wrong item for Skill Guide
+            // 5 = Failed to use Skill Guide
+            b.WriteByte((byte)type);
+
+            if(type == SkillUsedFlag.Success) {
+                b.WriteShort((short)(prodId / 512));
+                b.WriteShort((short)(prodId % 512));
+            }
 
             b.Send(client);
         }

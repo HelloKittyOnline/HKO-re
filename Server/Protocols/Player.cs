@@ -43,10 +43,10 @@ namespace Server.Protocols {
                 case 0x0D: // 005df50c
                     UnEquipItem(client);
                     break;
-                /*
-                case 0x0E: // 005df580
+                // case 0x0E: // 005df580
                 case 0x13: // 005df5e2
-                */
+                    Recieve_02_13(client);
+                    break;
                 case 0x1A: // 005df655 // sent after 02_09
                     Recieve_02_1A(client);
                     break;
@@ -82,7 +82,7 @@ namespace Server.Protocols {
         }
 
         static void ChangeMap(Client client) {
-            var map = Program.maps[client.Player.CurrentMap];
+            var map = client.Player.Map;
 
             SendChangeMap(client);
 
@@ -125,8 +125,7 @@ namespace Server.Protocols {
             var player = client.Player;
 
             // cancel player action like harvesting
-            player.cancelSource?.Cancel();
-            player.cancelSource = null;
+            client.CancelAction();
 
             player.PositionX = x;
             player.PositionY = y;
@@ -248,7 +247,7 @@ namespace Server.Protocols {
             var item = player.Inventory[inventorySlot - 1];
             var att = Program.items[item.Id];
 
-            if(att.Type != (int)ItemType.EQUIPMENT)
+            if(att.Type != ItemType.Equipment)
                 return;
 
             var equ = Program.equipment[att.SubId];
@@ -307,6 +306,13 @@ namespace Server.Protocols {
             SendPlayerAtt(client);
         }
 
+        // 02_13
+        private static void Recieve_02_13(Client client) {
+            // multiple sources?
+            // cancel production
+            client.CancelAction();
+        }
+
         // 02_1A
         static void Recieve_02_1A(Client client) {
             var winmTime = client.ReadInt32();
@@ -344,10 +350,10 @@ namespace Server.Protocols {
         // 02_21
         static void GetPlayerInfo(Client client) {
             var playerId = client.ReadInt16();
-            var player = Program.clients.First(x => x.Id == playerId);
+            var player = Program.clients.FirstOrDefault(x => x.Id == playerId);
 
-            /*if(player != null) 
-                SendPlayerInfo(client, player);*/
+            if(player != null)
+                SendOtherPlayerInfo(client, player.Player);
         }
 
         // 02_32
@@ -400,11 +406,7 @@ namespace Server.Protocols {
                 b.WriteByte(0);
             }
             // null terminated wchar string
-            { // player name
-                var bytes = Encoding.Unicode.GetBytes(player.Name);
-                b.Write(bytes);
-                b.Write0(64 - bytes.Length);
-            }
+            b.WritePadWString(player.Name, 32 * 2);
 
             b.Write0(18); // idk
 
@@ -505,7 +507,7 @@ namespace Server.Protocols {
 
             player.WriteLevels(b);
 
-            b.Write0(9 * 64); // 9 * byte[64]
+            b.Write(player.ProductionFlags);
 
             b.WriteInt(0);
 
@@ -515,26 +517,14 @@ namespace Server.Protocols {
 
             b.Write0(0x82e0 - 0x4018);
 
-            void padString(string str, int len) {
-                var bytes = Encoding.UTF7.GetBytes(str);
-                b.WriteByte((byte)bytes.Length);
-                b.Write(bytes);
-                b.Write0(len - bytes.Length - 1);
-            }
-            void padWString(string str, int len) {
-                var bytes = Encoding.Unicode.GetBytes(str);
-                b.Write(bytes);
-                b.Write0(len - bytes.Length);
-            };
-
             // 0x82e0
-            padString(player.FavoriteFood, 38);
-            padString(player.FavoriteMovie, 26);
-            padWString(player.Location, 36 * 2);
-            padString(client.Player.FavoriteMusic, 66);
-            padWString(client.Player.FavoritePerson, 64 * 2);
-            padWString(player.Hobbies, 160 * 2);
-            padWString(player.Introduction, 160 * 2);
+            b.WritePadString(player.FavoriteFood, 38);
+            b.WritePadString(player.FavoriteMovie, 26);
+            b.WritePadWString(player.Location, 36 * 2);
+            b.WritePadString(player.FavoriteMusic, 66);
+            b.WritePadWString(player.FavoritePerson, 64 * 2);
+            b.WritePadWString(player.Hobbies, 160 * 2);
+            b.WritePadWString(player.Introduction, 160 * 2);
 
             // 0x86aa
             b.Write0(0x9320 - 0x86aa);
@@ -910,6 +900,48 @@ namespace Server.Protocols {
             foreach(var res in resources) {
                 writeResData(b, res);
             }
+            b.EndCompress();
+
+            b.Send(client);
+        }
+
+        // 02_20
+        static void SendOtherPlayerInfo(Client client, PlayerData other) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x02); // first switch
+            b.WriteByte(0x20); // second switch
+
+            b.BeginCompress();
+
+            b.WritePadWString(other.Name, 32 * 2);
+            b.WriteByte(other.Gender);
+            b.Write0(11);
+            b.WriteByte(other.BloodType);
+            b.WriteByte(other.BirthMonth);
+            b.WriteByte(other.BirthDay);
+            b.WriteByte(other.GetConstellation());
+
+            other.WriteEntities(b);
+
+            for(int i = 0; i < 14; i++)
+                b.Write(other.Equipment[i]); // equipment
+            for(int i = 0; i < 6; i++)
+                b.Write(InventoryItem.Empty); // inv2
+
+            b.WritePadString(other.FavoriteFood, 38);
+            b.WritePadString(other.FavoriteMovie, 26);
+            b.WritePadWString(other.Location, 36 * 2);
+            b.WritePadString(other.FavoriteMusic, 66);
+            b.WritePadWString(other.FavoritePerson, 64 * 2);
+            b.WritePadWString(other.Hobbies, 160 * 2);
+            b.WritePadWString(other.Introduction, 160 * 2);
+            b.Write0(3);
+            b.WriteInt(other.Hp);
+            b.WriteInt(other.MaxHp);
+            b.WriteInt(other.Sta);
+            b.WriteInt(other.MaxSta);
+
             b.EndCompress();
 
             b.Send(client);
