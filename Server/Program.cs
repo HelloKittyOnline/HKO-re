@@ -52,18 +52,26 @@ namespace Server {
         static void ListenClient(Client client, bool lobby) {
             Login.SendLobby(client, lobby);
 
-            var reader = new BinaryReader(client.Stream, Encoding.Default, true);
-
             while(true) {
-                var head = new byte[3];
+                byte[] data; // todo: reuse buffer
 
-                var task = client.Stream.ReadAsync(head, 0, 3, client.Token);
-                task.Wait();
-                if(task.Result != 3 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
+                try {
+                    var head = new byte[5];
+
+                    if(client.Stream.ReadAsync(head, 0, 5, client.Token).Result != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
+                        break;
+                    }
+
+                    var length = head[3] | head[4] << 8;
+
+                    data = new byte[length];
+                    if(client.Stream.ReadAsync(data, 0, length, client.Token).Result != length) {
+                        break;
+                    }
+                } catch(Exception e) {
+                    // network error likely connection reset by peer or action canceled
                     break;
                 }
-
-                var data = reader.ReadBytes(reader.ReadUInt16());
 
                 if(data.Length == 1) {
                     if(data[0] == 0x7E) { // 005551be
@@ -239,8 +247,6 @@ namespace Server {
                 client.RunTask = Task.Run(() => {
                     try {
                         ListenClient(client, lobby);
-                    } catch when(client.Token.IsCancellationRequested) {
-                        // ignore canceled
                     } catch(Exception e) {
                         client.Logger.LogError(e, null);
                     }
@@ -252,6 +258,14 @@ namespace Server {
                         client.Logger.LogInformation($"Player {client.Username} disconnected");
                     }
                     clients.Remove(client);
+
+                    // remove player from maps
+                    var p = Player.BuildDeletePlayer(client);
+                    foreach(var client1 in clients) {
+                        try {
+                            p.Send(client1);
+                        } catch { }
+                    }
                 });
             }
         }
