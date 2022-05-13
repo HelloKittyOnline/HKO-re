@@ -594,7 +594,7 @@ namespace Server.Protocols {
         }
 
         // 02_03
-        static PacketBuilder BuildDeletePlayer(Client client) {
+        public static PacketBuilder BuildDeletePlayer(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
@@ -837,21 +837,21 @@ namespace Server.Protocols {
             b.Send(client);
         }
 
-        static void writeNpcData(PacketBuilder w, NPCName npc) {
-            w.WriteInt(npc.Id); // entity/npc id
-            w.WriteInt(npc.X); // x 
-            w.WriteInt(npc.Y); // y
+        static void writeNpcData(PacketBuilder w, NpcData npc) {
+            w.WriteInt(npc.Id);
+            w.WriteInt(npc.X);
+            w.WriteInt(npc.Y);
 
-            w.WriteByte((byte)npc.Rotation); // rotation
+            w.WriteByte((byte)npc.Rotation);
             w.Write0(3); // unused
 
-            w.WriteInt(0);
-            w.WriteInt(0);
-            w.WriteInt(0);
-            w.WriteInt(0);
+            w.WriteInt(npc.Action1);
+            w.WriteInt(npc.Action2);
+            w.WriteInt(npc.Action3);
+            w.WriteInt(npc.Action4);
         }
         // 02_16
-        static void SendNpcs(Client client, NPCName[] npcs) {
+        static void SendNpcs(Client client, NpcData[] npcs) {
             // create npcs
             var b = new PacketBuilder();
 

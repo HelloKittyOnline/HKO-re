@@ -35,6 +35,7 @@ namespace Server {
         internal static Quest[] quests;
         internal static SkillInfo[] skills;
         internal static ProdRule[] prodRules;
+        internal static Dictionary<int, Shop> Shops;
 
         internal static List<Client> clients = new List<Client>();
 
@@ -289,7 +290,6 @@ namespace Server {
             var archive = SeanArchive.Extract("./client_table_eng.sdb");
 
             teleporters = Teleport  .Load(archive.First(x => x.Name == "teleport_list.txt"));
-            var npcs    = NPCName   .Load(archive.First(x => x.Name == "npc_list.txt"));
             resources   = Extractor.Resource.Load(archive.First(x => x.Name == "res_list.txt"));
             lootTables  = ResCounter.Load(archive.First(x => x.Name == "res_counter.txt"));
             items       = ItemAtt   .Load(archive.First(x => x.Name == "item_att.txt"));
@@ -300,6 +300,15 @@ namespace Server {
             var mapList = MapList.Load(archive.First(x => x.Name == "map_list.txt"));
 
             var dialogs = JsonSerializer.Deserialize<JsonElement[]>(File.ReadAllText("./dialog_data.json"));
+            var npcs = NpcData.Load("./npc_data.json");
+            var shops = Shop.Load("./shop_data.json");
+
+            Shops = new Dictionary<int, Shop>();
+            foreach(var shop in shops) {
+                foreach(var npc in shop?.Npcs) {
+                    Shops[npc] = shop;
+                }
+            }
 
             dialogData = new Dictionary<int, DialogData[]>();
             foreach(var npc in npcs) {
@@ -353,8 +362,8 @@ namespace Server {
             }
 
             Debug.Assert(teleporters.All(x => x.FromMap == 0 || maps[x.FromMap] != null)); // all teleporters registered
-            Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all teleporters registered
-            Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all teleporters registered
+            Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all npcs registered
+            Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all resources registered
 
             var sb = new MySqlConnectionStringBuilder {
                 Server = "127.0.0.1",
