@@ -95,7 +95,7 @@ namespace Server {
         public int[] Quickbar { get; set; }
 
         [JsonIgnore]
-        public ChatFlags ChatFlags { get; set; }
+        public ChatFlags ChatFlags { get; set; } = ChatFlags.All;
 
         public string Location { get; set; } = "";
         public string FavoriteFood { get; set; } = "";
@@ -211,8 +211,8 @@ namespace Server {
         }
         public int GetItemCount(int itemId) {
             int count = 0;
-            for (int i = 0; i < InventorySize; i++) {
-                if (Inventory[i].Id == itemId) {
+            for(int i = 0; i < InventorySize; i++) {
+                if(Inventory[i].Id == itemId) {
                     count += Inventory[i].Count;
                 }
             }
