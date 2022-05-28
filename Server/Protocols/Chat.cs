@@ -12,7 +12,9 @@ namespace Server.Protocols {
         Trade = 0x8,
         Private = 0x10,
         System = 0x20,
-        Advice = 0x40
+        Advice = 0x40,
+
+        All = Map | Local | Guild | Trade | Private | System | Advice
     }
 
     static class Chat {
