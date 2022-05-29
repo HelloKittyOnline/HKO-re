@@ -1,44 +1,20 @@
 ﻿namespace Extractor {
+    [SeanItem(17)]
     public struct Resource {
-        public int Id { get; set; }
-        public int MapId { get; set; }
-        public int X { get; set; }
-        public int Y { get; set; }
+        [SeanField(0)] public int Id { get; set; }
+        [SeanField(1)] public int MapId { get; set; }
+        [SeanField(2)] public int X { get; set; }
+        [SeanField(3)] public int Y { get; set; }
 
-        public short NameId { get; set; }
-        public short Level { get; set; }
-        // public byte Rotation { get; set; }
+        [SeanField(4)] public short NameId { get; set; }
+        [SeanField(5)] public short Level { get; set; }
 
-        public int Tool1 { get; set; }
-        public int Tool2 { get; set; }
+        [SeanField(6)] public int LootTable { get; set; }
 
-        public byte Type1 { get; set; }
-        public byte Type2 { get; set; }
+        [SeanField(7)] public int Tool1 { get; set; }
+        [SeanField(8)] public int Tool2 { get; set; }
 
-        // public int HarvestTime { get; set; }
-        public int LootTable { get; set; }
-
-        public static Resource[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
-
-            var items = new Resource[contents.ItemCount];
-            for(int i = 0; i < contents.ItemCount; i++) {
-                items[i] = new Resource {
-                    Id = contents.Items[i, 0],
-                    MapId = contents.Items[i, 1],
-                    X = contents.Items[i, 2],
-                    Y = contents.Items[i, 3],
-                    NameId = (short)contents.Items[i, 4],
-                    Level = (short)contents.Items[i, 5],
-                    LootTable = contents.Items[i, 6],
-                    Tool1 = (byte)contents.Items[i, 7],
-                    Tool2 = (byte)contents.Items[i, 8],
-                    Type1 = (byte)contents.Items[i, 9],
-                    Type2 = (byte)contents.Items[i, 13]
-                };
-            }
-
-            return items;
-        }
+        [SeanField(9)] public byte Type1 { get; set; }
+        [SeanField(13)] public byte Type2 { get; set; }
     }
 }

@@ -286,18 +286,18 @@ namespace Server {
                 serverTokenSource.Cancel();
             };
 
-            quests = Quest.Load(SeanArchive.Extract("./c_quest_eng.sdb"));
+            quests = Quest.Load("./c_quest_eng.sdb");
             var archive = SeanArchive.Extract("./client_table_eng.sdb");
 
-            teleporters = Teleport  .Load(archive.First(x => x.Name == "teleport_list.txt"));
-            resources   = Extractor.Resource.Load(archive.First(x => x.Name == "res_list.txt"));
+            teleporters = SeanDatabase.Load<Teleport>(archive.First(x => x.Name == "teleport_list.txt").Contents);
+            resources   = SeanDatabase.Load<Extractor.Resource>(archive.First(x => x.Name == "res_list.txt").Contents);
             lootTables  = ResCounter.Load(archive.First(x => x.Name == "res_counter.txt"));
-            items       = ItemAtt   .Load(archive.First(x => x.Name == "item_att.txt"));
-            equipment   = EquAtt    .Load(archive.First(x => x.Name == "equ_att.txt"));
-            skills      = SkillInfo .Load(archive.First(x => x.Name == "skill_exp.txt"));
-            prodRules   = ProdRule  .Load(archive.First(x => x.Name == "prod_rule.txt"));
+            items       = SeanDatabase.Load<ItemAtt>(archive.First(x => x.Name == "item_att.txt").Contents);
+            equipment   = SeanDatabase.Load<EquAtt>(archive.First(x => x.Name == "equ_att.txt").Contents);
+            skills      = SeanDatabase.Load<SkillInfo>(archive.First(x => x.Name == "skill_exp.txt").Contents);
+            prodRules   = ProdRule.Load(archive.First(x => x.Name == "prod_rule.txt"));
 
-            var mapList = MapList.Load(archive.First(x => x.Name == "map_list.txt"));
+            var mapList = SeanDatabase.Load<MapList>(archive.First(x => x.Name == "map_list.txt").Contents);
 
             var dialogs = JsonSerializer.Deserialize<JsonElement[]>(File.ReadAllText("./dialog_data.json"));
             var npcs = NpcData.Load("./npc_data.json");

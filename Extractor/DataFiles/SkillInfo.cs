@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 
 namespace Extractor {
     public enum Skill {
@@ -16,42 +15,19 @@ namespace Extractor {
         Tailoring
     }
 
+    [SeanItem(10)]
     public struct SkillInfo {
-        public int Id { get; set; }
+        [SeanField(0)] public int Id { get; set; }
 
-        public int Overall { get; set; }
-        public int Planting { get; set; }
-        public int Mining { get; set; }
-        public int Woodcutting { get; set; }
-        public int Gathering { get; set; }
-        public int Forging { get; set; }
-        public int Carpentry { get; set; }
-        public int Cooking { get; set; }
-        public int Tailoring { get; set; }
-
-        public static SkillInfo[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
-
-            var items = new SkillInfo[36]; // ignore contents.ItemCount
-            for(int i = 0; i < 35; i++) {
-                Debug.Assert(contents.Items[i, 0] == i);
-
-                items[i] = new SkillInfo {
-                    Id = contents.Items[i, 0],
-                    Overall = contents.Items[i, 1],
-                    Planting = contents.Items[i, 2],
-                    Mining = contents.Items[i, 3],
-                    Woodcutting = contents.Items[i, 4],
-                    Gathering = contents.Items[i, 5],
-                    Forging = contents.Items[i, 6],
-                    Carpentry = contents.Items[i, 7],
-                    Cooking = contents.Items[i, 8],
-                    Tailoring = contents.Items[i, 9]
-                };
-            }
-
-            return items;
-        }
+        [SeanField(1)] public int Overall { get; set; }
+        [SeanField(2)] public int Planting { get; set; }
+        [SeanField(3)] public int Mining { get; set; }
+        [SeanField(4)] public int Woodcutting { get; set; }
+        [SeanField(5)] public int Gathering { get; set; }
+        [SeanField(6)] public int Forging { get; set; }
+        [SeanField(7)] public int Carpentry { get; set; }
+        [SeanField(8)] public int Cooking { get; set; }
+        [SeanField(9)] public int Tailoring { get; set; }
 
         public int GetExp(Skill skill) {
             return skill switch {

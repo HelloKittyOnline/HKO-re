@@ -1,28 +1,36 @@
-﻿using System.Diagnostics;
-
-namespace Extractor {
+﻿namespace Extractor {
+    [SeanItem(25)]
     public struct MapList {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public string File { get; set; }
-        public string Ost { get; set; }
+        [SeanField(0)] public int Id { get; set; }
 
-        public static MapList[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
+        [SeanField(1)] public int FarmX { get; set; }
+        [SeanField(2)] public int FarmY { get; set; }
+        [SeanField(3)] public int SpawnX { get; set; }
+        [SeanField(4)] public int SpawnY { get; set; }
 
-            var items = new MapList[contents.ItemCount];
-            for(int i = 0; i < contents.ItemCount; i++) {
-                Debug.Assert(contents.Items[i, 0] == i);
+        [SeanField(6)] public string Name { get; set; }
+        [SeanField(7)] public string File { get; set; }
+        [SeanField(8)] public string Ost { get; set; }
 
-                items[i] = new MapList {
-                    Id = contents.Items[i, 0],
-                    Name = contents.GetString(i, 6),
-                    File = contents.GetString(i, 7),
-                    Ost = contents.GetString(i, 8)
-                };
-            }
+        // 9  ??
+        // 10 bool somethingParticles
+        [SeanField(11)] public int WorldMapX { get; set; }
+        [SeanField(12)] public int WorldMapY { get; set; }
 
-            return items;
-        }
+        [SeanField(13)] public string AreaMap { get; set; }
+        [SeanField(14)] public bool OnWorldMap { get; set; }
+
+        [SeanField(15)] public string Scale8 { get; set; }
+        [SeanField(16)] public string Scale12 { get; set; }
+        [SeanField(17)] public string Scale16 { get; set; }
+
+        // 18 bool somethingEntity
+        // 19 areaMapScale
+        // 20 ??
+        // 20 packageId
+        // 21 widthScale
+        // 22 heightScale
+        // 23 ??
+        // 24 ??
     }
 }

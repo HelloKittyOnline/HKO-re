@@ -12,9 +12,9 @@ namespace Extractor {
 
                 foreach(var item in data) {
                     if(item.Name != "lobby_info.txt") continue;
-                    var dat = new SeanDatabase(item.Contents);
-                    dat.Strings[4] = "ip:127.0.0.1";
-                    item.Contents = dat.Save();
+                    var lobbys = SeanDatabase.Load<LobbyInfo>(item.Contents);
+                    lobbys[1].Address = "ip:127.0.0.1";
+                    item.Contents = SeanDatabase.Save(lobbys);
                     patched = true;
                 }
 

@@ -1,39 +1,28 @@
 ﻿namespace Extractor {
+    [SeanItem(18)]
     public struct Teleport {
-        public int Id { get; set; }
-        public string name { get; set; }
-        public string file { get; set; }
+        [SeanField(0)] public int Id { get; set; }
 
-        public int FromMap { get; set; }
-        public int fromX { get; set; }
-        public int fromY { get; set; }
+        [SeanField(1)] public int FromMap { get; set; }
+        [SeanField(2)] public int FromX { get; set; }
+        [SeanField(3)] public int FromY { get; set; }
 
-        public int toMap { get; set; }
-        public int toX { get; set; }
-        public int toY { get; set; }
+        [SeanField(4)] public int ToMap { get; set; }
+        [SeanField(5)] public int ToX { get; set; }
+        [SeanField(6)] public int ToY { get; set; }
 
-        public int rotation { get; set; }
+        [SeanField(7)] public string Name { get; set; }
+        [SeanField(8)] public int QuestFlag { get; set; }
+        [SeanField(9)] public string File { get; set; }
+        [SeanField(10)] public int Rotation { get; set; }
 
-        public static Teleport[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
+        [SeanField(11)] public int TutorialFlag { get; set; }
+        [SeanField(12)] public int DreamRoomNum { get; set; }
+        [SeanField(13)] public int KeyItem { get; set; }
+        [SeanField(14)] public int KeyItemCount { get; set; }
+        [SeanField(15)] public int SomethingRotation { get; set; }
+        [SeanField(16)] public int WarningStringId { get; set; }
 
-            var items = new Teleport[contents.ItemCount];
-            for(int i = 0; i < contents.ItemCount; i++) {
-                items[i] = new Teleport {
-                    Id = contents.Items[i, 0],
-                    FromMap = contents.Items[i, 1],
-                    fromX = contents.Items[i, 2],
-                    fromY = contents.Items[i, 3],
-                    toMap = contents.Items[i, 4],
-                    toX = contents.Items[i, 5],
-                    toY = contents.Items[i, 6],
-                    name = contents.GetString(i, 7),
-                    file = contents.GetString(i, 9),
-                    rotation = contents.Items[i, 10],
-                };
-            }
-
-            return items;
-        }
+        // 17 equip item? always 0
     }
 }

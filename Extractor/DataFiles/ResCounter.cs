@@ -45,7 +45,8 @@ namespace Extractor {
             var total = 0;
             foreach(var el in Items) {
                 total += el.Chance;
-                if(rand < total) return el.ItemId;
+                if(rand < total)
+                    return el.ItemId;
             }
 
             return -1;

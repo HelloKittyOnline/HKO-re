@@ -1,24 +1,9 @@
 ﻿namespace Extractor {
+    [SeanItem(4)]
     struct UrlData {
-        public int Id { get; set; }
-        public string Path { get; set; }
-        public string Hash { get; set; }
-        public string Name { get; set; }
-
-        public static UrlData[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
-
-            var items = new UrlData[contents.ItemCount];
-            for(int i = 0; i < contents.ItemCount; i++) {
-                items[i] = new UrlData {
-                    Id = contents.Items[i, 0],
-                    Path = contents.GetString(i, 1),
-                    Hash = contents.GetString(i, 2),
-                    Name = contents.GetString(i, 3),
-                };
-            }
-
-            return items;
-        }
+        [SeanField(0)] public int Id { get; set; }
+        [SeanField(1)] public string Path { get; set; }
+        [SeanField(2)] public string Hash { get; set; }
+        [SeanField(3)] public string Name { get; set; }
     }
 }

@@ -1,6 +1,4 @@
-using System.Diagnostics;
-
-namespace Extractor {
+﻿namespace Extractor {
     public enum ItemType {
         Consumable_Item = 1,
         Pesticide = 2, // unused
@@ -33,41 +31,18 @@ namespace Extractor {
         Teleport_Tool = 33
     };
 
+    [SeanItem(22)]
     public struct ItemAtt {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public ItemType Type { get; set; }
-        public int SubId { get; set; }
-        public int Price { get; set; }
-        public int StackLimit { get; set; }
-        public int Level { get; set; }
+        [SeanField(0)] public int Id { get; set; }
+        [SeanField(1)] public string Name { get; set; }
+        [SeanField(2)] public ItemType Type { get; set; }
+        [SeanField(3)] public int SubId { get; set; }
+        [SeanField(5)] public int Price { get; set; }
+        [SeanField(10)] public int StackLimit { get; set; }
+        [SeanField(11)] public int Level { get; set; }
 
-        public string Icon { get; set; }
-        public string Description { get; set; }
-        public string CardImage { get; set; }
-
-        public static ItemAtt[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
-
-            var items = new ItemAtt[contents.ItemCount];
-            for(int i = 0; i < contents.ItemCount; i++) {
-                Debug.Assert(contents.Items[i, 0] == i);
-
-                items[i] = new ItemAtt {
-                    Id = contents.Items[i, 0],
-                    Name = contents.GetString(i, 1),
-                    Type = (ItemType)contents.Items[i, 2],
-                    SubId = contents.Items[i, 3],
-                    Price = contents.Items[i, 5],
-                    StackLimit = contents.Items[i, 10],
-                    Level = contents.Items[i, 11],
-                    Icon = contents.GetString(i, 12),
-                    Description = contents.GetString(i, 13),
-                    CardImage = contents.GetString(i, 14)
-                };
-            }
-
-            return items;
-        }
+        [SeanField(12)] public string Icon { get; set; }
+        [SeanField(13)] public string Description { get; set; }
+        [SeanField(14)] public string CardImage { get; set; }
     }
 }
