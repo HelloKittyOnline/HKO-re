@@ -217,9 +217,9 @@ namespace Server.Protocols {
 
             var tp = Program.teleporters[tpId];
 
-            player.CurrentMap = tp.toMap;
-            player.PositionX = tp.toX;
-            player.PositionY = tp.toY;
+            player.CurrentMap = tp.ToMap;
+            player.PositionX = tp.ToX;
+            player.PositionY = tp.ToY;
 
             ChangeMap(client);
 
@@ -802,21 +802,19 @@ namespace Server.Protocols {
         }
 
         static void writeTeleport(PacketBuilder w, Teleport tp) {
-            w.WriteInt(tp.Id); // id
-            w.WriteInt(tp.fromX); // x
-            w.WriteInt(tp.fromY); // y
-            w.WriteInt(0); // flagId
-            w.WriteByte((byte)tp.rotation); // direction
-            w.WriteByte(0);
-            w.WriteByte(0);
+            w.WriteInt(tp.Id);
+            w.WriteInt(tp.FromX);
+            w.WriteInt(tp.FromY);
+            w.WriteInt(tp.QuestFlag);
+            w.WriteByte((byte)tp.Rotation);
+            w.Write0(3); // unused
+            w.WriteInt(tp.TutorialFlag);
+            w.WriteInt(tp.DreamRoomNum);
+            w.WriteInt(tp.KeyItem); // consumeItem
+            w.WriteInt(tp.KeyItemCount); // consumeItemCount
+            w.WriteByte((byte)tp.SomethingRotation);
             w.WriteByte(0); // unused
-            w.WriteInt(0); // somethingTutorial
-            w.WriteInt(0); // roomNum
-            w.WriteInt(0); // consumeItem
-            w.WriteInt(0); // consumeItemCount
-            w.WriteByte(0); // byte idk
-            w.WriteByte(0); // unused
-            w.WriteShort(0); // stringId
+            w.WriteShort((short)tp.WarningStringId);
             w.WriteInt(0); // keyItem
         }
         static void SendTeleporters(Client client, Teleport[] teleporters) {
