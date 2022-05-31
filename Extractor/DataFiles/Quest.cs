@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -17,7 +17,8 @@ namespace Extractor {
         public string[] Reset { get; set; }
         public int Type { get; set; }
 
-        public static Quest[] Load(SeanArchive.Item[] data) {
+        public static Quest[] Load(string path) {
+            var data = SeanArchive.Extract(path);
             var dat = new List<Quest>();
 
             foreach(var quest in data) {
