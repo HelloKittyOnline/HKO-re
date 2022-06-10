@@ -31,6 +31,12 @@ namespace Server {
         }
     }
 
+    class OrderItem {
+        public int Id { get; set; }
+        public int ItemId { get; set; }
+        public long AccountId { get; set; }
+    }
+
     public class DictionaryInt32Converter : JsonConverter<Dictionary<int, int>> {
         public override Dictionary<int, int> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
             if(reader.TokenType != JsonTokenType.StartObject)
@@ -118,6 +124,7 @@ namespace Server {
                 playerData = JsonSerializer.Deserialize<PlayerData>(data, new JsonSerializerOptions {
                     Converters = { new DictionaryInt32Converter() }
                 });
+                playerData.DiscordId = reader.GetInt64("id");
                 playerData.Init();
             } else {
                 playerData = null;
@@ -150,14 +157,77 @@ namespace Server {
             _online.Remove(username);
         }
 
+        public static OrderItem[] GetOrders(long userId) {
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            LogRequest("select * from orders where accountId = @userId");
+
+            var command = connection.CreateCommand();
+            command.CommandText = "select * from orders where accountId = @userId";
+            command.Parameters.AddWithValue("userId", userId);
+
+            var reader = command.ExecuteReader();
+
+            var items = new List<OrderItem>();
+            while(reader.Read()) {
+                items.Add(new OrderItem {
+                    Id = reader.GetInt32("id"),
+                    ItemId = reader.GetInt32("itemId"),
+                    AccountId = reader.GetInt64("accountId")
+                });
+            }
+
+            return items.ToArray();
+        }
+
+        public static OrderItem GetOrder(long userId, int orderId) {
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            LogRequest("select * from orders where accountId = @userId");
+
+            var command = connection.CreateCommand();
+            command.CommandText = "select * from orders where id = @id";
+            command.Parameters.AddWithValue("id", orderId);
+
+            var reader = command.ExecuteReader();
+
+            if(!reader.Read())
+                return null;
+
+            var accountId = reader.GetInt64("accountId");
+            if(accountId != userId)
+                return null;
+
+            return new OrderItem {
+                Id = reader.GetInt32("id"),
+                ItemId = reader.GetInt32("itemId"),
+                AccountId = accountId
+            };
+        }
+
+        public static void DeleteOrder(int orderId) {
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            LogRequest("DELETE FROM orders WHERE id = @id");
+
+            var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM orders WHERE id = @id";
+            command.Parameters.AddWithValue("id", orderId);
+
+            command.ExecuteNonQuery();
+        }
+
         private static void LogRequest(string query) {
             var logger = Program.loggerFactory.CreateLogger("Database");
-            logger.LogInformation($"Executing Query \"{query}\"");
+            logger.LogTrace($"Executing Query \"{query}\"");
         }
 
         private static byte[] GenerateSalt() {
             byte[] salt = new byte[128 / 8];
-            var rngCsp = new RNGCryptoServiceProvider();
+            var rngCsp = RandomNumberGenerator.Create();
             rngCsp.GetNonZeroBytes(salt);
             return salt;
         }

@@ -1,43 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
-    class MobData : IWriteAble {
-        public int Id { get; set; }
-
-        // data
-        public int MobId { get; set; }
-        public int X { get; set; }
-        public int Y { get; set; }
-        public byte Direction { get; set; }
-        public byte Speed => 10;
-        public int Hp { get; set; }
-        public int MaxHp { get; set; }
-        public int Dead { get; set; }
-        public byte State { get; set; }
-
-        // TODO: ai state
-        public bool InCombat { get; set; }
-        public int CurrX => X;
-        public int CurrY => Y;
-
-        public void Write(PacketBuilder b) {
-            b.WriteInt(Id);
-            b.WriteInt(CurrX);
-            b.WriteInt(CurrY);
-            b.WriteInt(MobId);
-
-            b.WriteShort(Speed);
-            b.WriteByte(Direction);
-            b.WriteByte(State);
-
-            b.WriteInt(Hp);
-            b.WriteInt(MaxHp);
-            b.WriteInt(Dead);
-            b.WriteInt(CurrX);
-            b.WriteInt(CurrY);
-        }
-    }
-
     static class Battle {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -64,6 +31,58 @@ namespace Server.Protocols {
         // 0C_03
         private static void AttackMob(Client client) {
             var mobEntId = client.ReadInt32();
+
+            var map = client.Player.Map;
+            var mob = map.Mobs.FirstOrDefault(x => x.Id == mobEntId);
+            if(mob == null)
+                return;
+
+            var mobAtt = Program.mobAtts[mob.MobId];
+
+            if(mob.Hp == 0)
+                return;
+
+            client.CancelAction();
+
+            client.StartAction(token => {
+                // TODO: improve damage formula
+                while(true) {
+                    Thread.Sleep(500);
+                    if(token.IsCancellationRequested)
+                        break;
+
+                    var mobDamage = Math.Min(mob.Hp, 10);
+
+                    mob.Hp -= mobDamage;
+                    BroadcastDamageToMob(map.Players, client.Id, mob.Id, (short)mobDamage, 0, 0);
+                    if(mob.Hp <= 0) {
+                        mob.Hp = 0;
+                        mob.Dead = 1;
+                        mob.QueueRespawn();
+
+                        var item = Program.lootTables[mobAtt.LootTable].GetRandom();
+                        if(item != -1) {
+                            client.AddItem(item, 1);
+                        }
+
+                        break;
+                    }
+
+                    Thread.Sleep(500);
+
+                    var playerDamage = Math.Min(client.Player.Hp, 10);
+
+                    // TODO: implement player hp and stamina
+                    // client.Player.Hp -= playerDamage;
+                    BroadcastDamageToPlayer(map.Players, client.Id, mob.Id, (short)playerDamage, 0, 0);
+                    if(client.Player.Hp <= 0) {
+                        client.Player.Hp = 0;
+                        break;
+                    }
+                }
+            }, () => {
+
+            });
         }
 
         // 0C_07
@@ -95,6 +114,7 @@ namespace Server.Protocols {
 
             b.BeginCompress();
             foreach(var mob in mobs) {
+                if(mob.Id == 0) continue; // TODO: remove later
                 b.Write(mob);
             }
             b.EndCompress();
@@ -112,8 +132,8 @@ namespace Server.Protocols {
             b.WriteByte(0x02); // second switch
 
             b.WriteInt(mob.Id); // count
-            b.WriteShort((short)mob.CurrX);
-            b.WriteShort((short)mob.CurrY);
+            b.WriteShort((short)mob.X);
+            b.WriteShort((short)mob.Y);
             b.WriteShort(mob.Speed);
 
             b.WriteByte(0); // unused
@@ -124,23 +144,49 @@ namespace Server.Protocols {
             return b;
         }
 
-        // 0C_02
-        public static void DoDamage(Client client) {
+        // 0C_03
+        public static void BroadcastDamageToMob(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
             // if(mob.Hp == 0) return;
 
             var b = new PacketBuilder();
 
             b.WriteByte(0x0C); // first switch
-            b.WriteByte(0x02); // second switch
+            b.WriteByte(0x03); // second switch
 
-            b.WriteShort(0); // source player id
-            b.WriteInt(0); // mob id
+            b.WriteShort(playerId); // source player id
+            b.WriteInt(mobId); // mob id
 
-            b.WriteShort(0); // damage 1 displayed in 250ms
-            b.WriteShort(0); // damage 2 displayed in 550ms
-            b.WriteShort(0); // damage 3 displayed in 850ms
+            b.WriteShort(d1); // damage 1 displayed in 250ms
+            b.WriteShort(d2); // damage 2 displayed in 550ms
+            b.WriteShort(d3); // damage 3 displayed in 850ms
 
-            b.Send(client);
+            foreach(var client1 in clients) {
+                b.Send(client1);
+            }
+        }
+
+        // 0C_06
+        public static void BroadcastDamageToPlayer(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
+            // if(mob.Hp == 0) return;
+
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x0C); // first switch
+            b.WriteByte(0x06); // second switch
+
+            b.WriteInt(mobId); // mob id
+            b.WriteShort(playerId); // player id
+
+            b.WriteShort(d1); // damage 1 displayed in 250ms
+            b.WriteShort(d2); // damage 2 displayed in 550ms
+            b.WriteShort(d3); // damage 3 displayed in 850ms
+
+            b.WriteShort(0); // unused ?
+            b.WriteShort(0); // unused ?
+
+            foreach(var client1 in clients) {
+                b.Send(client1);
+            }
         }
 
         #endregion

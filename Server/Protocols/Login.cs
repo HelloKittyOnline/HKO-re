@@ -97,7 +97,7 @@ namespace Server.Protocols {
         // 00_63
         static void Ping(Client client) {
             int number = client.ReadInt32();
-            // Console.WriteLine($"Ping {number}");
+            SendPong(client, number);
         }
         #endregion
 
@@ -270,6 +270,18 @@ namespace Server.Protocols {
             // sets some global timeout flag
             // if more ms have been passed since then game sends 0x7F and disconnects
             b.WriteInt(ms);
+
+            b.Send(client);
+        }
+
+        // 00_63
+        static void SendPong(Client client, int number) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x00); // first switch
+            b.WriteByte(0x63); // second switch
+
+            b.WriteInt(number);
 
             b.Send(client);
         }

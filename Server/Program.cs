@@ -5,8 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Extractor;
@@ -15,26 +14,18 @@ using MySql.Data.MySqlClient;
 using Server.Protocols;
 
 namespace Server {
-    struct DialogData {
-        public int Id { get; set; }
-        public int Quest { get; set; }
-        public bool Begins { get; set; }
-        public int Previous { get; set; }
-    }
-
     class Program {
         internal static MapData[] maps;
-        internal static Dictionary<int, DialogData[]> dialogData;
+        internal static Lookup<int, ManualQuest.Sub> questMap;
 
         internal static Teleport[] teleporters;
-        // internal static NPCName[] npcs;
         internal static Extractor.Resource[] resources;
         internal static ResCounter[] lootTables;
         internal static ItemAtt[] items;
         internal static EquAtt[] equipment;
-        internal static Quest[] quests;
         internal static SkillInfo[] skills;
         internal static ProdRule[] prodRules;
+        internal static MobAtt[] mobAtts;
         internal static Dictionary<int, Shop> Shops;
 
         internal static List<Client> clients = new List<Client>();
@@ -69,7 +60,7 @@ namespace Server {
                     if(client.Stream.ReadAsync(data, 0, length, client.Token).Result != length) {
                         break;
                     }
-                } catch(Exception e) {
+                } catch {
                     // network error likely connection reset by peer or action canceled
                     break;
                 }
@@ -257,16 +248,12 @@ namespace Server {
                     if(client.Username != null) {
                         Database.LogOut(client.Username, client.Player);
                         client.Logger.LogInformation($"Player {client.Username} disconnected");
-                    }
-                    clients.Remove(client);
 
-                    // remove player from maps
-                    var p = Player.BuildDeletePlayer(client);
-                    foreach(var client1 in clients) {
-                        try {
-                            p.Send(client1);
-                        } catch { }
+                        if(client.InGame) // remove player from maps
+                            Player.BroadcastDeletePlayer(client.Player.Map.Players, client);
                     }
+
+                    clients.Remove(client);
                 });
             }
         }
@@ -286,7 +273,11 @@ namespace Server {
                 serverTokenSource.Cancel();
             };
 
-            quests = Quest.Load("./c_quest_eng.sdb");
+            loggerFactory.CreateLogger("Server").LogInformation("Loading data...");
+
+            var quests = ManualQuest.Load("D:/Daten/Desktop/quests_test.json");
+            questMap = (Lookup<int, ManualQuest.Sub>)quests.SelectMany(x => x.Start.Concat(x.End)).ToLookup(x => x.Npc);
+
             var archive = SeanArchive.Extract("./client_table_eng.sdb");
 
             teleporters = SeanDatabase.Load<Teleport>(archive.First(x => x.Name == "teleport_list.txt").Contents);
@@ -298,8 +289,8 @@ namespace Server {
             prodRules   = ProdRule.Load(archive.First(x => x.Name == "prod_rule.txt"));
 
             var mapList = SeanDatabase.Load<MapList>(archive.First(x => x.Name == "map_list.txt").Contents);
+            mobAtts = SeanDatabase.Load<MobAtt>(archive.First(x => x.Name == "mob_att.txt").Contents);
 
-            var dialogs = JsonSerializer.Deserialize<JsonElement[]>(File.ReadAllText("./dialog_data.json"));
             var npcs = NpcData.Load("./npc_data.json");
             var shops = Shop.Load("./shop_data.json");
 
@@ -310,42 +301,8 @@ namespace Server {
                 }
             }
 
-            dialogData = new Dictionary<int, DialogData[]>();
-            foreach(var npc in npcs) {
-                var d = new List<DialogData>();
-
-                foreach(var dialog in dialogs) {
-                    if(dialog.GetProperty("Npc").EnumerateArray().All(x => x.GetInt32() != npc.Id)) {
-                        continue;
-                    }
-
-                    if(!dialog.TryGetProperty("Previous quests", out var prev) || prev.ValueKind != JsonValueKind.Number) {
-                        continue;
-                    }
-
-                    int quest;
-                    bool begins;
-                    if(dialog.TryGetProperty("Start", out var start) && start.ValueKind == JsonValueKind.Number) {
-                        quest = start.GetInt32();
-                        begins = true;
-                    } else if(dialog.TryGetProperty("End", out var end) && end.ValueKind == JsonValueKind.Number) {
-                        quest = end.GetInt32();
-                        begins = false;
-                    } else {
-                        continue;
-                    }
-
-                    d.Add(new DialogData {
-                        Id = dialog.GetProperty("Dialog").GetInt32(),
-                        Quest = quest,
-                        Begins = begins,
-                        Previous = prev.GetInt32()
-                    });
-                    // if(dialog["Previous quests"])
-                }
-
-                dialogData[npc.Id] = d.ToArray();
-            }
+            var mob_data = JsonNode.Parse(File.ReadAllText("./mob_data.json"));
+            var cutMobs = mobAtts.Where(x => x.Name != null).ToArray();
 
             // bundle all entities together to make lookup easier
             maps = new MapData[mapList.Length];
@@ -354,7 +311,15 @@ namespace Server {
                 if(item.Name == null)
                     continue;
 
+                var _mobs = mob_data.AsArray().FirstOrDefault(x => (int)x["Id"] == i)?["Mobs"].AsArray();
+                var mobs = new List<MobData>();
+                if(_mobs != null) {
+                    mobs.AddRange(_mobs.Select((mob, j) => new MobData(j + 1, cutMobs[(int)mob["MobId"]].Id, (int)mob["X"], (int)mob["Y"])));
+                }
+
                 maps[i] = new MapData {
+                    Id = i,
+                    Mobs = mobs.ToArray(),
                     Npcs = npcs.Where(x => x.MapId == i).ToArray(),
                     Resources = resources.Where(x => x.MapId == i).ToArray(),
                     Teleporters = teleporters.Where(x => x.FromMap == i).ToArray()

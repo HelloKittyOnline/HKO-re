@@ -32,6 +32,9 @@ namespace Server {
     }
 
     class PlayerData {
+        [JsonIgnore]
+        public long DiscordId { get; set; }
+
         public int CurrentMap { get; set; } = 1; // Dream Room 1
         [JsonIgnore]
         public MapData Map {
@@ -40,11 +43,48 @@ namespace Server {
                     return Program.maps[CurrentMap];
                 }
 
-                if (CurrentMap % 10 == 7) {
+                if(CurrentMap % 10 == 7) {
                     return Program.maps[4]; // wtf
                 }
-                
+
                 return Program.maps[CurrentMap % 10];
+            }
+        }
+
+        public int MapType {
+            get {
+                int mapId = CurrentMap;
+
+                if(mapId < 30000) {
+                    return 1; // normal
+                }
+
+                if(59900 <= mapId && mapId < 59950) {
+                    return 7; // Pinata Map
+                }
+
+                if(55000 < mapId && mapId <= 55500) {
+                    return 5;
+                }
+
+                if(55500 < mapId) {
+                    return 6; // time out?
+                }
+
+                switch(mapId % 10) {
+                    case 0:
+                        return 3; // farm
+                    case 1:
+                    case 2:
+                    case 3:
+                        return 4; // house
+                    case 7:
+                        return 8; // Dream Room 4
+                    case 8:
+                        return 9; // Green House
+                }
+
+                return 0;
             }
         }
 
@@ -76,7 +116,7 @@ namespace Server {
         public int SpecialTokens { get; set; }
         public int Tickets { get; set; }
 
-        [JsonIgnore] public int Hp => 100;
+        [JsonIgnore] public int Hp { get; set; } = 100;
         [JsonIgnore] public int MaxHp => 100;
         [JsonIgnore] public int Sta => 100;
         [JsonIgnore] public int MaxSta => 100;
@@ -106,6 +146,9 @@ namespace Server {
         public string Introduction { get; set; } = "";
 
         public byte[] ProductionFlags { get; set; }
+
+        [JsonIgnore]
+        public int TutorialState = 0;
 
         public PlayerData() { }
         public PlayerData(string name, byte gender, byte bloodType, byte birthMonth, byte birthDay, int[] entities) {
@@ -201,7 +244,7 @@ namespace Server {
 
             if(open != -1) {
                 Inventory[open].Id = itemId;
-                Inventory[open].Count += (byte)count;
+                Inventory[open].Count = (byte)count;
             }
             return open;
         }

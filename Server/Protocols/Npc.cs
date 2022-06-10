@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Extractor;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
@@ -17,10 +17,10 @@ namespace Server.Protocols {
                 case 0x03: // 00573ef2
                     TakeQuest(client);
                     break;
-                /*
-                case 0x05_04: // 00573f74
-                case 0x05_05: // 00573fe8
-                */
+                case 0x04: // 00573f74 // quest requirement completed
+                    UpdateQuest(client);
+                    break;
+                // case 0x05_05: // 00573fe8
                 case 0x06: // 0057405f
                     CancelQuest(client);
                     break;
@@ -34,7 +34,7 @@ namespace Server.Protocols {
                 case 0x05_11: // 00574400
                 case 0x05_14: // 0057448b
                 case 0x05_15: // 00574503
-                case 0x05_16: // 00574580
+                case 0x05_16: // 00574580 // restart tutorial?
                 */
                 default:
                     client.Logger.LogWarning($"Unknown Packet 05_{id:X2}");
@@ -42,61 +42,47 @@ namespace Server.Protocols {
             }
         }
 
+        static int GetNextDialog(Client client, int npcId) {
+            var dialogs = Program.questMap[npcId];
+
+            foreach(var item in dialogs) {
+                client.Player.QuestFlags.TryGetValue(item.Quest.Id, out var flag);
+
+                if(item.Check(client)) {
+                    return item.Dialog;
+                }
+            }
+
+            return 0;
+        }
+
+        public static void UpdateQuestMarkers(Client client, NpcData[] npcs) {
+            var disable = new List<int>();
+            var enable = new List<(int, int)>();
+
+            foreach(var npc in npcs) {
+                var dialog = GetNextDialog(client, npc.Id);
+
+                if(dialog == 0)
+                    disable.Add(npc.Id);
+                else
+                    enable.Add((npc.Id, dialog));
+            }
+
+            SetQuestMarkers(client, disable, enable);
+        }
+
+        public static void UpdateQuestMarker(Client client, int npc) {
+            var dialog = GetNextDialog(client, npc);
+            SetQuestMarker(client, npc, dialog);
+        }
+
         #region Request
         // 05_01
         static void GetNpcDialog(Client client) {
             var npcId = client.ReadInt32();
-            // var npc = npcs.First(x => x.Id == npcId);
-
-            var dialogs = Program.dialogData[npcId];
-            int dialog = 0;
-
-            foreach(var item in dialogs) {
-                client.Player.QuestFlags.TryGetValue(item.Quest, out var flag);
-                if(flag == 2)
-                    continue; // quest already done
-
-                if(item.Begins) {
-                    if(flag == 0 && (item.Previous == -1 || client.Player.QuestFlags.TryGetValue(item.Previous, out var temp) && temp == 2)) {
-                        dialog = item.Id;
-                        break;
-                    }
-                } else {
-                    if(flag == 1) {
-                        // todo check for quest condition
-                        dialog = item.Id;
-                        break;
-                    }
-                }
-            }
-
+            int dialog = GetNextDialog(client, npcId);
             SendOpenDialog(client, dialog);
-        }
-
-        static void HandleReward(Client client, dynamic r, int selected) {
-            switch(r.type) {
-                case 1: // item
-                    client.AddItem((int)r.item, (int)r.count);
-                    break;
-                case 2: // exp
-                    client.Player.AddExp(client, Skill.General, (int)r.count);
-                    break;
-                case 3: // friendship
-                    client.Player.Friendship[r.map - 1] += r.count;
-                    SendSetFriendship(client, (byte)r.map);
-                    break;
-                case 4: // money
-                    client.Player.Money += r.count;
-                    Inventory.SendSetMoney(client);
-                    break;
-                case 5: // select
-                    Debugger.Break();
-                    HandleReward(client, r.sub[selected - 1], 0);
-                    break;
-                default:
-                    Debugger.Break();
-                    break;
-            }
         }
 
         // 05_03
@@ -110,26 +96,44 @@ namespace Server.Protocols {
 
             player.QuestFlags.TryGetValue(questId, out var flag);
 
-            if(flag == 0) {
+            var sub = Program.questMap[npcId].FirstOrDefault(x => x.Dialog == dialogId);
+
+            if(sub == null) {
+                Debugger.Break();
+                return;
+            }
+
+            if(!sub.Check(client))
+                return;
+
+            if(sub.Begins) {
                 player.QuestFlags[questId] = 1;
-                if(questId == 1002) {
-                    client.AddItem(2039, 1);
-                }
                 SendNewQuest(client, questId);
-            } else if(flag == 1) {
-                // todo check condition
+            } else {
                 player.QuestFlags[questId] = 2;
 
-                var quest = Program.quests.First(x => x.Id == questId);
-
-                SendQuestStatus(client, questId, true);
-
-                if(quest.Rewards != null) {
-                    foreach(dynamic r in quest.Rewards) {
-                        HandleReward(client, r, rewardSelect);
+                foreach(var req in sub.Requirements) {
+                    if(req is Requirement.GiveItem item) {
+                        client.RemoveItem(item.Id, item.Count);
                     }
                 }
+
+                SendQuestStatus(client, questId, true);
+                // UpdateQuestMarker(client, npcId);
             }
+
+            foreach(var reward in sub.Rewards) {
+                reward.Handle(client, rewardSelect);
+            }
+
+            // TODO: make this more efficient
+            UpdateQuestMarkers(client, client.Player.Map.Npcs);
+        }
+
+        // 05_04
+        static void UpdateQuest(Client client) {
+            var npcId = client.ReadInt32();
+            UpdateQuestMarker(client, npcId);
         }
 
         // 05_06
@@ -156,40 +160,38 @@ namespace Server.Protocols {
         }
 
         // 05_02
-        public static void Send05_02(Client client, int dialogId) {
+        public static void SetQuestMarkers(Client client, IList<int> disable, IList<(int npc, int dialog)> enable) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x05); // first switch
             b.WriteByte(0x02); // second switch
 
             // disable quest markers
-            int n = 0;
-            b.WriteInt(n);
-            for(int i = 0; i < n; i++) {
-                b.WriteInt(0); // npc id
+            b.WriteInt(disable.Count);
+            for(int i = 0; i < disable.Count; i++) {
+                b.WriteInt(disable[i]); // npc id
             }
 
             // enable quest markers
-            n = 0;
-            b.WriteInt(n);
-            for(int i = 0; i < n; i++) {
-                b.WriteInt(0); // npc id
-                b.WriteInt(0); // dialog id?
+            b.WriteInt(enable.Count);
+            for(int i = 0; i < enable.Count; i++) {
+                b.WriteInt(enable[i].npc); // npc id
+                b.WriteInt(enable[i].dialog); // dialog id?
             }
 
             b.Send(client);
         }
 
         // 05_04
-        public static void Send05_04(Client client, int dialogId) {
+        public static void SetQuestMarker(Client client, int npcId, int dialogId) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x05); // first switch
             b.WriteByte(0x04); // second switch
 
             // set quest marker
-            b.WriteInt(0); // npc id
-            b.WriteInt(0); // dialog id (0 == disable)
+            b.WriteInt(npcId);
+            b.WriteInt(dialogId); // dialog id (0 == disable)
 
             b.Send(client);
         }

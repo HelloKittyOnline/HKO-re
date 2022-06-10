@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using Microsoft.Extensions.Logging;
@@ -40,12 +41,7 @@ namespace Server.Protocols {
         // 03_01
         static void ReceiveMapChannel(Client client) {
             var msg = client.ReadWString();
-
-            foreach(var other in Program.clients) {
-                if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Map) != 0) {
-                    SendMapChannel(other, client, msg);
-                }
-            }
+            SendMapChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Map) != 0), client, msg);
         }
 
         // 03_02
@@ -54,8 +50,9 @@ namespace Server.Protocols {
             var message = client.ReadWString();
 
             var other = Program.clients.FirstOrDefault(x => x.Player.Name == username);
-            if(other == null || !other.InGame) return;
-            
+            if(other == null || !other.InGame)
+                return;
+
             SendPrivateMessage(client, other, client.Player.Name, message);
             if((other.Player.ChatFlags & ChatFlags.Private) != 0)
                 SendPrivateMessage(other, client, client.Player.Name, message);
@@ -64,26 +61,13 @@ namespace Server.Protocols {
         // 03_05
         static void ReceiveNormalChannel(Client client) {
             var msg = client.ReadWString();
-
-            // broadcast message
-            foreach(var other in Program.clients) {
-                // todo: maybe based on player distance?
-                if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Local) != 0) {
-                    SendNormalChannel(other, client, msg);
-                }
-            }
+            SendNormalChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Local) != 0), client, msg);
         }
 
         // 03_06
         static void ReceiveTradeChannel(Client client) {
             var msg = client.ReadWString();
-
-            // broadcast message
-            foreach(var other in Program.clients) {
-                if (other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Trade) != 0) {
-                    SendTradeChannel(other, client, msg);
-                }
-            }
+            SendTradeChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Trade) != 0), client, msg);
         }
 
         // 03_07
@@ -94,13 +78,7 @@ namespace Server.Protocols {
         // 03_08
         static void ReceiveAdviceChannel(Client client) {
             var msg = client.ReadWString();
-
-            // broadcast message
-            foreach(var other in Program.clients) {
-                if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap && (other.Player.ChatFlags & ChatFlags.Advice) != 0) {
-                    SendAdviceChannel(other, client, msg);
-                }
-            }
+            SendAdviceChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Advice) != 0), client, msg);
         }
 
         // 03_0B
@@ -132,7 +110,7 @@ namespace Server.Protocols {
 
         #region Response
         // 03_01
-        static void SendMapChannel(Client client, Client sender, string msg) {
+        static void SendMapChannel(IEnumerable<Client> clients, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -142,7 +120,9 @@ namespace Server.Protocols {
             b.WriteWString(sender.Player.Name);
             b.WriteWString(msg);
 
-            b.Send(client);
+            foreach(var client in clients) {
+                b.Send(client);
+            }
         }
 
         // 03_02
@@ -177,7 +157,7 @@ namespace Server.Protocols {
         }
 
         // 03_05
-        static void SendNormalChannel(Client client, Client sender, string msg) {
+        static void SendNormalChannel(IEnumerable<Client> clients, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -187,11 +167,13 @@ namespace Server.Protocols {
             b.WriteWString(sender.Player.Name);
             b.WriteWString(msg);
 
-            b.Send(client);
+            foreach(var client in clients) {
+                b.Send(client);
+            }
         }
 
         // 03_06
-        static void SendTradeChannel(Client client, Client sender, string msg) {
+        static void SendTradeChannel(IEnumerable<Client> clients, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -201,7 +183,9 @@ namespace Server.Protocols {
             b.WriteWString(sender.Player.Name);
             b.WriteWString(msg);
 
-            b.Send(client);
+            foreach(var client in clients) {
+                b.Send(client);
+            }
         }
 
         // 03_07
@@ -219,7 +203,7 @@ namespace Server.Protocols {
         }
 
         // 03_08
-        static void SendAdviceChannel(Client client, Client sender, string msg) {
+        static void SendAdviceChannel(IEnumerable<Client> clients, Client sender, string msg) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x03); // first switch
@@ -229,7 +213,10 @@ namespace Server.Protocols {
             b.WriteWString(sender.Player.Name);
             b.WriteWString(msg);
 
-            b.Send(client);
+
+            foreach(var client in clients) {
+                b.Send(client);
+            }
         }
 
         // 03_09

@@ -10,7 +10,7 @@ namespace Server.Protocols {
                 case 0x01: // 00586fd2
                     MoveItem(client);
                     break;
-                // case 0x09_02: // 00587048
+                // case 0x09_02: // 00587048 // take from farm inv?
                 // case 0x09_03: // 005870bc
                 case 0x06: // 0058714a
                     SplitItem(client);
@@ -22,16 +22,24 @@ namespace Server.Protocols {
                     DeleteItem(client);
                     break;
                 // case 0x09_11: // 0058731c
-                case 0x20: // 005873ea check item delivery available?
-                    Recieve_09_20(client);
+                case 0x20: // 005873ea
+                    GetItemDelivery(client);
                     break;
-                // case 0x09_21: // 00587492
-                // case 0x09_22: // 0058751f
-
+                case 0x21: // 00587492
+                    GetItemDeliveryItem(client);
+                    break;
+                case 0x22: // 0058751f // merge items?
+                    Recv22(client);
+                    break;
                 default:
                     client.Logger.LogWarning($"Unknown Packet 09_{id:X2}");
                     break;
             }
+        }
+
+        private static void Recv22(Client client) {
+            var a = client.ReadInt32();
+            var b = client.ReadByte();
         }
 
         #region Request
@@ -47,7 +55,10 @@ namespace Server.Protocols {
 
             var from = player.Inventory[fromPos];
             var to = player.Inventory[destPos];
-            if(to.Id == 0 || (to.Id == from.Id && to.Count + from.Count < 99)) {
+
+            var itemData = Program.items[from.Id];
+
+            if(to.Id == 0 || (to.Id == from.Id && to.Count + from.Count <= itemData.StackLimit)) {
                 player.Inventory[fromPos] = new InventoryItem();
 
                 player.Inventory[destPos].Id = from.Id;
@@ -63,11 +74,13 @@ namespace Server.Protocols {
         // 09_06
         static void SplitItem(Client client) {
             var pos = client.ReadByte() - 1;
+            // TODO: test count limits
             var count = client.ReadByte();
 
             var player = client.Player;
 
             for(int i = 0; i < player.InventorySize; i++) {
+                // find empty slot
                 if(player.Inventory[i].Id != 0)
                     continue;
 
@@ -149,8 +162,23 @@ namespace Server.Protocols {
         }
 
         // 09_20
-        static void Recieve_09_20(Client client) {
-            // Send09_20(res);
+        static void GetItemDelivery(Client client) {
+            var items = Database.GetOrders(client.Player.DiscordId);
+            SendDeliveryItems(client, items);
+        }
+
+        // 09_21
+        static void GetItemDeliveryItem(Client client) {
+            var orderStr = client.ReadString();
+            var itemId = client.ReadInt32();
+            var orderId = client.ReadInt32();
+
+            var order = Database.GetOrder(client.Player.DiscordId, orderId);
+
+            if(order != null && client.AddItem(order.ItemId, 1)) {
+                SendGotDelivery(client, "", orderId);
+                Database.DeleteOrder(orderId);
+            }
         }
         #endregion
 
@@ -213,6 +241,49 @@ namespace Server.Protocols {
             b.Send(client);
         }
 
+        // 09_20
+        static void SendDeliveryItems(Client client, OrderItem[] items) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x09); // first switch
+            b.WriteByte(0x20); // second switch
+
+            // very odd
+            b.WriteInt(0); // string item count
+            b.WriteInt(items.Length); // int    item count
+
+            /*
+            for (int i = 0; i < stringItemCount; i++) {
+                b.WriteString("", 1);
+                b.WriteString(0.ToString(), 1);
+                b.WriteString(0.ToString(), 1);
+            }*/
+
+            for(var i = 0; i < items.Length && i < 50; i++) {
+                var item = items[i];
+                b.WriteInt(item.Id);
+                b.WriteInt(item.ItemId);
+                b.WriteInt(0); // unused flag?
+            }
+
+            b.Send(client);
+        }
+
+        // 09_21
+        static void SendGotDelivery(Client client, string orderName, int orderId) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x09); // first switch
+            b.WriteByte(0x21); // second switch
+
+            b.WriteByte(1); // success
+
+            b.WriteString(orderName, 1);
+            b.WriteInt(orderId);
+
+            b.Send(client);
+        }
+
         public enum SkillUsedFlag {
             Success = 1,
             LevelNotMet = 2,
@@ -242,6 +313,7 @@ namespace Server.Protocols {
 
             b.Send(client);
         }
+
         #endregion
     }
 }

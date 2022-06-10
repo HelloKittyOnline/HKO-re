@@ -87,13 +87,32 @@ namespace Server.Protocols {
             SendChangeMap(client);
 
             SendNpcs(client, map.Npcs);
+            Npc.UpdateQuestMarkers(client, map.Npcs);
+
             SendTeleporters(client, map.Teleporters);
             SendRes(client, map.Resources);
 
-            var others = Program.clients.Where(other =>
-                other != client && other.InGame &&
-                other.Player.CurrentMap == client.Player.CurrentMap
-            ).ToArray();
+            switch(client.Player.CurrentMap) {
+                case 1:
+                    Tutorial.Send01(client, 1, 1, 1, true, false, true);
+                    break;
+                case 2:
+                    client.Player.QuestFlags.Remove(99); // clear tutorial quest
+                    Tutorial.Send01(client, 2, 1, 1, true, false, false);
+                    Tutorial.Send02(client, 1, 445, 404);
+                    break;
+                case 3:
+                    Tutorial.Send01(client, 3, 1, 1, true, false, false);
+                    break;
+                case 50007:
+                    client.Player.QuestFlags.Remove(100); // clear tutorial quest
+                    Tutorial.Send01(client, 4, 1, 1, true, false, false);
+                    break;
+            }
+
+            Battle.SendMobs(client, map.Mobs);
+
+            var others = map.Players.Where(other => other != client).ToArray();
 
             SendAddPlayers(client, others);
 
@@ -130,12 +149,7 @@ namespace Server.Protocols {
             player.PositionX = x;
             player.PositionY = y;
 
-            var packet = BuildMovePlayer(client);
-            foreach(var other in Program.clients) {
-                if(other != client && other.InGame) {
-                    packet.Send(other);
-                }
-            }
+            BroadcastMovePlayer(client);
         }
 
         // 02_05
@@ -144,13 +158,7 @@ namespace Server.Protocols {
             // 0 = close
 
             client.Player.Status = data;
-
-            var packet = BuildPlayerStatus(client);
-            foreach(var other in Program.clients) {
-                if(other != client && other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other);
-                }
-            }
+            BroadcastPlayerStatus(client);
         }
 
         // 02_06
@@ -161,12 +169,7 @@ namespace Server.Protocols {
             // ...
             // 26 = wave
 
-            var packet = BuildPlayerEmote(client, emote);
-            foreach(var other in Program.clients) {
-                if(other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other);
-                }
-            }
+            BroadcastPlayerEmote(client, emote);
         }
 
         // 02_07
@@ -182,13 +185,7 @@ namespace Server.Protocols {
             // 8 = north west
 
             client.Player.Rotation = (byte)rotation;
-
-            var packet = BuildRotatePlayer(client);
-            foreach(var other in Program.clients) {
-                if(other != client && other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other);
-                }
-            }
+            BuildRotatePlayer(client);
         }
 
         // 02_08
@@ -199,13 +196,7 @@ namespace Server.Protocols {
             // 4 = gathering
 
             client.Player.State = (byte)state;
-
-            var packet = BuildPlayerState(client);
-            foreach(var other in Program.clients) {
-                if(other != client && other.InGame && other.Player.CurrentMap == client.Player.CurrentMap) {
-                    packet.Send(other);
-                }
-            }
+            BuildPlayerState(client);
         }
 
         // 02_0A
@@ -214,6 +205,8 @@ namespace Server.Protocols {
             var idk = client.ReadByte(); // always 1?
 
             var player = client.Player;
+
+            var oldMap = player.Map;
 
             var tp = Program.teleporters[tpId];
 
@@ -224,12 +217,7 @@ namespace Server.Protocols {
             ChangeMap(client);
 
             // delete players from old map
-            var packet = BuildDeletePlayer(client);
-            foreach(var other in Program.clients) {
-                if(other != client && other.InGame && other.Player.CurrentMap == tp.FromMap) {
-                    packet.Send(other);
-                }
-            }
+            BroadcastDeletePlayer(oldMap.Players, client);
         }
 
         // 02_0B
@@ -594,20 +582,23 @@ namespace Server.Protocols {
         }
 
         // 02_03
-        public static PacketBuilder BuildDeletePlayer(Client client) {
+        public static void BroadcastDeletePlayer(IEnumerable<Client> clients, Client leaving) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
             b.WriteByte(0x3); // second switch
 
-            b.WriteShort(client.Id);
+            b.WriteShort(leaving.Id);
             b.WriteShort(0); // unused?
 
-            return b;
+            foreach(var client1 in clients) {
+                if(client1 != leaving)
+                    b.Send(client1);
+            }
         }
 
         // 02_04
-        static PacketBuilder BuildMovePlayer(Client client) {
+        static void BroadcastMovePlayer(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
@@ -618,11 +609,14 @@ namespace Server.Protocols {
             b.WriteInt(client.Player.PositionY);
             b.WriteShort(client.Player.Speed);
 
-            return b;
+            foreach(var client1 in client.Player.Map.Players) {
+                if(client1 != client)
+                    b.Send(client1);
+            }
         }
 
         // 02_05
-        static PacketBuilder BuildPlayerStatus(Client client) {
+        static void BroadcastPlayerStatus(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
@@ -631,11 +625,14 @@ namespace Server.Protocols {
             b.WriteShort(client.Id);
             b.WriteInt(client.Player.Status);
 
-            return b;
+            foreach(var client1 in client.Player.Map.Players) {
+                if(client1 != client)
+                    b.Send(client1);
+            }
         }
 
         // 02_06
-        static PacketBuilder BuildPlayerEmote(Client client, int emote) {
+        static void BroadcastPlayerEmote(Client client, int emote) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
@@ -644,11 +641,13 @@ namespace Server.Protocols {
             b.WriteShort(client.Id);
             b.WriteInt(emote);
 
-            return b;
+            foreach(var client1 in client.Player.Map.Players) {
+                b.Send(client1);
+            }
         }
 
         // 02_07
-        static PacketBuilder BuildRotatePlayer(Client client) {
+        static void BuildRotatePlayer(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
@@ -657,11 +656,14 @@ namespace Server.Protocols {
             b.WriteShort(client.Id);
             b.WriteShort(client.Player.Rotation);
 
-            return b;
+            foreach(var client1 in client.Player.Map.Players) {
+                if(client1 != client)
+                    b.Send(client1);
+            }
         }
 
         // 02_08
-        static PacketBuilder BuildPlayerState(Client client) {
+        static void BuildPlayerState(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
@@ -670,7 +672,10 @@ namespace Server.Protocols {
             b.WriteShort(client.Id);
             b.WriteShort(client.Player.State);
 
-            return b;
+            foreach(var client1 in client.Player.Map.Players) {
+                if(client1 != client)
+                    b.Send(client1);
+            }
         }
 
         // 02_09
@@ -817,8 +822,9 @@ namespace Server.Protocols {
             w.WriteShort((short)tp.WarningStringId);
             w.WriteInt(0); // keyItem
         }
+
+        // 02 _14 / 02_15
         static void SendTeleporters(Client client, Teleport[] teleporters) {
-            // 02_14 and 02_15
             var b = new PacketBuilder();
 
             b.WriteByte(0x02); // first switch
@@ -848,6 +854,7 @@ namespace Server.Protocols {
             w.WriteInt(npc.Action3);
             w.WriteInt(npc.Action4);
         }
+
         // 02_16
         static void SendNpcs(Client client, NpcData[] npcs) {
             // create npcs
