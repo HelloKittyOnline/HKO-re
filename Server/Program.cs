@@ -275,7 +275,7 @@ namespace Server {
 
             loggerFactory.CreateLogger("Server").LogInformation("Loading data...");
 
-            var quests = ManualQuest.Load("D:/Daten/Desktop/quests_test.json");
+            var quests = ManualQuest.Load("./quests.json");
             questMap = (Lookup<int, ManualQuest.Sub>)quests.SelectMany(x => x.Start.Concat(x.End)).ToLookup(x => x.Npc);
 
             var archive = SeanArchive.Extract("./client_table_eng.sdb");

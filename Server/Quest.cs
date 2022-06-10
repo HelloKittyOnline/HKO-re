@@ -349,7 +349,7 @@ namespace Server {
             options.Converters.Add(new RewardConverter());
 
             var res = JsonSerializer.Serialize(o, options);
-            File.WriteAllText("D:/Daten/Desktop/quests.json", res);
+            File.WriteAllText("./quests_export.json", res);
 
             return o.ToArray();
         }
