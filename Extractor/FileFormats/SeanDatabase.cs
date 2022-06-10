@@ -190,7 +190,9 @@ namespace Extractor {
                 object item = new T(); // cast to object for struct support
 
                 foreach(var (property, att) in props) {
-                    if(property.PropertyType == typeof(string)) {
+                    if (!property.CanWrite) { // assume constant value
+                        Debug.Assert((int)property.GetValue(item) == db.Items[i, att.Id]);
+                    } else if(property.PropertyType == typeof(string)) {
 #if DEBUG
                         usedStrings.Add(db.Items[i, att.Id]);
 #endif
