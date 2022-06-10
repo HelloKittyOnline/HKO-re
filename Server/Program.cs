@@ -301,7 +301,7 @@ namespace Server {
                 }
             }
 
-            var mob_data = JsonNode.Parse(File.ReadAllText("./mob_data.json"));
+            var mob_data = JsonNode.Parse(File.ReadAllText("./mob_data.json")).AsArray();
             var cutMobs = mobAtts.Where(x => x.Name != null).ToArray();
 
             // bundle all entities together to make lookup easier
@@ -311,10 +311,26 @@ namespace Server {
                 if(item.Name == null)
                     continue;
 
-                var _mobs = mob_data.AsArray().FirstOrDefault(x => (int)x["Id"] == i)?["Mobs"].AsArray();
+                var _mobs = mob_data.FirstOrDefault(x => (int)x["Id"] == i)?["Mobs"].AsArray();
                 var mobs = new List<MobData>();
                 if(_mobs != null) {
-                    mobs.AddRange(_mobs.Select((mob, j) => new MobData(j + 1, cutMobs[(int)mob["MobId"]].Id, (int)mob["X"], (int)mob["Y"])));
+                    for(var j = 0; j < _mobs.Count; j++) {
+                        var mob = _mobs[(Index)j];
+                        var id = (int)mob["MobId"];
+                        if(id == 0)
+                            throw new InvalidDataException("Missing mob id");
+
+                        if((bool)mob["Cheer"]) {
+                            // todo
+                        } else {
+                            mobs.Add(new MobData(
+                                j + 1,
+                                cutMobs[id - 1].Id,
+                                (int)mob["X"],
+                                (int)mob["Y"])
+                            );
+                        }
+                    }
                 }
 
                 maps[i] = new MapData {

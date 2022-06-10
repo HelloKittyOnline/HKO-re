@@ -114,7 +114,6 @@ namespace Server.Protocols {
 
             b.BeginCompress();
             foreach(var mob in mobs) {
-                if(mob.Id == 0) continue; // TODO: remove later
                 b.Write(mob);
             }
             b.EndCompress();

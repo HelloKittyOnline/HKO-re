@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -37,7 +37,7 @@ namespace Server {
             MobId = mobId;
             X = x;
             Y = y;
-            Direction = 1;
+            Direction = 5;
             Hp = MaxHp;
             Dead = 0;
             State = 0;
