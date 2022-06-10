@@ -1,78 +1,96 @@
 using System;
 using System.IO;
-using System.Threading.Tasks;
+using System.Linq;
+using System.Text;
+using ICSharpCode.SharpZipLib.Tar;
 
 namespace Extractor {
     class Program {
-        static void PatchSdb() {
-            foreach(var file in Directory.GetFiles("C:/Program Files (x86)/SanrioTown/Hello Kitty Online/tables", "*.sdb")) {
-                var data = SeanArchive.Extract(file);
+        static byte[] PatchSdb(string path) {
+            var data = SeanArchive.Extract(path);
 
-                bool patched = false;
+            foreach(var item in data) {
+                if(item.Name != "lobby_info.txt")
+                    continue;
 
-                foreach(var item in data) {
-                    if(item.Name != "lobby_info.txt") continue;
-                    var lobbys = SeanDatabase.Load<LobbyInfo>(item.Contents);
-                    lobbys[1].Address = "ip:127.0.0.1";
-                    item.Contents = SeanDatabase.Save(lobbys);
-                    patched = true;
-                }
-
-                if(!patched) continue;
-
-                var path = "C:/Program Files (x86)/SanrioTown/Hello Kitty Online/tables/" + Path.GetFileName(file);
-                var rep = SeanArchive.Create(data);
-
-                if(!File.Exists(path + ".old")) {
-                    File.Move(path, path + ".old");
-                }
-                File.WriteAllBytes(path, rep);
-                Console.WriteLine($"Patched {path}");
+                var lobbys = SeanDatabase.Load<LobbyInfo>(item.Contents);
+                lobbys[1].Address = "ip:127.0.0.1";
+                item.Contents = SeanDatabase.Save(lobbys);
             }
+
+            return SeanArchive.Create(data);
         }
 
-        static void ExtractData(string dir) {
-            var files = Directory.GetFiles("C:/Program Files (x86)/SanrioTown/Hello Kitty Online/data/", "*.*", SearchOption.AllDirectories);
+        static void CreateTar(string root, string outP) {
+            {
+                var file1 = new DirectoryInfo($"{root}\\data").GetFiles("*.*", SearchOption.AllDirectories);
+                var file2 = new DirectoryInfo($"{root}\\flash").GetFiles("*.*", SearchOption.AllDirectories);
 
-            Parallel.ForEach(files, file => {
-                var outPath = Path.Combine(dir, file.Split(Path.DirectorySeparatorChar)[^2], Path.GetFileNameWithoutExtension(file));
-                Directory.CreateDirectory(outPath);
+                var files = file1.Concat(file2).ToArray();
 
-                switch(Path.GetExtension(file).ToLower()) {
-                    case ".man": Man.Extract(file, outPath); break;
-                    case ".ani": Ani.Extract(file, outPath); break;
-                    case ".map": Map.Extract(file, outPath); break;
-                    case ".ogg": // normal audio file
-                    case ".jpg": // normal jpg image
-                    case ".fnt": // TODO: custom font file
-                        break;
-                    default:
-                        Console.WriteLine($"Unknown extension {Path.GetFileName(file)}");
-                        break;
+                int pos = 0;
+                for(int i = 0; pos < files.Length; i++) {
+                    using var stream = File.OpenWrite($"{outP}\\data_{i}.tar");
+                    using var tar = TarArchive.CreateOutputTarArchive(stream);
+                    tar.RootPath = root;
+
+                    long size = 0;
+                    while(size < (1 << 30) && pos < files.Length) {
+                        var item = files[pos++];
+
+                        Console.WriteLine($"Adding {item.FullName}");
+                        var tarEntry = TarEntry.CreateEntryFromFile(item.FullName);
+                        tar.WriteEntry(tarEntry, false);
+
+                        size += item.Length;
+                    }
                 }
-            });
+            }
+
+            {
+                var tables = new DirectoryInfo($"{root}\\tables").GetFiles("*.*", SearchOption.AllDirectories);
+
+                using var stream = File.OpenWrite($"{outP}\\tables.tar");
+                using var tar = new TarOutputStream(stream, Encoding.UTF8);
+
+                foreach(var item in tables) {
+                    if(item.FullName.EndsWith(".old"))
+                        continue;
+
+                    Console.WriteLine($"Adding {item.FullName}");
+
+                    var tarEntry = TarEntry.CreateTarEntry(Path.GetRelativePath(root, item.FullName));
+
+                    if(item.Extension == ".sdb") {
+                        var data = PatchSdb(item.FullName);
+                        tarEntry.Size = data.Length;
+
+                        tar.PutNextEntry(tarEntry);
+                        tar.Write(data);
+                    } else {
+                        tarEntry.Size = item.Length;
+
+                        tar.PutNextEntry(tarEntry);
+                        using var inFile = item.OpenRead();
+                        inFile.CopyTo(tar);
+                    }
+
+                    tar.CloseEntry();
+                }
+            }
         }
 
         static void Main(string[] args) {
-            if(args.Length == 0) {
-                Console.WriteLine("Usage options:");
-                Console.WriteLine("  patch           // rewrites HKO config to connect to localhost");
-                Console.WriteLine("  extract [path]  // extracts all images from the data folder");
+            // Enter local paths here
+            var hkoPath = ""; // should be the path to the client we got from reddit
+            var outPath = "";
+
+            if(hkoPath == "" || outPath == "") {
+                Console.WriteLine("Please enter valid data paths");
                 return;
             }
 
-            switch(args[0]) {
-                case "patch":
-                    PatchSdb();
-                    break;
-                case "extract":
-                    if(args.Length == 1) {
-                        Console.WriteLine("Missing output path");
-                        return;
-                    }
-                    ExtractData(args[1]);
-                    break;
-            }
+            CreateTar(hkoPath, outPath);
         }
     }
 }
