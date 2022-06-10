@@ -1,12 +1,13 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
-using Ionic.Zlib;
 
 namespace Extractor {
     static class Helper {
@@ -14,60 +15,71 @@ namespace Extractor {
 
         public static byte[] ExtractZlib(byte[] data) {
             var memStream = new MemoryStream(data);
-            var stream = new ZlibStream(memStream, CompressionMode.Decompress);
+            var stream = new ZLibStream(memStream, CompressionMode.Decompress);
             var ms = new MemoryStream();
             stream.CopyTo(ms);
-
             return ms.ToArray();
         }
 
         public static string ReadCString(this BinaryReader reader) {
             List<byte> buffer = new List<byte>();
-            while (true) {
+            while(true) {
                 var c = reader.ReadByte();
-                if (c == 0) break;
+                if(c == 0)
+                    break;
                 buffer.Add(c);
             }
-            return big5.GetString(buffer.ToArray());
+            var str = Encoding.UTF8.GetString(buffer.ToArray());
+
+            Debug.Assert(Encoding.UTF8.GetBytes(str).SequenceEqual(buffer));
+
+            return str;
         }
         public static string ReadCString(this BinaryReader reader, int length) {
             return CstrToString(reader.ReadBytes(length));
         }
 
-        // only used by sean database/archive
-        public static void WriteCString(this BinaryWriter writer, string s) {
-            foreach (var t in s) {
-                writer.Write((byte)t);
-            }
-            writer.Write((byte)0);
-        }
+        public static string ReadBig5(this BinaryReader reader, int length) {
+            var data = reader.ReadBytes(length);
 
-        public static void WriteCString(this BinaryWriter writer, string s, int length) {
-            var bytes = big5.GetBytes(s);
-
-            if (bytes.Length + 1 > length) {
-                throw new ArgumentOutOfRangeException(nameof(s), "string to big for given window");
-            }
-            
-            writer.Write(bytes);
-            writer.Write((byte)0); // null terminator
-
-            for (int i = bytes.Length + 1; i < length; i++) {
-                writer.Write((byte)0);
-            }
-        }
-
-        private static string CstrToString(byte[] data) {
             int inx = Array.FindIndex(data, 0, x => x == 0); //search for 0
 
-            if (inx >= 0)
+            if(inx >= 0)
                 return big5.GetString(data, 0, inx);
 
             return big5.GetString(data);
         }
 
-        public static bool ReadZZZ(BinaryReader reader, out byte[] output) {
-            if (reader.ReadInt32() == 0x5A5A5A) {
+        public static void WriteCString(this BinaryWriter writer, string s) {
+            writer.Write(Encoding.UTF8.GetBytes(s));
+            writer.Write((byte)0);
+        }
+
+        public static void WriteCString(this BinaryWriter writer, string s, int length) {
+            var bytes = Encoding.UTF8.GetBytes(s);
+
+            if(bytes.Length + 1 > length) {
+                throw new ArgumentOutOfRangeException(nameof(s), "string to big for given window");
+            }
+
+            writer.Write(bytes);
+
+            for(int i = bytes.Length; i < length; i++) {
+                writer.Write((byte)0);
+            }
+        }
+
+        private static string CstrToString(byte[] data) {
+            int inx = Array.FindIndex(data, 0, x => x == 0); // search for null terminator
+
+            if(inx >= 0)
+                return Encoding.UTF8.GetString(data, 0, inx);
+
+            return Encoding.UTF8.GetString(data);
+        }
+
+        public static bool ReadCompressed(BinaryReader reader, out byte[] output) {
+            if(reader.ReadInt32() == 0x5A5A5A) {
                 var len = reader.ReadInt32();
 
                 output = ExtractZlib(reader.ReadBytes(len));
@@ -79,8 +91,8 @@ namespace Extractor {
             }
         }
 
-        public static bool ReadZZZ_ex(BinaryReader reader, out byte[] output) {
-            if (reader.ReadInt32() == 0x5A5A5A) {
+        public static bool ReadCompressed_ex(BinaryReader reader, out byte[] output) {
+            if(reader.ReadInt32() == 0x5A5A5A) {
                 var len = reader.ReadInt32();
                 var uncompressedLen = reader.ReadInt32();
 
@@ -126,7 +138,7 @@ namespace Extractor {
             frameDelay.Value = new byte[Bitmaps.Count * UintBytes];
             // E.g., here, we're setting the delay of every frame to 1 second.
             var frameDelayBytes = BitConverter.GetBytes((uint)10);
-            for (int j = 0; j < Bitmaps.Count; ++j) {
+            for(int j = 0; j < Bitmaps.Count; ++j) {
                 Array.Copy(frameDelayBytes, 0, frameDelay.Value, j * UintBytes, UintBytes);
             }
 
@@ -143,8 +155,8 @@ namespace Extractor {
             Bitmap firstBitmap = null;
 
             // Bitmaps is a collection of Bitmap instances that'll become gif frames.
-            foreach (var bitmap in Bitmaps) {
-                if (first) {
+            foreach(var bitmap in Bitmaps) {
+                if(first) {
                     firstBitmap = bitmap;
                     firstBitmap.SetPropertyItem(frameDelay);
                     firstBitmap.SetPropertyItem(loopPropertyItem);

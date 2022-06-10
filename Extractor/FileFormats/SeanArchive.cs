@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
-using Ionic.Zlib;
 
 namespace Extractor {
     public static class SeanArchive {
@@ -11,8 +11,16 @@ namespace Extractor {
         }
 
         public static Item[] Extract(string path) {
-            var file = File.OpenRead(path);
-            var reader = new BinaryReader(file);
+            using var file = File.OpenRead(path);
+            return Extract(file);
+        }
+
+        public static Item[] Extract(byte[] data) {
+            return Extract(new MemoryStream(data));
+        }
+
+        public static Item[] Extract(Stream stream) {
+            var reader = new BinaryReader(stream);
 
             var head = reader.ReadBytes(4); // "SAR1"
             if(head[0] != 'S' || head[1] != 'A' || head[2] != 'R' || head[3] != '1') {
@@ -28,7 +36,7 @@ namespace Extractor {
             }
 
             // pad to 4 bytes
-            while(file.Position % 4 != 0) {
+            while(stream.Position % 4 != 0) {
                 reader.ReadByte();
             }
 
@@ -44,7 +52,6 @@ namespace Extractor {
                 };
             }
 
-            file.Close();
             return ret;
         }
         public static byte[] Create(Item[] files) {
@@ -70,15 +77,11 @@ namespace Extractor {
 
             foreach(var f in files) {
                 var temp = new MemoryStream(0);
-                var stream = new ZlibStream(temp, CompressionMode.Compress, true);
+                var stream = new ZLibStream(temp, CompressionMode.Compress, true);
                 stream.Write(f.Contents);
                 stream.Close();
 
                 var buf = temp.ToArray();
-
-                /*if(!buf.SequenceEqual(f.orig)) {
-                    Debugger.Break();
-                }*/
 
                 writer.Write(buf.Length);
                 writer.Write(buf);
