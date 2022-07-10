@@ -320,10 +320,10 @@ namespace Server.Protocols {
         static void SetPlayerInfo(Client client) {
             var data = PacketBuilder.DecodeCrazy(client.Reader); // 970 bytes
 
-            var favoriteFood = Encoding.UTF7.GetString(data, 1, data[0]); // 0 - 37
-            var favoriteMovie = Encoding.UTF7.GetString(data, 39, data[38]); // 38 - 63
+            var favoriteFood = PacketBuilder.Window1252.GetString(data, 1, data[0]); // 0 - 37
+            var favoriteMovie = PacketBuilder.Window1252.GetString(data, 39, data[38]); // 38 - 63
             var location = Encoding.Unicode.GetString(data, 64, 36 * 2); // 63 - 135
-            var favoriteMusic = Encoding.UTF7.GetString(data, 137, data[136]); // 136 - 201
+            var favoriteMusic = PacketBuilder.Window1252.GetString(data, 137, data[136]); // 136 - 201
             var favoritePerson = Encoding.Unicode.GetString(data, 202, 64 * 2); // 202 - 329
             var hobbies = Encoding.Unicode.GetString(data, 330, 160 * 2); // 330 - 649
             var introduction = Encoding.Unicode.GetString(data, 650, 160 * 2); // 650 - 969
@@ -551,11 +551,7 @@ namespace Server.Protocols {
 
                 b.Write0(16 * 2); // guild name
                 b.WriteInt(0);
-                { // player name
-                    var bytes = Encoding.Unicode.GetBytes(client.Player.Name);
-                    b.Write(bytes);
-                    b.Write0(64 - bytes.Length);
-                }
+                b.WritePadWString(client.Player.Name, 64);
                 b.Write0(65);
 
                 b.WriteInt(0);

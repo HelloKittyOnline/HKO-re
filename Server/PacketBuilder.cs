@@ -11,7 +11,8 @@ namespace Server {
     }
 
     class PacketBuilder {
-        // private List<byte> data = Encoding.ASCII.GetBytes("^%*\0\0").ToList();
+        public static readonly Encoding Window1252 = CodePagesEncodingProvider.Instance.GetEncoding(1252);
+
         private MemoryStream buffer;
         private BinaryWriter writer;
 
@@ -19,7 +20,7 @@ namespace Server {
         private int CompressPos = 0;
 
         public PacketBuilder() {
-            buffer = new MemoryStream();
+            buffer = new MemoryStream(); // could use Microsoft.IO.RecyclableMemoryStream for better performance
             writer = new BinaryWriter(buffer);
 
             WriteByte((byte)'^');
@@ -43,6 +44,9 @@ namespace Server {
         public void WriteShort(short v) {
             writer.Write(v);
         }
+        public void WriteUShort(ushort v) {
+            writer.Write(v);
+        }
 
         public void WriteInt(int v) {
             writer.Write(v);
@@ -57,31 +61,32 @@ namespace Server {
             switch(pre) {
                 case 1:
                     if(str.Length > 255) {
-                        throw new ArgumentOutOfRangeException("str", "string too long");
+                        throw new ArgumentOutOfRangeException(nameof(str), "string too long");
                     }
                     WriteByte((byte)str.Length);
                     break;
                 case 2:
                     if(str.Length > 65535) {
-                        throw new ArgumentOutOfRangeException("str", "string too long");
+                        throw new ArgumentOutOfRangeException(nameof(str), "string too long");
                     }
                     WriteShort((short)str.Length);
                     break;
                 case 4:
                     if(str.Length > 65535) {
-                        throw new ArgumentOutOfRangeException("str", "string too long");
+                        throw new ArgumentOutOfRangeException(nameof(str), "string too long");
                     }
                     WriteInt(str.Length);
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException("pre", "invalid pre size");
+                    throw new ArgumentOutOfRangeException(nameof(pre), "invalid pre size");
             }
-            writer.Write(Encoding.UTF7.GetBytes(str));
+
+            writer.Write(Window1252.GetBytes(str));
         }
 
         // writes length prefixed and padded utf-7 string
         public void WritePadString(string str, int length) {
-            var bytes = Encoding.UTF7.GetBytes(str);
+            var bytes = Window1252.GetBytes(str);
 
             WriteByte((byte)bytes.Length);
             Write(bytes);
@@ -100,14 +105,14 @@ namespace Server {
         }
 
         // writes utf-16 string and pads to length
-        public void WritePadWString(string str, int length) {
-            var bytes = Encoding.Unicode.GetBytes(str);
+        public void WritePadWString(string str, int bytes) {
+            var raw = Encoding.Unicode.GetBytes(str);
 
-            if(bytes.Length + 2 > length) { // keep space for null terminator
+            if(raw.Length + 2 > bytes) { // keep space for null terminator
                 throw new ArgumentOutOfRangeException(nameof(str), "string too long");
             }
-            writer.Write(bytes);
-            Write0(length - bytes.Length);
+            writer.Write(raw);
+            Write0(bytes - raw.Length);
         }
 
         public void Send(Client client) {

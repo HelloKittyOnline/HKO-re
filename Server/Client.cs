@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
@@ -126,7 +126,7 @@ namespace Server {
             return Encoding.Unicode.GetString(ReadBytes(ReadUInt16()));
         }
         public string ReadString() {
-            return Encoding.UTF8.GetString(ReadBytes(ReadByte()));
+            return PacketBuilder.Window1252.GetString(ReadBytes(ReadByte()));
         }
 
         public void UpdateStats() {

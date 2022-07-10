@@ -19,7 +19,7 @@ namespace Server.Protocols {
                 case 0x00_0B: // 0059b14a // source location 0059b14a // sent after realmServer
                     Recieve_00_0B(client);
                     break;
-                // case 0x00_10: break; // 0059b1ae // has something to do with T_LOADScreen // finished loading?
+                case 0x00_10: break; // 0059b1ae // finished loading?
                 case 0x00_63: // 0059b253
                     Ping(client);
                     break;
@@ -34,7 +34,7 @@ namespace Server.Protocols {
         static void AcceptClient(Client client) {
             var data = PacketBuilder.DecodeCrazy(client.Reader);
 
-            var username = Encoding.ASCII.GetString(data, 1, data[0]);
+            var username = PacketBuilder.Window1252.GetString(data, 1, data[0]);
             var password = Encoding.UTF8.GetString(data, 0x42, data[0x41]);
 
             var res = Database.Login(username, password, out var player);
@@ -77,8 +77,7 @@ namespace Server.Protocols {
             var count = client.ReadInt32();
 
             for(int i = 0; i < count; i++) {
-                var len = client.ReadByte();
-                var name = Encoding.ASCII.GetString(client.ReadBytes(len));
+                var name = client.ReadString();
             }
 
             SendServerList(client);
@@ -86,7 +85,7 @@ namespace Server.Protocols {
 
         // 00_0B
         static void Recieve_00_0B(Client client) {
-            var idk1 = Encoding.ASCII.GetString(client.ReadBytes(client.ReadByte())); // "@"
+            var idk1 = client.ReadString(); // "@"
             var idk2 = client.ReadInt32(); // = 0
 
             Send00_0C(client, 1);
