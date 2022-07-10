@@ -53,7 +53,7 @@ If you find any issues:
 
 **1**. Install Git (skip if downloading a zipped copy)
 
-**2**. Install dotnet 3.1 from here: https://dotnet.microsoft.com/en-us/download/dotnet/3.1
+**2**. Install dotnet 6.0 from here: https://dotnet.microsoft.com/en-us/download/dotnet/6.0
 
 **3**. Install Hello Kitty Online from here: https://archive.org/details/pod-19902-setup
 
