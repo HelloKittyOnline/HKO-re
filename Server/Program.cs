@@ -355,6 +355,7 @@ namespace Server {
             };
 
             Database.SetConnectionString(sb.ConnectionString);
+            Commands.RunConsole();
 
             Server(25000, true, serverTokenSource.Token);
         }

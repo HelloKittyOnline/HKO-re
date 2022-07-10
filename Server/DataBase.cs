@@ -220,16 +220,21 @@ namespace Server {
             command.ExecuteNonQuery();
         }
 
+        public static int GetRegisteredUserCount() {
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            LogRequest("SELECT COUNT(*) FROM account");
+
+            var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM account";
+
+            return Convert.ToInt32(command.ExecuteScalar());
+        }
+
         private static void LogRequest(string query) {
             var logger = Program.loggerFactory.CreateLogger("Database");
             logger.LogTrace($"Executing Query \"{query}\"");
-        }
-
-        private static byte[] GenerateSalt() {
-            byte[] salt = new byte[128 / 8];
-            var rngCsp = RandomNumberGenerator.Create();
-            rngCsp.GetNonZeroBytes(salt);
-            return salt;
         }
 
         private static byte[] HashPassword(byte[] salt, string password) {
