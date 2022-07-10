@@ -19,9 +19,6 @@ namespace Extractor {
 
             var items = new ProdRule[contents.ItemCount];
             for(int i = 0; i < contents.ItemCount; i++) {
-                if(contents.Items[i, 1] == 0)
-                    continue;
-
                 var req = new List<Item>();
                 for(int j = 0; j < 5; j++) {
                     var id = contents.Items[i, j * 2 + 4];

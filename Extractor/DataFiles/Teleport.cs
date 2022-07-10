@@ -23,6 +23,6 @@
         [SeanField(15)] public int SomethingRotation { get; set; }
         [SeanField(16)] public int WarningStringId { get; set; }
 
-        // 17 equip item? always 0
+        [SeanField(17)] public int EquipItem => 0;
     }
 }
