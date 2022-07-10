@@ -233,6 +233,9 @@ namespace Server.Protocols {
             var player = client.Player;
 
             var item = player.Inventory[inventorySlot - 1];
+            if(item.Id == 0)
+                return;
+
             var att = Program.items[item.Id];
 
             if(att.Type != ItemType.Equipment)
@@ -258,14 +261,12 @@ namespace Server.Protocols {
             player.Equipment[type - 1] = item;
             SendSetEquItem(client, item, type);
 
-            int slot = equ.GetEntSlot();
+            var slot = equ.GetEntSlot();
 
-            if(item.Id == 0) {
-                player.DisplayEntities[slot] = player.BaseEntities[slot];
-            } else {
-                player.DisplayEntities[slot] = item.Id;
-            }
+            player.DisplayEntities[slot] = item.Id;
+
             SendPlayerAtt(client);
+            client.UpdateStats();
         }
 
         // 02_0D
@@ -292,6 +293,7 @@ namespace Server.Protocols {
             int slot = equ.GetEntSlot();
             player.DisplayEntities[slot] = player.BaseEntities[slot];
             SendPlayerAtt(client);
+            client.UpdateStats();
         }
 
         // 02_13
@@ -751,27 +753,6 @@ namespace Server.Protocols {
             b.Send(client);
         }
 
-        // 02_12
-        static void SendPlayerHpSta(Client client) {
-            var b = new PacketBuilder();
-
-            b.WriteByte(0x02); // first switch
-            b.WriteByte(0x12); // second switch
-
-            b.WriteShort(client.Id); // player id
-
-            var player = client.Player;
-
-            b.BeginCompress();
-            b.WriteInt(player.Hp); // hp
-            b.WriteInt(player.MaxHp); // hp max
-            b.WriteInt(player.Sta); // sta
-            b.WriteInt(player.MaxSta); // sta max
-            b.EndCompress();
-
-            b.Send(client);
-        }
-
         // 02_0F
         static void SendTeleportPlayer(Client client) {
             var b = new PacketBuilder();
@@ -802,6 +783,24 @@ namespace Server.Protocols {
             b.WriteByte(position); // position
             b.WriteByte(1); // action
             b.WriteByte(0); // play sound
+
+            b.Send(client);
+        }
+
+        // 02_12
+        public static void SendPlayerHpSta(Client client) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x02); // first switch
+            b.WriteByte(0x12); // second switch
+
+            b.WriteShort(client.Id); // player id
+
+            var player = client.Player;
+
+            b.BeginCompress();
+            player.WriteStats(b);
+            b.EndCompress();
 
             b.Send(client);
         }
@@ -942,10 +941,8 @@ namespace Server.Protocols {
             b.WritePadWString(other.Hobbies, 160 * 2);
             b.WritePadWString(other.Introduction, 160 * 2);
             b.Write0(3);
-            b.WriteInt(other.Hp);
-            b.WriteInt(other.MaxHp);
-            b.WriteInt(other.Sta);
-            b.WriteInt(other.MaxSta);
+
+            other.WriteStats(b);
 
             b.EndCompress();
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
@@ -127,6 +127,13 @@ namespace Server {
         }
         public string ReadString() {
             return Encoding.UTF8.GetString(ReadBytes(ReadByte()));
+        }
+
+        public void UpdateStats() {
+            if(Player != null) {
+                Player.UpdateStats();
+                Protocols.Player.SendPlayerHpSta(this);
+            }
         }
     }
 }

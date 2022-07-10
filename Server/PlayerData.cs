@@ -116,10 +116,14 @@ namespace Server {
         public int SpecialTokens { get; set; }
         public int Tickets { get; set; }
 
-        [JsonIgnore] public int Hp { get; set; } = 100;
-        [JsonIgnore] public int MaxHp => 100;
-        [JsonIgnore] public int Sta => 100;
-        [JsonIgnore] public int MaxSta => 100;
+        [JsonIgnore] public int Hp { get; set; }
+        [JsonIgnore] public int MaxHp { get; set; }
+        [JsonIgnore] public int Sta { get; set; }
+        [JsonIgnore] public int MaxSta { get; set; }
+        [JsonIgnore] public int Attack { get; set; }
+        [JsonIgnore] public int Defense { get; set; }
+        [JsonIgnore] public ushort Crit { get; set; }
+        [JsonIgnore] public ushort Dodge { get; set; }
 
         public short[] Levels { get; set; }
         public int[] Exp { get; set; }
@@ -196,6 +200,10 @@ namespace Server {
 
                 DisplayEntities[slot] = item.Id;
             }
+
+            UpdateStats();
+            Hp = MaxHp;
+            Sta = MaxSta;
         }
 
         public void AddExpAction(Client client, Skill skill, int level) {
@@ -288,6 +296,18 @@ namespace Server {
             }
         }
 
+        public void WriteStats(PacketBuilder b) {
+            b.WriteInt(Hp);
+            b.WriteInt(MaxHp);
+            b.WriteInt(Sta);
+            b.WriteInt(MaxSta);
+            b.WriteInt(Attack);
+            b.WriteInt(Defense);
+            b.WriteUShort(Crit);
+            b.WriteUShort(Dodge);
+            // TODO: byte[12] buffs , short[12] buffTimes
+        }
+
         public byte GetConstellation() {
             // 1 : AQU // 2 : PIS // 3 : ARI // 4 : TAU
             // 5 : GEM // 6 : CAN // 7 : LEO // 8 : VIR
@@ -307,6 +327,45 @@ namespace Server {
                 12 => BirthDay < 22 ? 11 : 12,
                 _ => throw new Exception("out of range birthday")
             });
+        }
+
+        public void UpdateStats() {
+            var hp = 100;
+            var sta = 100;
+            var attack = 10;
+            var defense = 10;
+            var crit = 0;
+            var dodge = 0;
+
+            foreach(var item in Equipment) {
+                if(item.Id == 0)
+                    continue;
+
+                var att = Program.items[item.Id];
+                Debug.Assert(att.Type == ItemType.Equipment);
+
+                var equ = Program.equipment[att.SubId];
+
+                hp += equ.EnergyIncrease;
+                sta += equ.ActionPoints;
+                attack += equ.EnergyDrain;
+                defense += equ.DefenseValue;
+                crit += equ.CritValue;
+                dodge += equ.DodgeValue;
+            }
+
+            MaxHp = hp;
+            MaxSta = sta;
+            Attack = attack;
+            Defense = defense;
+            Crit = (ushort)crit;
+            Dodge = (ushort)dodge;
+
+            if(Hp > MaxHp)
+                Hp = MaxHp;
+
+            if(Sta > MaxSta)
+                Sta = MaxSta;
         }
     }
 }
