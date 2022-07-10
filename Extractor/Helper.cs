@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Runtime.Versioning;
 using System.Text;
 
 namespace Extractor {
@@ -22,7 +23,7 @@ namespace Extractor {
         }
 
         public static string ReadCString(this BinaryReader reader) {
-            List<byte> buffer = new List<byte>();
+            var buffer = new List<byte>();
             while(true) {
                 var c = reader.ReadByte();
                 if(c == 0)
@@ -105,6 +106,7 @@ namespace Extractor {
             }
         }
 
+        [SupportedOSPlatform("windows")]
         public static void SaveGif(string path, List<Bitmap> Bitmaps) {
             // Gdi+ constants absent from System.Drawing.
             const int PropertyTagFrameDelay = 0x5100;
@@ -114,9 +116,8 @@ namespace Extractor {
 
             const int UintBytes = 4;
 
-            //...
+            var gifEncoder = ImageCodecInfo.GetImageDecoders().FirstOrDefault(codec => codec.FormatID == ImageFormat.Gif.Guid);
 
-            var gifEncoder = GetEncoder(ImageFormat.Gif);
             // Params of the first frame.
             var encoderParams1 = new EncoderParameters(1);
             encoderParams1.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.SaveFlag, (long)EncoderValue.MultiFrame);
@@ -167,10 +168,6 @@ namespace Extractor {
                 }
             }
             firstBitmap.SaveAdd(encoderParamsFlush);
-        }
-
-        private static ImageCodecInfo GetEncoder(ImageFormat format) {
-            return ImageCodecInfo.GetImageDecoders().FirstOrDefault(codec => codec.FormatID == format.Guid);
         }
     }
 }

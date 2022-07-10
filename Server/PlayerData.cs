@@ -231,7 +231,7 @@ namespace Server {
             Player.SendSkillChange(client, skill, true);
         }
 
-        [Obsolete("Use client.AddItem instead.")]
+        // [Obsolete("Use client.AddItem instead.",)]
         public int AddItem(int itemId, int count) {
             int open = -1;
 
