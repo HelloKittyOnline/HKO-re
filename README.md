@@ -41,7 +41,7 @@ If you find any issues:
 
 ## Requirements for Self-Hosted Server
 
-1. dotNet core 3.1
+1. dotNet 6.0
 2. MySQL or MariaDB
 3. Hello Kitty Online install
 4. Server files: https://drive.google.com/drive/folders/1rC2jR8SoLvjNesEmTQbImeBj-di1Qura?usp=sharing
