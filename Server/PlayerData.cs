@@ -32,9 +32,6 @@ namespace Server {
     }
 
     class PlayerData {
-        [JsonIgnore]
-        public long DiscordId { get; set; }
-
         public int CurrentMap { get; set; } = 1; // Dream Room 1
         [JsonIgnore]
         public MapData Map {

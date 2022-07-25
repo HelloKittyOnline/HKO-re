@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class Flash {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -11,7 +9,7 @@ namespace Server.Protocols {
                 // case 0x04: //
                 // case 0x0A: //
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 1C_{id:X2}");
+                    client.LogUnknown(0x1C, id);
                     break;
             }
         }

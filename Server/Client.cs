@@ -18,6 +18,7 @@ namespace Server {
         public BinaryReader Reader { get; set; }
 
         public string Username { get; set; }
+        public ulong DiscordId { get; set; }
         public PlayerData Player { get; set; }
 
         private CancellationTokenSource ConnectionSource;
@@ -37,10 +38,6 @@ namespace Server {
 
             ConnectionSource = new CancellationTokenSource();
             Logger = Program.loggerFactory.CreateLogger("Client");
-        }
-
-        ~Client() {
-            IdManager.FreeId(Id);
         }
 
         public void Close() {
@@ -89,7 +86,6 @@ namespace Server {
             return false;
         }
 
-
         public void StartAction(Action<CancellationToken> action, Action onCancel) {
             actionToken?.Cancel();
 
@@ -134,6 +130,10 @@ namespace Server {
                 Player.UpdateStats();
                 Protocols.Player.SendPlayerHpSta(this);
             }
+        }
+
+        public void LogUnknown(int major, int minor) {
+            Logger.LogWarning("[{user}] Unknown Packet {major:X2}_{minor:X2}", DiscordId, major, minor);
         }
     }
 }

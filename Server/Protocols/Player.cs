@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Extractor;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     static class Player {
@@ -76,7 +75,7 @@ namespace Server.Protocols {
                 case 0x63: // 005dfcee*/
 
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 02_{id:X2}");
+                    client.LogUnknown(0x02, id);
                     break;
             }
         }

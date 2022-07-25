@@ -1,6 +1,5 @@
 ﻿using System.Linq;
 using System.Threading;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     static class Production {
@@ -14,7 +13,7 @@ namespace Server.Protocols {
                     Recv04(client);
                     break; // 005299a6
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 07_{id:X2}");
+                    client.LogUnknown(0x07, id);
                     break;
             }
         }

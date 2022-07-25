@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class PODLeaderboard {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -12,7 +10,7 @@ namespace Server.Protocols {
                 // case 0x05: //
                 // case 0x06: //
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 17_{id:X2}");
+                    client.LogUnknown(0x17, id);
                     break;
             }
         }

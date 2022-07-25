@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     static class Npc {
@@ -37,7 +36,7 @@ namespace Server.Protocols {
                 case 0x05_16: // 00574580 // restart tutorial?
                 */
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 05_{id:X2}");
+                    client.LogUnknown(0x05, id);
                     break;
             }
         }

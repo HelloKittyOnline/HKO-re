@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using Microsoft.Extensions.Logging;
+using Serilog.Events;
 
 namespace Server.Protocols {
     [Flags]
@@ -32,7 +32,7 @@ namespace Server.Protocols {
                 case 0xC: ReceivePrivateChatStatus(client); break; // 005d331e
                 case 0xD: ReceiveOpenPrivateMessage(client); break; // 005d33a7 open private message
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 03_{id:X2}");
+                    client.LogUnknown(0x03, id);
                     break;
             }
         }
@@ -41,6 +41,7 @@ namespace Server.Protocols {
         // 03_01
         static void ReceiveMapChannel(Client client) {
             var msg = client.ReadWString();
+            Program.ChatLogger.Write(LogEventLevel.Information, "[Map] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
             SendMapChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Map) != 0), client, msg);
         }
 
@@ -53,6 +54,7 @@ namespace Server.Protocols {
             if(other == null || !other.InGame)
                 return;
 
+            Program.ChatLogger.Write(LogEventLevel.Information, "[Prv] {user}:{username}->{other}->{otherUsername}: {message}", client.DiscordId, client.Username, other.DiscordId, other.Username, message);
             SendPrivateMessage(client, other, client.Player.Name, message);
             if((other.Player.ChatFlags & ChatFlags.Private) != 0)
                 SendPrivateMessage(other, client, client.Player.Name, message);
@@ -61,12 +63,14 @@ namespace Server.Protocols {
         // 03_05
         static void ReceiveNormalChannel(Client client) {
             var msg = client.ReadWString();
+            Program.ChatLogger.Write(LogEventLevel.Information, "[Nrm] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
             SendNormalChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Local) != 0), client, msg);
         }
 
         // 03_06
         static void ReceiveTradeChannel(Client client) {
             var msg = client.ReadWString();
+            Program.ChatLogger.Write(LogEventLevel.Information, "[Trd] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
             SendTradeChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Trade) != 0), client, msg);
         }
 
@@ -78,6 +82,7 @@ namespace Server.Protocols {
         // 03_08
         static void ReceiveAdviceChannel(Client client) {
             var msg = client.ReadWString();
+            Program.ChatLogger.Write(LogEventLevel.Information, "[Adv] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
             SendAdviceChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Advice) != 0), client, msg);
         }
 

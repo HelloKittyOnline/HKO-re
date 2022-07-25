@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 using Extractor;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
+using Serilog;
+using Serilog.Extensions.Logging;
 using Server.Protocols;
 
 namespace Server {
@@ -38,8 +40,17 @@ namespace Server {
 #endif
 
             builder.AddConsole();
-            // builder.AddProvider(new FileLoggerProvider());
+
+            var fileLogger = new LoggerConfiguration()
+                .WriteTo.File("server.log", rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+
+            builder.AddProvider(new SerilogLoggerProvider(fileLogger));
         });
+
+        public static Serilog.Core.Logger ChatLogger = new LoggerConfiguration()
+            .WriteTo.File("chat.log", rollingInterval: RollingInterval.Day, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Message:lj}{NewLine}")
+            .CreateLogger();
 
         static void ListenClient(Client client, bool lobby) {
             Login.SendLobby(client, lobby);
@@ -86,12 +97,7 @@ namespace Server {
                 }
 #if DEBUG
                 if(id != 0x0063) { // skip ping
-                    var str = $"S <- C: {id >> 8:X2}_{id & 0xFF:X2}";
-                    if(data.Length > 2) {
-                        str += "\n";
-                        str += BitConverter.ToString(data, 2);
-                    }
-                    client.Logger.LogTrace(str);
+                    client.Logger.LogTrace("[{userID}] S <- C: {:X2}_{:X2} {data}", client.DiscordId, id >> 8, id & 0xFF, data);
                 }
 #endif
 
@@ -177,9 +183,7 @@ namespace Server {
                         case 0x19:
                             EarthDay.Handle(client);
                             break;
-                        case 0x1A:
-                            MoleAwarenessEvent.Handle(client);
-                            break;
+                        // case 0x1A: MoleAwarenessEvent.Handle(client); break;
                         case 0x1B:
                             Achievement.Handle(client);
                             break;
@@ -202,11 +206,11 @@ namespace Server {
                             Mail.Handle(client);
                             break;
                         default:
-                            client.Logger.LogWarning($"Unknown Packet {data[0]:X2}_{data[1]:X2}");
+                            client.LogUnknown(data[0], data[1]);
                             break;
                     }
                 } catch(Exception e) {
-                    client.Logger.LogError(e, BitConverter.ToString(data));
+                    client.Logger.LogError(e, "[{userID}] Error handling packet {data}", client.DiscordId, data);
                     break;
                 }
             }
@@ -239,31 +243,34 @@ namespace Server {
                 client.RunTask = Task.Run(() => {
                     try {
                         ListenClient(client, lobby);
+
+                        clients.Remove(client);
+                        IdManager.FreeId(client.Id);
+                        client.TcpClient.Close();
+
+                        if(client.Username != null) {
+                            Database.LogOut(client.Username, client.Player);
+                            client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
+
+                            if(client.InGame) // remove player from maps
+                                Player.BroadcastDeletePlayer(client.Player.Map.Players, client);
+                        }
                     } catch(Exception e) {
-                        client.Logger.LogError(e, null);
+                        client.Logger.LogError(e, "[{userID}] Error: ", client.DiscordId);
                     }
-
-                    client.TcpClient.Close();
-
-                    if(client.Username != null) {
-                        Database.LogOut(client.Username, client.Player);
-                        client.Logger.LogInformation($"Player {client.Username} disconnected");
-
-                        if(client.InGame) // remove player from maps
-                            Player.BroadcastDeletePlayer(client.Player.Map.Players, client);
-                    }
-
-                    clients.Remove(client);
                 });
             }
         }
 
         static void Main(string[] args) {
-            loggerFactory.CreateLogger("Server").LogInformation("Starting server...");
+            var serverLogger = loggerFactory.CreateLogger("Server");
+            serverLogger.LogInformation("Starting server...");
 
             var serverTokenSource = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) => {
                 e.Cancel = true;
+
+                serverLogger.LogInformation("Stopping server...");
 
                 foreach(var client in clients) {
                     client.Close();

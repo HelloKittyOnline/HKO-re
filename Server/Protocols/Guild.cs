@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class Guild {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -17,7 +15,7 @@ namespace Server.Protocols {
                 // case 0x0E_0B: //
                 // case 0x0E_14: //
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 0E_{id:X2}");
+                    client.LogUnknown(0x0E, id);
                     break;
             }
         }

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     enum ShopType : byte {
@@ -44,7 +43,7 @@ namespace Server.Protocols {
                     SellItem(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 0B_{id:X2}");
+                    client.LogUnknown(0x0B, id);
                     break;
             }
         }
@@ -98,12 +97,12 @@ namespace Server.Protocols {
             var itemSlot = client.ReadInt32() - 1;
 
             if(itemSlot >= client.Player.InventorySize) {
-                throw new ArgumentOutOfRangeException(nameof(itemSlot));
+                return;
             }
 
             var item = client.Player.Inventory[itemSlot];
             if(item.Id == 0) {
-                throw new ArgumentOutOfRangeException(nameof(itemSlot));
+                return;
             }
 
             var itemData = Program.items[item.Id];

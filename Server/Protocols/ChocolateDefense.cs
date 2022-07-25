@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class ChocolateDefense {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -8,7 +6,7 @@ namespace Server.Protocols {
                 // case 0x03: //
                 // case 0x04: //
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 20_{id:X2}");
+                    client.LogUnknown(0x20, id);
                     break;
             }
         }

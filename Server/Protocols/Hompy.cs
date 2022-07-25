@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class Hompy {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -18,7 +16,7 @@ namespace Server.Protocols {
                 // case 0x0F_0D: // 0051242c
                 // case 0x0F_0E: // 005124f7
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 0F_{id:X2}");
+                    client.LogUnknown(0x0F, id);
                     break;
             }
         }

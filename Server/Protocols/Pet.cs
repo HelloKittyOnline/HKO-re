@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class Pet {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -22,7 +20,7 @@ namespace Server.Protocols {
                 // case 0x0D_12: // 0053705c
                 // case 0x0D_13: // 005370be // get pet information?
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 0D_{id:X2}");
+                    client.LogUnknown(0x0D, id);
                     break;
             }
         }

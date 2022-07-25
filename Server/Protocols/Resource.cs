@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading;
 using Extractor;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     static class Resource {
@@ -12,7 +11,7 @@ namespace Server.Protocols {
                     HarvestResource(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 06_{id:X2}");
+                    client.LogUnknown(0x06, id);
                     break;
             }
         }

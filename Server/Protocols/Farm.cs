@@ -1,5 +1,3 @@
-﻿using Microsoft.Extensions.Logging;
-
 namespace Server.Protocols {
     static class Farm {
         public static void Handle(Client client) {
@@ -27,7 +25,7 @@ namespace Server.Protocols {
                 // case 0x24: //
                 // case 0x25: //
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 0A_{id:X2}");
+                    client.LogUnknown(0x0A, id);
                     break;
             }
         }

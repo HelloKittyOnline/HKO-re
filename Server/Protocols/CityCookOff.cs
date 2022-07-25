@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class CityCookOff {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -13,7 +11,7 @@ namespace Server.Protocols {
                 // case 0x07: //
                 // case 0x0B: //
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 1F_{id:X2}");
+                    client.LogUnknown(0x1F, id);
                     break;
             }
         }

@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class Tutorial {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -10,7 +8,7 @@ namespace Server.Protocols {
                     break;
                 // case 0x02: // 0054c1a8 // start tutorial?
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 16_{id:X2}");
+                    client.LogUnknown(0x16, id);
                     break;
             }
         }

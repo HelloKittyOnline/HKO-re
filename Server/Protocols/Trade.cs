@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class Trade {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -11,7 +9,7 @@ namespace Server.Protocols {
                 // case 0x08_04: //
                 // case 0x08_06: //
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 08_{id:X2}");
+                    client.LogUnknown(0x08, id);
                     break;
             }
         }

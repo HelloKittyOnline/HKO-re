@@ -24,7 +24,7 @@ namespace Server.Protocols {
                     Ping(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 00_{id:X2}");
+                    client.LogUnknown(0x00, id);
                     break;
             }
         }
@@ -37,13 +37,14 @@ namespace Server.Protocols {
             var username = PacketBuilder.Window1252.GetString(data, 1, data[0]);
             var password = Encoding.UTF8.GetString(data, 0x42, data[0x41]);
 
-            var res = Database.Login(username, password, out var player);
+            var res = Database.Login(username, password, out var player, out var discordId);
 
             switch(res) {
                 case LoginResponse.Ok:
-                    client.Logger = Program.loggerFactory.CreateLogger($"Client[\"{username}\"]");
+                    client.Logger.LogInformation("[{userID}] Player {username} logged in", discordId, username);
                     client.Player = player;
                     client.Username = username;
+                    client.DiscordId = discordId;
                     SendAcceptClient(client);
                     break;
                 case LoginResponse.NoUser:

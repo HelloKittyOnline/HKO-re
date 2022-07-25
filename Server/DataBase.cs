@@ -34,7 +34,7 @@ namespace Server {
     class OrderItem {
         public int Id { get; set; }
         public int ItemId { get; set; }
-        public long AccountId { get; set; }
+        public ulong AccountId { get; set; }
     }
 
     public class DictionaryInt32Converter : JsonConverter<Dictionary<int, int>> {
@@ -88,9 +88,11 @@ namespace Server {
             _connectionString = str;
         }
 
-        public static LoginResponse Login(string username, string password, out PlayerData playerData) {
+        public static LoginResponse Login(string username, string password, out PlayerData playerData, out ulong discordId) {
+            playerData = null;
+            discordId = 0;
+
             if(_online.Contains(username)) {
-                playerData = null;
                 return LoginResponse.AlreadyOnline;
             }
 
@@ -106,7 +108,6 @@ namespace Server {
             var reader = command.ExecuteReader(CommandBehavior.SingleRow);
 
             if(!reader.Read()) {
-                playerData = null;
                 return LoginResponse.NoUser;
             }
 
@@ -115,7 +116,6 @@ namespace Server {
             reader.GetBytes("password", 0, buff, 0, 48);
 
             if(!VerifyPassword(password, buff)) {
-                playerData = null;
                 return LoginResponse.InvalidPassword;
             }
 
@@ -124,10 +124,8 @@ namespace Server {
                 playerData = JsonSerializer.Deserialize<PlayerData>(data, new JsonSerializerOptions {
                     Converters = { new DictionaryInt32Converter() }
                 });
-                playerData.DiscordId = reader.GetInt64("id");
+                discordId = reader.GetUInt64("id");
                 playerData.Init();
-            } else {
-                playerData = null;
             }
 
             _online.Add(username);
@@ -157,7 +155,7 @@ namespace Server {
             _online.Remove(username);
         }
 
-        public static OrderItem[] GetOrders(long userId) {
+        public static OrderItem[] GetOrders(ulong userId) {
             var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
@@ -174,14 +172,14 @@ namespace Server {
                 items.Add(new OrderItem {
                     Id = reader.GetInt32("id"),
                     ItemId = reader.GetInt32("itemId"),
-                    AccountId = reader.GetInt64("accountId")
+                    AccountId = reader.GetUInt64("accountId")
                 });
             }
 
             return items.ToArray();
         }
 
-        public static OrderItem GetOrder(long userId, int orderId) {
+        public static OrderItem GetOrder(ulong userId, int orderId) {
             var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
@@ -196,7 +194,7 @@ namespace Server {
             if(!reader.Read())
                 return null;
 
-            var accountId = reader.GetInt64("accountId");
+            var accountId = reader.GetUInt64("accountId");
             if(accountId != userId)
                 return null;
 

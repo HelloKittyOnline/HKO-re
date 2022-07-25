@@ -123,8 +123,10 @@ namespace Server {
             buf[3] = (byte)(dataLength & 0xFF);
             buf[4] = (byte)(dataLength >> 8);
 
+#if DEBUG
             if(dataLength >= 2)
-                client.Logger.LogTrace($"S -> C: {buf[5]:X2}_{buf[6]:X2}");
+                client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
+#endif
 
             lock(client.Stream) {
                 client.Stream.Write(buf, 0, (int)buffer.Position);

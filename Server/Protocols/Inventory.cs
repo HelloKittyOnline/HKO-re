@@ -1,6 +1,5 @@
 ﻿using System;
 using Extractor;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     static class Inventory {
@@ -32,7 +31,7 @@ namespace Server.Protocols {
                     Recv22(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 09_{id:X2}");
+                    client.LogUnknown(0x09, id);
                     break;
             }
         }
@@ -163,7 +162,7 @@ namespace Server.Protocols {
 
         // 09_20
         static void GetItemDelivery(Client client) {
-            var items = Database.GetOrders(client.Player.DiscordId);
+            var items = Database.GetOrders(client.DiscordId);
             SendDeliveryItems(client, items);
         }
 
@@ -173,7 +172,7 @@ namespace Server.Protocols {
             var itemId = client.ReadInt32();
             var orderId = client.ReadInt32();
 
-            var order = Database.GetOrder(client.Player.DiscordId, orderId);
+            var order = Database.GetOrder(client.DiscordId, orderId);
 
             if(order != null && client.AddItem(order.ItemId, 1)) {
                 SendGotDelivery(client, "", orderId);

@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     static class Battle {
@@ -22,7 +21,7 @@ namespace Server.Protocols {
                     Recieve09(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 0C_{id:X2}");
+                    client.LogUnknown(0x0C, id);
                     break;
             }
         }

@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace Server.Protocols {
+﻿namespace Server.Protocols {
     static class Group {
         public static void Handle(Client client) {
             var id = client.ReadByte();
@@ -22,7 +20,7 @@ namespace Server.Protocols {
                 case 0x13_0D: //
                 */
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 13_{id:X2}");
+                    client.LogUnknown(0x13, id);
                     break;
             }
         }

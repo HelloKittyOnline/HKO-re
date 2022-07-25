@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Text;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols {
     static class CreateRole {
@@ -21,7 +20,7 @@ namespace Server.Protocols {
                     CheckName(client);
                     break;
                 default:
-                    client.Logger.LogWarning($"Unknown Packet 01_{id:X2}");
+                    client.LogUnknown(0x01, id);
                     break;
             }
         }
