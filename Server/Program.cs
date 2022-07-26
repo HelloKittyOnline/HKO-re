@@ -18,6 +18,9 @@ using Server.Protocols;
 namespace Server {
     class Program {
         internal static MapData[] maps;
+
+        internal static Dictionary<int, ManualQuest> quests;
+        internal static Dictionary<int, ManualQuest> minigameQuests;
         internal static Lookup<int, ManualQuest.Sub> questMap;
 
         internal static Teleport[] teleporters;
@@ -28,9 +31,10 @@ namespace Server {
         internal static SkillInfo[] skills;
         internal static ProdRule[] prodRules;
         internal static MobAtt[] mobAtts;
+        internal static Checkpoint[] checkpoints;
         internal static Dictionary<int, Shop> Shops;
 
-        internal static List<Client> clients = new List<Client>();
+        internal static List<Client> clients = new();
 
         public static ILoggerFactory loggerFactory = LoggerFactory.Create(builder => {
 #if DEBUG
@@ -283,6 +287,8 @@ namespace Server {
             loggerFactory.CreateLogger("Server").LogInformation("Loading data...");
 
             var quests = ManualQuest.Load("./quests.json");
+            Program.quests = quests.ToDictionary(x => x.Id);
+            minigameQuests = quests.Where(x => x.Minigame != null).ToDictionary(x => x.Minigame.Id);
             questMap = (Lookup<int, ManualQuest.Sub>)quests.SelectMany(x => x.Start.Concat(x.End)).ToLookup(x => x.Npc);
 
             var archive = SeanArchive.Extract("./client_table_eng.sdb");
@@ -293,6 +299,7 @@ namespace Server {
             items       = SeanDatabase.Load<ItemAtt>(archive.First(x => x.Name == "item_att.txt").Contents);
             equipment   = SeanDatabase.Load<EquAtt>(archive.First(x => x.Name == "equ_att.txt").Contents);
             skills      = SeanDatabase.Load<SkillInfo>(archive.First(x => x.Name == "skill_exp.txt").Contents);
+            checkpoints = SeanDatabase.Load<Checkpoint>(archive.First(x => x.Name == "check_point.txt").Contents);
             prodRules   = ProdRule.Load(archive.First(x => x.Name == "prod_rule.txt"));
 
             var mapList = SeanDatabase.Load<MapList>(archive.First(x => x.Name == "map_list.txt").Contents);
@@ -345,7 +352,8 @@ namespace Server {
                     Mobs = mobs.ToArray(),
                     Npcs = npcs.Where(x => x.MapId == i).ToArray(),
                     Resources = resources.Where(x => x.MapId == i).ToArray(),
-                    Teleporters = teleporters.Where(x => x.FromMap == i).ToArray()
+                    Teleporters = teleporters.Where(x => x.FromMap == i).ToArray(),
+                    Checkpoints = checkpoints.Where(x => x.Map == i).ToArray()
                 };
             }
 

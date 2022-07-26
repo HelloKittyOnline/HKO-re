@@ -124,12 +124,32 @@ namespace Server {
             buf[4] = (byte)(dataLength >> 8);
 
 #if DEBUG
-            if(dataLength >= 2)
+            if(dataLength >= 2 && !(buf[5] == 0x00 && buf[6] == 0x63))
                 client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
 #endif
 
             lock(client.Stream) {
                 client.Stream.Write(buf, 0, (int)buffer.Position);
+            }
+        }
+
+        public void Broadcast(IEnumerable<Client> clients) {
+            var buf = buffer.GetBuffer();
+
+            // update data length
+            var dataLength = buffer.Position - 5;
+            buf[3] = (byte)(dataLength & 0xFF);
+            buf[4] = (byte)(dataLength >> 8);
+
+            foreach(var client in clients) {
+#if DEBUG
+                if(dataLength >= 2 && !(buf[5] == 0x00 && buf[6] == 0x63))
+                    client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
+#endif
+
+                lock(client.Stream) {
+                    client.Stream.Write(buf, 0, (int)buffer.Position);
+                }
             }
         }
 

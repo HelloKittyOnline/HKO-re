@@ -86,10 +86,11 @@ namespace Server.Protocols {
             SendChangeMap(client);
 
             SendNpcs(client, map.Npcs);
-            Npc.UpdateQuestMarkers(client, map.Npcs);
+            Npc.UpdateQuestMarkers(client, map.Npcs.Select(x => x.Id));
 
             SendTeleporters(client, map.Teleporters);
             SendRes(client, map.Resources);
+            SendCheckpoints(client, map.Checkpoints);
 
             switch(client.Player.CurrentMap) {
                 case 1:
@@ -97,6 +98,7 @@ namespace Server.Protocols {
                     break;
                 case 2:
                     client.Player.QuestFlags.Remove(99); // clear tutorial quest
+                    Npc.SendDeleteQuest(client, 99);
                     Tutorial.Send01(client, 2, 1, 1, true, false, false);
                     Tutorial.Send02(client, 1, 445, 404);
                     break;
@@ -105,6 +107,7 @@ namespace Server.Protocols {
                     break;
                 case 50007:
                     client.Player.QuestFlags.Remove(100); // clear tutorial quest
+                    Npc.SendDeleteQuest(client, 100);
                     Tutorial.Send01(client, 4, 1, 1, true, false, false);
                     break;
             }
@@ -114,11 +117,7 @@ namespace Server.Protocols {
             var others = map.Players.Where(other => other != client).ToArray();
 
             SendAddPlayers(client, others);
-
-            var packet = BuildAddPlayers(new[] { client });
-            foreach(var other in others) {
-                packet.Send(other);
-            }
+            BuildAddPlayers(new[] { client }).Broadcast(others);
         }
 
         #region Request
@@ -208,15 +207,16 @@ namespace Server.Protocols {
             var oldMap = player.Map;
 
             var tp = Program.teleporters[tpId];
+            if(tp.FromMap != player.CurrentMap || tp.ToMap == 0) return;
 
             player.CurrentMap = tp.ToMap;
             player.PositionX = tp.ToX;
             player.PositionY = tp.ToY;
 
-            ChangeMap(client);
-
             // delete players from old map
             BroadcastDeletePlayer(oldMap.Players, client);
+
+            ChangeMap(client);
         }
 
         // 02_0B
@@ -460,13 +460,20 @@ namespace Server.Protocols {
 
             var questBytes = new byte[1000];
             foreach(var (key, val) in player.QuestFlags) {
-                if(val == 2) {
+                if(val == QuestStatus.Done) {
                     questBytes[key >> 3] |= (byte)(1 << (key & 7));
+                }
+            }
+            foreach(var (key, val) in player.CheckpointFlags) {
+                if(val == 1) {
+                    var checkpoint = Program.checkpoints[key];
+                    var asd = checkpoint.QuestFlag;
+                    questBytes[asd >> 3] |= (byte)(1 << (asd & 7));
                 }
             }
             b.Write(questBytes); // quest flags
 
-            var currentQuests = player.QuestFlags.Where(x => x.Value == 1).ToArray();
+            var currentQuests = player.QuestFlags.Where(x => x.Value == QuestStatus.Running).ToArray();
             // active quests
             for(int i = 0; i < 10; i++) {
                 if(i < currentQuests.Length) {
@@ -588,10 +595,7 @@ namespace Server.Protocols {
             b.WriteShort(leaving.Id);
             b.WriteShort(0); // unused?
 
-            foreach(var client1 in clients) {
-                if(client1 != leaving)
-                    b.Send(client1);
-            }
+            b.Broadcast(clients);
         }
 
         // 02_04
@@ -749,19 +753,17 @@ namespace Server.Protocols {
         }
 
         // 02_0F
-        static void SendTeleportPlayer(Client client) {
+        static void BroadcastTeleportPlayer(Client client) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x2); // first switch
             b.WriteByte(0xF); // second switch
+            
+            b.WriteShort(client.Id);
+            b.WriteInt(client.Player.PositionX);
+            b.WriteInt(client.Player.PositionY);
 
-            var player = client.Player;
-
-            b.WriteShort(client.Id); // player id
-            b.WriteInt(player.PositionX); // x
-            b.WriteInt(player.PositionY); // y
-
-            b.Send(client);
+            b.Broadcast(client.Player.Map.Players);
         }
 
         // 02_11
@@ -898,6 +900,26 @@ namespace Server.Protocols {
             b.BeginCompress();
             foreach(var res in resources) {
                 writeResData(b, res);
+            }
+            b.EndCompress();
+
+            b.Send(client);
+        }
+
+        // 02_19
+        static void SendCheckpoints(Client client, Checkpoint[] checkpoints) {
+            var b = new PacketBuilder();
+
+            b.WriteByte(0x02); // first switch
+            b.WriteByte(0x19); // second switch
+
+            b.WriteInt(checkpoints.Length);
+
+            b.BeginCompress();
+            foreach(var checkpoint in checkpoints) {
+                b.WriteInt(checkpoint.Id);
+                b.WriteInt(checkpoint.X);
+                b.WriteInt(checkpoint.Y);
             }
             b.EndCompress();
 

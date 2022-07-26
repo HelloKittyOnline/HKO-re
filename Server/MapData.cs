@@ -77,6 +77,7 @@ namespace Server {
 
         public Teleport[] Teleporters { get; set; }
         public Extractor.Resource[] Resources { get; set; }
+        public Checkpoint[] Checkpoints { get; set; }
 
         public NpcData[] Npcs { get; set; }
         public MobData[] Mobs { get; set; }

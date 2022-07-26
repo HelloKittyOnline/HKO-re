@@ -31,6 +31,12 @@ namespace Server {
         }
     }
 
+    enum QuestStatus {
+        None = 0,
+        Running = 1,
+        Done = 2
+    }
+
     class PlayerData {
         public int CurrentMap { get; set; } = 1; // Dream Room 1
         [JsonIgnore]
@@ -126,7 +132,9 @@ namespace Server {
         public int[] Exp { get; set; }
         public short[] Friendship { get; set; }
 
-        public Dictionary<int, int> QuestFlags { get; set; }
+        public Dictionary<int, QuestStatus> QuestFlags { get; set; }
+        public Dictionary<int, int> CheckpointFlags { get; set; }
+        // TODO: cache active quests?
 
         [JsonIgnore]
         public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
@@ -163,7 +171,7 @@ namespace Server {
 
             Inventory = new InventoryItem[50];
             Equipment = new InventoryItem[14];
-            QuestFlags = new Dictionary<int, int>();
+            QuestFlags = new Dictionary<int, QuestStatus>();
             Quickbar = new int[10];
             Levels = new short[9];
             Exp = new int[9];
@@ -184,6 +192,7 @@ namespace Server {
 
             // todo: remove down the line
             ProductionFlags ??= new byte[576];
+            CheckpointFlags ??= new Dictionary<int, int>();
 
             DisplayEntities = new int[18];
             BaseEntities.CopyTo(DisplayEntities, 0);

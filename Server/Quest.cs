@@ -46,9 +46,7 @@ namespace Server {
             public int Id { get; set; }
             public int Count { get; set; }
 
-            public override bool Check(Client client) {
-                return client.Player.GetItemCount(Id) >= Count;
-            }
+            public override bool Check(Client client) => client.Player.GetItemCount(Id) >= Count;
         }
         public class ClearItem : Requirement {
             public int Id { get; set; }
@@ -62,9 +60,7 @@ namespace Server {
             public int Id { get; set; }
             public int Count { get; set; }
 
-            public override bool Check(Client client) {
-                return client.Player.GetItemCount(Id) >= Count;
-            }
+            public override bool Check(Client client) => client.Player.GetItemCount(Id) >= Count;
         }
 
         public class Idk : Requirement {
@@ -74,6 +70,19 @@ namespace Server {
                 // throw new NotImplementedException();
                 // Debugger.Break();
                 return false;
+            }
+        }
+
+        public class Checkpoint : Requirement {
+            public int[] Ids { get; set; }
+
+            public override bool Check(Client client) {
+                foreach(var id in Ids) {
+                    client.Player.CheckpointFlags.TryGetValue(id, out var val);
+                    if(val != 2)
+                        return false;
+                }
+                return true;
             }
         }
 
@@ -96,19 +105,9 @@ namespace Server {
             public override bool Check(Client client) {
                 client.Player.QuestFlags.TryGetValue(Id, out var flag);
 
-                if((Flags & QuestFlag.Begin) != 0 && flag == 0) {
-                    return true;
-                }
-
-                if((Flags & QuestFlag.Running) != 0 && flag == 1) {
-                    return true;
-                }
-
-                if((Flags & QuestFlag.Done) != 0 && flag == 2) {
-                    return true;
-                }
-
-                return false;
+                return ((Flags & QuestFlag.Begin) != 0 && flag is QuestStatus.None) ||
+                       ((Flags & QuestFlag.Running) != 0 && flag is QuestStatus.Running) ||
+                       ((Flags & QuestFlag.Done) != 0 && flag is QuestStatus.Done);
             }
         }
 
@@ -154,10 +153,30 @@ namespace Server {
             }
         }
         public class Select : Reward {
-            public Reward[] Sub { get; set; }
+            public Item[] Sub { get; set; }
 
             public override void Handle(Client client, int select) {
-                Sub[select - 1].Handle(client, 0);
+                foreach(var item in Sub) {
+                    if((client.Player.Gender == 1 ? item.Male : item.Female) == select) {
+                        item.Handle(client, select);
+                        break;
+                    }
+                }
+            }
+        }
+
+        public class Checkpoint : Reward {
+            public int[] Ids { get; set; }
+
+            public override void Handle(Client client, int select) {
+                foreach(var id in Ids) {
+                    client.Player.CheckpointFlags.TryGetValue(id, out var val);
+                    if(val != 0)
+                        continue;
+
+                    client.Player.CheckpointFlags[id] = 1;
+                    Npc.UpdateFlag(client, Program.checkpoints[id].QuestFlag, true);
+                }
             }
         }
 
@@ -208,6 +227,15 @@ namespace Server {
         }
     }
 
+    class Minigame {
+        public int Id { get; set; }
+        public int Score { get; set; }
+
+        public void Open(Client client) {
+            Npc.SendOpenMinigame(client, Id, Score, 0, 0);
+        }
+    }
+
     class ManualQuest {
         public class Sub {
             public Requirement[] Requirements { get; set; }
@@ -228,6 +256,7 @@ namespace Server {
         public string Description { get; set; }
         public Sub[] Start { get; set; }
         public Sub[] End { get; set; }
+        public Minigame Minigame { get; set; }
 
         /*
         public int Village { get; set; }
@@ -272,7 +301,7 @@ namespace Server {
                     FriendshipReward friend => new Reward.Friendship { Village = (Village)friend.Village, Amount = friend.Friendship },
                     ItemReward item => new Reward.Item { Male = item.MaleItem, Female = item.FemaleItem, Count = item.Count },
                     MoneyReward money => new Reward.Money { Amount = money.Money },
-                    SelectReward select => new Reward.Select { Sub = select.Sub.Select(MapReward).ToArray() },
+                    SelectReward select => new Reward.Select { Sub = select.Sub.Select(x => MapReward(x) as Reward.Item).ToArray() },
                     _ => throw new ArgumentOutOfRangeException(nameof(val))
                 };
             }
