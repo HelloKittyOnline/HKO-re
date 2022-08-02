@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -54,7 +54,7 @@ static class Battle {
                 var mobDamage = Math.Min(mob.Hp, 10);
 
                 mob.Hp -= mobDamage;
-                BroadcastDamageToMob(map.Players, client.Id, mob.Id, (short)mobDamage, 0, 0);
+                SendDamageToMob(map.Players, client.Id, mob.Id, (short)mobDamage, 0, 0);
                 if(mob.Hp <= 0) {
                     mob.Hp = 0;
                     mob.State = 4;
@@ -74,7 +74,7 @@ static class Battle {
 
                 // TODO: implement player hp and stamina
                 // client.Player.Hp -= playerDamage;
-                BroadcastDamageToPlayer(map.Players, client.Id, mob.Id, (short)playerDamage, 0, 0);
+                SendDamageToPlayer(map.Players, client.Id, mob.Id, (short)playerDamage, 0, 0);
                 if(client.Player.Hp <= 0) {
                     client.Player.Hp = 0;
                     break;
@@ -122,7 +122,7 @@ static class Battle {
     }
 
     // 0C_02
-    public static PacketBuilder BuildMobMove(MobData mob) {
+    public static void SendMobMove(IEnumerable<Client> clients, MobData mob) {
         // if (mob.Hp == 0) return;
 
         var b = new PacketBuilder();
@@ -138,13 +138,11 @@ static class Battle {
         b.WriteByte(0); // unused
         b.WriteByte(0); // if == 2 play sound
 
-        // b.Send(client);
-
-        return b;
+        b.Send(clients);
     }
 
     // 0C_03
-    public static void BroadcastDamageToMob(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
+    public static void SendDamageToMob(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x0C); // first switch
@@ -157,13 +155,24 @@ static class Battle {
         b.WriteShort(d2); // damage 2 displayed in 550ms
         b.WriteShort(d3); // damage 3 displayed in 850ms
 
-        foreach(var client1 in clients) {
-            b.Send(client1);
-        }
+        b.Send(clients);
+    }
+
+    // 0C_04
+    public static void SendMobState(IEnumerable<Client> clients, MobData mob) {
+        var b = new PacketBuilder();
+
+        b.WriteByte(0x0C); // first switch
+        b.WriteByte(0x04); // second switch
+
+        b.WriteInt(mob.Id);
+        b.WriteByte(mob.State);
+
+        b.Send(clients);
     }
 
     // 0C_06
-    public static void BroadcastDamageToPlayer(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
+    public static void SendDamageToPlayer(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
         // if(mob.Hp == 0) return;
 
         var b = new PacketBuilder();
@@ -181,9 +190,7 @@ static class Battle {
         b.WriteShort(0); // unused ?
         b.WriteShort(0); // unused ?
 
-        foreach(var client1 in clients) {
-            b.Send(client1);
-        }
+        b.Send(clients);
     }
 
     #endregion

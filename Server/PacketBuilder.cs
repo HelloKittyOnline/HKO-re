@@ -134,7 +134,7 @@ class PacketBuilder {
         }
     }
 
-    public void Broadcast(IEnumerable<Client> clients) {
+    public void Send(IEnumerable<Client> clients) {
         var buf = buffer.GetBuffer();
 
         // update data length

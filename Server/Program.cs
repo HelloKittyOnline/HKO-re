@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -259,7 +259,7 @@ class Program {
                         client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
 
                         if(client.InGame) // remove player from maps
-                            Player.BroadcastDeletePlayer(client.Player.Map.Players, client);
+                            Player.SendDeletePlayer(client.Player.Map.Players, client);
                     }
                 } catch(Exception e) {
                     client.Logger.LogError(e, "[{userID}] Error: ", client.DiscordId);

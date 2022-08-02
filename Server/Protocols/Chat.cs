@@ -126,9 +126,7 @@ static class Chat {
         b.WriteWString(sender.Player.Name);
         b.WriteWString(msg);
 
-        foreach(var client in clients) {
-            b.Send(client);
-        }
+        b.Send(clients);
     }
 
     // 03_02
@@ -173,9 +171,7 @@ static class Chat {
         b.WriteWString(sender.Player.Name);
         b.WriteWString(msg);
 
-        foreach(var client in clients) {
-            b.Send(client);
-        }
+        b.Send(clients);
     }
 
     // 03_06
@@ -189,9 +185,7 @@ static class Chat {
         b.WriteWString(sender.Player.Name);
         b.WriteWString(msg);
 
-        foreach(var client in clients) {
-            b.Send(client);
-        }
+        b.Send(clients);
     }
 
     // 03_07
@@ -219,10 +213,7 @@ static class Chat {
         b.WriteWString(sender.Player.Name);
         b.WriteWString(msg);
 
-
-        foreach(var client in clients) {
-            b.Send(client);
-        }
+        b.Send(clients);
     }
 
     // 03_09

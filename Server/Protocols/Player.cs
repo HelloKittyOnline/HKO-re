@@ -117,8 +117,9 @@ static class Player {
 
         var others = map.Players.Where(other => other != client).ToArray();
 
-        SendAddPlayers(client, others);
-        BuildAddPlayers(new[] { client }).Broadcast(others);
+        var temp = new[] {client};
+        SendAddPlayers(others, temp); // send other players to client
+        SendAddPlayers(temp, others); // send client to other players
     }
 
     #region Request
@@ -184,7 +185,7 @@ static class Player {
         // 8 = north west
 
         client.Player.Rotation = (byte)rotation;
-        BuildRotatePlayer(client);
+        SendRotatePlayer(client);
     }
 
     // 02_08
@@ -195,7 +196,7 @@ static class Player {
         // 4 = gathering
 
         client.Player.State = (byte)state;
-        BuildPlayerState(client);
+        SendPlayerState(client);
     }
 
     // 02_0A
@@ -216,7 +217,7 @@ static class Player {
         player.PositionY = tp.ToY;
 
         // delete players from old map
-        BroadcastDeletePlayer(oldMap.Players, client);
+        SendDeletePlayer(oldMap.Players, client);
 
         ChangeMap(client);
     }
@@ -558,15 +559,15 @@ static class Player {
     }
 
     // 02_02
-    static PacketBuilder BuildAddPlayers(Client[] clients) {
+    static void SendAddPlayers(Client[] players, IEnumerable<Client> dest) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x2); // first switch
         b.WriteByte(0x2); // second switch
 
-        b.WriteShort((short)clients.Length); // count
+        b.WriteShort((short)players.Length); // count
         b.BeginCompress();
-        foreach(var client in clients) {
+        foreach(var client in players) {
             b.WriteShort(client.Id);
             b.WriteByte(0); // status icon
             b.WriteByte(0); // guild icon
@@ -595,15 +596,11 @@ static class Player {
         }
         b.EndCompress();
 
-        return b;
-    }
-    // 02_02
-    static void SendAddPlayers(Client client, Client[] clients) {
-        BuildAddPlayers(clients).Send(client);
+        b.Send(dest);
     }
 
     // 02_03
-    public static void BroadcastDeletePlayer(IEnumerable<Client> clients, Client leaving) {
+    public static void SendDeletePlayer(IEnumerable<Client> clients, Client leaving) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x2); // first switch
@@ -612,7 +609,7 @@ static class Player {
         b.WriteShort(leaving.Id);
         b.WriteShort(0); // unused?
 
-        b.Broadcast(clients);
+        b.Send(clients);
     }
 
     // 02_04
@@ -627,10 +624,7 @@ static class Player {
         b.WriteInt(client.Player.PositionY);
         b.WriteShort(client.Player.Speed);
 
-        foreach(var client1 in client.Player.Map.Players) {
-            if(client1 != client)
-                b.Send(client1);
-        }
+        b.Send(client.Player.Map.Players.Where(x => x != client));
     }
 
     // 02_05
@@ -643,10 +637,7 @@ static class Player {
         b.WriteShort(client.Id);
         b.WriteInt(client.Player.Status);
 
-        foreach(var client1 in client.Player.Map.Players) {
-            if(client1 != client)
-                b.Send(client1);
-        }
+        b.Send(client.Player.Map.Players.Where(x => x != client));
     }
 
     // 02_06
@@ -659,13 +650,11 @@ static class Player {
         b.WriteShort(client.Id);
         b.WriteInt(emote);
 
-        foreach(var client1 in client.Player.Map.Players) {
-            b.Send(client1);
-        }
+        b.Send(client.Player.Map.Players);
     }
 
     // 02_07
-    static void BuildRotatePlayer(Client client) {
+    static void SendRotatePlayer(Client client) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x2); // first switch
@@ -674,14 +663,11 @@ static class Player {
         b.WriteShort(client.Id);
         b.WriteShort(client.Player.Rotation);
 
-        foreach(var client1 in client.Player.Map.Players) {
-            if(client1 != client)
-                b.Send(client1);
-        }
+        b.Send(client.Player.Map.Players.Where(x => x != client));
     }
 
     // 02_08
-    static void BuildPlayerState(Client client) {
+    static void SendPlayerState(Client client) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x2); // first switch
@@ -690,10 +676,7 @@ static class Player {
         b.WriteShort(client.Id);
         b.WriteShort(client.Player.State);
 
-        foreach(var client1 in client.Player.Map.Players) {
-            if(client1 != client)
-                b.Send(client1);
-        }
+        b.Send(client.Player.Map.Players.Where(x => x != client));
     }
 
     // 02_09
@@ -780,7 +763,7 @@ static class Player {
         b.WriteInt(client.Player.PositionX);
         b.WriteInt(client.Player.PositionY);
 
-        b.Broadcast(client.Player.Map.Players);
+        b.Send(client.Player.Map.Players);
     }
 
     // 02_11
