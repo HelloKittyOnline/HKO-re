@@ -1,7 +1,7 @@
 ﻿namespace Extractor;
 
 [SeanItem(13)]
-public class Checkpoint {
+public struct Checkpoint {
     [SeanField(0)] public int Id { get; set; }
     [SeanField(1)] public int Map { get; set; }
     [SeanField(2)] public int X { get; set; }

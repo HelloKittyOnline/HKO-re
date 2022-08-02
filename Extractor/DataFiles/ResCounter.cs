@@ -1,62 +1,62 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Extractor {
-    public struct ResCounter {
-        private static readonly Random rng = new();
+namespace Extractor;
 
-        public struct Item {
-            public int ItemId { get; set; }
-            public int Chance { get; set; }
-        }
+public struct ResCounter {
+    private static readonly Random rng = new();
 
-        public int Id { get; set; }
-        public Item[] Items { get; set; }
-        private int Max;
+    public struct Item {
+        public int ItemId { get; set; }
+        public int Chance { get; set; }
+    }
 
-        public static ResCounter[] Load(byte[] data) {
-            var contents = new SeanDatabase(data);
+    public int Id { get; set; }
+    public Item[] Items { get; set; }
+    private int Max;
 
-            var items = new ResCounter[contents.ItemCount];
-            for(int i = 0; i < contents.ItemCount; i++) {
-                var dat = new List<Item>(10);
-                int max = 0;
+    public static ResCounter[] Load(byte[] data) {
+        var contents = new SeanDatabase(data);
 
-                for(int j = 0; j < 10; j++) {
-                    var id = contents.Items[i, j * 2 + 1];
-                    if(id == 0)
-                        break;
+        var items = new ResCounter[contents.ItemCount];
+        for(int i = 0; i < contents.ItemCount; i++) {
+            var dat = new List<Item>(10);
+            int max = 0;
 
-                    var chance = contents.Items[i, j * 2 + 2];
-                    max += chance;
+            for(int j = 0; j < 10; j++) {
+                var id = contents.Items[i, j * 2 + 1];
+                if(id == 0)
+                    break;
 
-                    dat.Add(new Item {
-                        ItemId = id,
-                        Chance = chance
-                    });
-                }
+                var chance = contents.Items[i, j * 2 + 2];
+                max += chance;
 
-                items[i] = new ResCounter {
-                    Id = contents.Items[i, 0],
-                    Items = dat.ToArray(),
-                    Max = max
-                };
+                dat.Add(new Item {
+                    ItemId = id,
+                    Chance = chance
+                });
             }
 
-            return items;
+            items[i] = new ResCounter {
+                Id = contents.Items[i, 0],
+                Items = dat.ToArray(),
+                Max = max
+            };
         }
 
-        public int GetRandom() {
-            var rand = rng.Next(Max);
+        return items;
+    }
 
-            var total = 0;
-            foreach(var el in Items) {
-                total += el.Chance;
-                if(rand < total)
-                    return el.ItemId;
-            }
+    public int GetRandom() {
+        var rand = rng.Next(Max);
 
-            return -1;
+        var total = 0;
+        foreach(var el in Items) {
+            total += el.Chance;
+            if(rand < total)
+                return el.ItemId;
         }
+
+        return -1;
     }
 }
