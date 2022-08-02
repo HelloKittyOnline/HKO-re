@@ -14,8 +14,8 @@ namespace Extractor {
             public int Count;
         }
 
-        public static ProdRule[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
+        public static ProdRule[] Load(byte[] data) {
+            var contents = new SeanDatabase(data);
 
             var items = new ProdRule[contents.ItemCount];
             for(int i = 0; i < contents.ItemCount; i++) {

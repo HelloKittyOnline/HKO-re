@@ -83,6 +83,11 @@ namespace Server.Protocols {
         static void GetNpcDialog(Client client) {
             var npcId = client.ReadInt32();
             int dialog = GetNextDialog(client, npcId);
+
+            if(Program.npcEncyclopedia.TryGetValue(npcId, out var id)) {
+                client.Player.Npcs.Add(id);
+            }
+
             SendOpenDialog(client, dialog);
         }
 
@@ -315,14 +320,14 @@ namespace Server.Protocols {
         }
 
         // 05_0A
-        public static void UpdateFlag(Client client, int flag, bool completed) {
+        public static void UpdateFlag(Client client, int flag, bool set) {
             var b = new PacketBuilder();
 
             b.WriteByte(0x05); // first switch
             b.WriteByte(0x0A); // second switch
 
             b.WriteInt(flag);
-            b.WriteByte(Convert.ToByte(completed));
+            b.WriteByte(Convert.ToByte(set));
 
             b.Send(client);
         }

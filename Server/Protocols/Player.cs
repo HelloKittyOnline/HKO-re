@@ -458,19 +458,21 @@ namespace Server.Protocols {
             for(int i = 0; i < 3; i++)
                 writePetData(b); // pet data
 
-            var questBytes = new byte[1000];
+            var questBytes = new BitVector(1000);
             foreach(var (key, val) in player.QuestFlags) {
                 if(val == QuestStatus.Done) {
-                    questBytes[key >> 3] |= (byte)(1 << (key & 7));
+                    questBytes[key] = true;
                 }
             }
             foreach(var (key, val) in player.CheckpointFlags) {
                 if(val == 1) {
-                    var checkpoint = Program.checkpoints[key];
-                    var asd = checkpoint.QuestFlag;
-                    questBytes[asd >> 3] |= (byte)(1 << (asd & 7));
+                    questBytes[Program.checkpoints[key].QuestFlag] = true;
                 }
             }
+            foreach(var val in player.Keys)
+                questBytes[val] = true;
+            foreach(var val in player.Dreams)
+                questBytes[val] = true;
             b.Write(questBytes); // quest flags
 
             var currentQuests = player.QuestFlags.Where(x => x.Value == QuestStatus.Running).ToArray();
@@ -523,15 +525,28 @@ namespace Server.Protocols {
             b.WritePadWString(player.Introduction, 160 * 2);
 
             // 0x86aa
-            b.Write0(0x9320 - 0x86aa);
-            // 0x9320
+            b.Write0(0x92E0 - 0x86aa);
+            // 0x92E0
+
+            var npcFlags = new BitVector(64);
+            foreach(var val in player.Npcs) {
+                npcFlags[val] = true;
+            }
+            b.Write(npcFlags); // npc descriptions
 
             b.WriteInt(player.NormalTokens);
             b.WriteInt(player.SpecialTokens);
             b.WriteInt(player.Tickets);
 
             // 0x932c
-            b.Write0(0x96d0 - 0x932c);
+            b.Write0(0x93b4 - 0x932c);
+
+            b.Write(npcFlags); // npc locations
+
+            b.Write0(64); // pet cards
+            b.Write0(64); // resources
+
+            b.Write0(0x96d0 - 0x93f4 - 0x80);
             // 0x96d0
 
             Debug.Assert(b.CompressSize == 38608, "invalid PlayerData size");

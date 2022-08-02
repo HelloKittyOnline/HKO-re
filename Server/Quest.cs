@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -177,6 +177,24 @@ namespace Server {
                     client.Player.CheckpointFlags[id] = 1;
                     Npc.UpdateFlag(client, Program.checkpoints[id].QuestFlag, true);
                 }
+            }
+        }
+
+        public class Key : Reward {
+            public int Id { get; set; }
+
+            public override void Handle(Client client, int select) {
+                client.Player.Keys.Add(Id);
+                Npc.UpdateFlag(client, Id, true);
+            }
+        }
+
+        public class Dream : Reward {
+            public int Id { get; set; }
+
+            public override void Handle(Client client, int select) {
+                client.Player.Dreams.Add(Id);
+                Npc.UpdateFlag(client, Id, true);
             }
         }
 

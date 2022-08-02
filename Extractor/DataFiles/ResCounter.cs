@@ -14,8 +14,8 @@ namespace Extractor {
         public Item[] Items { get; set; }
         private int Max;
 
-        public static ResCounter[] Load(SeanArchive.Item data) {
-            var contents = new SeanDatabase(data.Contents);
+        public static ResCounter[] Load(byte[] data) {
+            var contents = new SeanDatabase(data);
 
             var items = new ResCounter[contents.ItemCount];
             for(int i = 0; i < contents.ItemCount; i++) {

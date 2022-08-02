@@ -54,6 +54,7 @@ namespace Server {
             }
         }
 
+        [JsonIgnore]
         public int MapType {
             get {
                 int mapId = CurrentMap;
@@ -132,9 +133,13 @@ namespace Server {
         public int[] Exp { get; set; }
         public short[] Friendship { get; set; }
 
-        public Dictionary<int, QuestStatus> QuestFlags { get; set; }
+        public Dictionary<int, QuestStatus> QuestFlags { get; set; } // TODO: cache active quests?
         public Dictionary<int, int> CheckpointFlags { get; set; }
-        // TODO: cache active quests?
+
+        // used for encyclopedia
+        public HashSet<int> Npcs { get; set; }
+        public HashSet<int> Keys { get; set; }
+        public HashSet<int> Dreams { get; set; }
 
         [JsonIgnore]
         public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
@@ -193,6 +198,9 @@ namespace Server {
             // todo: remove down the line
             ProductionFlags ??= new byte[576];
             CheckpointFlags ??= new Dictionary<int, int>();
+            Npcs ??= new HashSet<int>();
+            Keys ??= new HashSet<int>();
+            Dreams ??= new HashSet<int>();
 
             DisplayEntities = new int[18];
             BaseEntities.CopyTo(DisplayEntities, 0);
