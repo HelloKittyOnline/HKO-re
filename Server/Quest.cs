@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -202,49 +201,6 @@ abstract class Reward {
     public abstract void Handle(Client client, int select);
 }
 
-class DialogData {
-    public int Id { get; set; }
-    public int Quest { get; set; }
-    public bool Begins { get; set; }
-    public int Previous { get; set; }
-    public int Npc { get; set; }
-
-    public static DialogData[] Load() {
-        var dialogs = JsonSerializer.Deserialize<JsonElement[]>(File.ReadAllText("./dialog_data.json"));
-
-        var d = new List<DialogData>();
-
-        foreach(var dialog in dialogs) {
-            if(!dialog.TryGetProperty("Previous quests", out var prev) || prev.ValueKind != JsonValueKind.Number) {
-                continue;
-            }
-
-            int quest;
-            bool begins;
-            if(dialog.TryGetProperty("Start", out var start) && start.ValueKind == JsonValueKind.Number) {
-                quest = start.GetInt32();
-                begins = true;
-            } else if(dialog.TryGetProperty("End", out var end) && end.ValueKind == JsonValueKind.Number) {
-                quest = end.GetInt32();
-                begins = false;
-            } else {
-                continue;
-            }
-
-            foreach(var a in dialog.GetProperty("Npc").EnumerateArray()) {
-                d.Add(new DialogData {
-                    Id = dialog.GetProperty("Dialog").GetInt32(),
-                    Quest = quest,
-                    Begins = begins,
-                    Previous = prev.GetInt32(),
-                    Npc = a.GetInt32()
-                });
-            }
-        }
-
-        return d.ToArray();
-    }
-}
 
 class Minigame {
     public int Id { get; set; }
@@ -304,101 +260,5 @@ class ManualQuest {
         }
 
         return items;
-    }
-
-    public static ManualQuest[] FromNormal() {
-        var quests = Quest.Load("./c_quest_eng.sdb");
-
-        var dialogs = DialogData.Load();
-        var lookup = dialogs.ToLookup(x => x.Quest);
-
-        var o = new List<ManualQuest>();
-
-        static Reward MapReward(QuestReward val) {
-            return val switch {
-                ExpReward exp => new Reward.Exp { Amount = exp.Exp },
-                FriendshipReward friend => new Reward.Friendship { Village = (Village)friend.Village, Amount = friend.Friendship },
-                ItemReward item => new Reward.Item { Male = item.MaleItem, Female = item.FemaleItem, Count = item.Count },
-                MoneyReward money => new Reward.Money { Amount = money.Money },
-                SelectReward select => new Reward.Select { Sub = select.Sub.Select(x => MapReward(x) as Reward.Item).ToArray() },
-                _ => throw new ArgumentOutOfRangeException(nameof(val))
-            };
-        }
-
-        foreach(var a in quests) {
-            if(a.Title == null)
-                continue;
-
-            var d = lookup[a.Id];
-
-            var start = new List<Sub>();
-            var end = new List<Sub>();
-
-            var endReq = a.Requirement?.Select<QuestRequirement, Requirement>(x => {
-                switch(x) {
-                    case ClearItemRequirement ci:
-                        return new Requirement.ClearItem { Id = ci.Id, Count = ci.Count };
-                    case FlagRequirement flagRequirement:
-                        break;
-                    case HaveItemRequirement hi:
-                        return new Requirement.HaveItem { Id = hi.Id, Count = hi.Count };
-                    case ItemRequirement item:
-                        return new Requirement.GiveItem { Id = item.Id, Count = item.Count };
-                    case QFlagRequirement qFlagRequirement:
-                        break;
-                    case RelNpc rNpc:
-                        break;
-                    case UpdateNpc updateNpc:
-                        break;
-                        // default: throw new ArgumentOutOfRangeException(nameof(x));
-                }
-
-                return new Requirement.Idk { Text = x.Raw };
-            }).Append(new Requirement.Quest(a.Id, Requirement.QuestFlag.Running)).ToArray() ?? Array.Empty<Requirement>();
-            var endReward = a.Rewards?.Select(MapReward).ToArray() ?? Array.Empty<Reward>();
-
-            foreach(var dialog in d) {
-                if(dialog.Begins) {
-                    var req = new List<Requirement> {
-                        new Requirement.Quest(a.Id, Requirement.QuestFlag.Begin)
-                    };
-                    if(dialog.Previous != -1)
-                        req.Add(new Requirement.Quest(dialog.Previous, Requirement.QuestFlag.Done));
-
-                    start.Add(new Sub {
-                        Npc = dialog.Npc,
-                        Dialog = dialog.Id,
-                        Rewards = Array.Empty<Reward>(),
-                        Requirements = req.ToArray()
-                    });
-                } else {
-                    end.Add(new Sub {
-                        Npc = dialog.Npc,
-                        Dialog = dialog.Id,
-                        Requirements = endReq,
-                        Rewards = endReward
-                    });
-                }
-            }
-
-            o.Add(new ManualQuest {
-                Id = a.Id,
-                Name = a.Title,
-                Description = a.Content,
-                Start = start.ToArray(),
-                End = end.ToArray()
-            });
-        }
-
-
-        var options = new JsonSerializerOptions();
-        options.WriteIndented = true;
-        options.Converters.Add(new RequirementConverter());
-        options.Converters.Add(new RewardConverter());
-
-        var res = JsonSerializer.Serialize(o, options);
-        File.WriteAllText("./quests_export.json", res);
-
-        return o.ToArray();
     }
 }
