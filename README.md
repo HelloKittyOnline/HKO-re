@@ -26,6 +26,8 @@ If you want to join the public server, look no further! The instructions below w
 
 **Note**: While it may seem that it is close to 100%, the percentage counter is for each individual patch. There are 5 total patches amounting to just under 5GB. HKO artificially limits the download speed, meaning it will take a while. On a gigabit connection, it took roughly 2.5 hours to download through HKO. Expect slower connections to be about the same. Remember, HKO was built in 2008.
 
+**Note 2**: An experimental autoupdate replacement has been released here: https://github.com/HKOServer/HKO-re/releases/tag/Autoupdate It unlocks the download speed so that you are not limited by HKO itself. It must be run as administrator.
+
 7) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
 8) Login with the username and password you created earlier
 9) Select `World 1` and enter the game!
