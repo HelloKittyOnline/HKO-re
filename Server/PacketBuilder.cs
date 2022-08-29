@@ -53,8 +53,12 @@ class PacketBuilder {
         writer.Write(v);
     }
     public void Write0(int bytes) {
-        for(int i = 0; i < bytes; i++) {
-            writer.Write((byte)0);
+        Span<byte> buffer = stackalloc byte[Math.Min(bytes, 1024)];
+
+        while(bytes > 0) {
+            var len = Math.Min(bytes, 1024);
+            writer.Write(buffer[..len]);
+            bytes -= len;
         }
     }
 

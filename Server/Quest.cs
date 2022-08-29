@@ -115,7 +115,14 @@ abstract class Requirement {
 }
 
 enum Village {
-    SanrioHarbour
+    SanrioHarbour = 1,
+    Florapolis = 2,
+    London = 3,
+    Paris = 4,
+    Beijing = 5,
+    DreamCarnival = 6,
+    NewYork = 7,
+    Tokyo = 8
 }
 
 abstract class Reward {

@@ -40,20 +40,20 @@ enum QuestStatus {
 
 class PlayerData {
     public int CurrentMap { get; set; } = 1; // Dream Room 1
+
     [JsonIgnore]
-    public MapData Map {
+    public int AdjustedMapId {
         get {
             if(CurrentMap < 30000) {
-                return Program.maps[CurrentMap];
+                return CurrentMap;
             }
-
             if(CurrentMap % 10 == 7) {
-                return Program.maps[4]; // wtf
+                return 4; // Dream room 4
             }
-
-            return Program.maps[CurrentMap % 10];
+            return CurrentMap % 10;
         }
     }
+    [JsonIgnore] public MapData Map => Program.maps[AdjustedMapId];
 
     [JsonIgnore]
     public int MapType {

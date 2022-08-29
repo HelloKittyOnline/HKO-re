@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -100,5 +100,5 @@ class MapData {
     public NpcData[] Npcs { get; set; }
     public MobData[] Mobs { get; set; }
 
-    public IEnumerable<Client> Players => Program.clients.Where(x => x.InGame && x.Player.CurrentMap == Id);
+    public IEnumerable<Client> Players => Program.clients.Where(x => x.InGame && x.Player.AdjustedMapId == Id);
 }

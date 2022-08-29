@@ -42,31 +42,31 @@ class Program {
 #if DEBUG
         builder.SetMinimumLevel(LogLevel.Trace);
 #else
-            builder.SetMinimumLevel(LogLevel.Information);
+        builder.SetMinimumLevel(LogLevel.Information);
 #endif
 
         builder.AddConsole();
 
         var fileLogger = new LoggerConfiguration()
-            .WriteTo.File("server.log", rollingInterval: RollingInterval.Day)
+            .WriteTo.File("logs/server.log", rollingInterval: RollingInterval.Day)
             .CreateLogger();
 
         builder.AddProvider(new SerilogLoggerProvider(fileLogger));
     });
 
     public static Serilog.Core.Logger ChatLogger = new LoggerConfiguration()
-        .WriteTo.File("chat.log", rollingInterval: RollingInterval.Day, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Message:lj}{NewLine}")
+        .WriteTo.File("logs/chat.log", rollingInterval: RollingInterval.Day, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Message:lj}{NewLine}")
         .CreateLogger();
 
     static void ListenClient(Client client, bool lobby) {
         Login.SendLobby(client, lobby);
 
+        var head = new byte[5];
+
         while(true) {
             byte[] data; // todo: reuse buffer
 
             try {
-                var head = new byte[5];
-
                 if(client.Stream.ReadAsync(head, 0, 5, client.Token).Result != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
                     break;
                 }

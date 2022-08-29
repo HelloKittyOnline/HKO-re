@@ -94,19 +94,19 @@ static class Player {
         SendCheckpoints(client, map.Checkpoints);
 
         switch(client.Player.CurrentMap) {
-            case 1:
+            case 1: // Dream room 1
                 Tutorial.Send01(client, 1, 1, 1, true, false, true);
                 break;
-            case 2:
+            case 2: // Dream room 2
                 client.Player.QuestFlags.Remove(99); // clear tutorial quest
                 Npc.SendDeleteQuest(client, 99);
                 Tutorial.Send01(client, 2, 1, 1, true, false, false);
                 Tutorial.Send02(client, 1, 445, 404);
                 break;
-            case 3:
+            case 3: // Dream room 3
                 Tutorial.Send01(client, 3, 1, 1, true, false, false);
                 break;
-            case 50007:
+            case 50007: // Dream room 4
                 client.Player.QuestFlags.Remove(100); // clear tutorial quest
                 Npc.SendDeleteQuest(client, 100);
                 Tutorial.Send01(client, 4, 1, 1, true, false, false);
@@ -209,7 +209,7 @@ static class Player {
         var oldMap = player.Map;
 
         var tp = Program.teleporters[tpId];
-        if(tp.FromMap != player.CurrentMap || tp.ToMap == 0)
+        if(tp.FromMap != oldMap.Id || tp.ToMap == 0)
             return;
 
         player.CurrentMap = tp.ToMap;
@@ -544,8 +544,7 @@ static class Player {
         // 0x932c
         b.Write0(0x93b4 - 0x932c);
 
-        b.Write(npcFlags); // npc locations
-
+        b.Write0(64); // npc locations - do not matter cause they are disabled in the tables
         b.Write0(64); // pet cards
         b.Write0(64); // resources
 
