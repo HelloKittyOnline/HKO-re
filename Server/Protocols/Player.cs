@@ -365,7 +365,8 @@ static class Player {
         // send in reverse to not confuse client?
         result.Reverse();
         foreach(var item in result) {
-            SendUpdatePackage(client, 0, item);
+            // FIXME: only send if required?
+            // SendUpdatePackage(client, 0, item);
         }
     }
     #endregion
