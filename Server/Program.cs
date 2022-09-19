@@ -20,7 +20,6 @@ namespace Server;
 class Program {
     internal static MapData[] maps;
 
-    internal static Dictionary<int, ManualQuest> quests;
     internal static Dictionary<int, ManualQuest> minigameQuests;
     internal static Lookup<int, ManualQuest.Sub> questMap;
 
@@ -36,7 +35,7 @@ class Program {
     internal static Dictionary<int, Shop> Shops;
     internal static Dictionary<int, int> npcEncyclopedia;
 
-    internal static List<Client> clients = new();
+    internal static HashSet<Client> clients = new();
 
     public static ILoggerFactory loggerFactory = LoggerFactory.Create(builder => {
 #if DEBUG
@@ -58,7 +57,7 @@ class Program {
         .WriteTo.File("logs/chat.log", rollingInterval: RollingInterval.Day, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Message:lj}{NewLine}")
         .CreateLogger();
 
-    static void ListenClient(Client client, bool lobby) {
+    static async Task ListenClient(Client client, bool lobby) {
         Login.SendLobby(client, lobby);
 
         var head = new byte[5];
@@ -67,17 +66,18 @@ class Program {
             byte[] data; // todo: reuse buffer
 
             try {
-                if(client.Stream.ReadAsync(head, 0, 5, client.Token).Result != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
+                if(await client.Stream.ReadAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
                     break;
                 }
 
                 var length = head[3] | head[4] << 8;
 
                 data = new byte[length];
-                if(client.Stream.ReadAsync(data, 0, length, client.Token).Result != length) {
+                if(await client.Stream.ReadAsync(data, client.Token) != length) {
                     break;
                 }
             } catch {
+                // if(client.Token.IsCancellationRequested) // TODO: send disconnect reason?
                 // network error likely connection reset by peer or action canceled
                 break;
             }
@@ -225,18 +225,16 @@ class Program {
     private static void Server(int port, bool lobby, CancellationToken token) {
         var server = new TcpListener(IPAddress.Any, port);
         server.Start();
-        token.Register(server.Stop);
 
         var logger = loggerFactory.CreateLogger("Server");
         logger.LogInformation($"Listening at :{port}");
 
         while(true) {
             TcpClient tcpClient;
+
             try {
                 // throws if cancellation token is triggered
-                var task = server.AcceptTcpClientAsync();
-                task.Wait(token);
-                tcpClient = task.Result;
+                tcpClient = server.AcceptTcpClientAsync(token).AsTask().Result;
             } catch when(token.IsCancellationRequested) {
                 break;
             }
@@ -244,57 +242,41 @@ class Program {
             logger.LogInformation($"Client {tcpClient.Client.RemoteEndPoint} {tcpClient.Client.LocalEndPoint}");
 
             var client = new Client(tcpClient);
-            clients.Add(client);
 
-            client.RunTask = Task.Run(() => {
+            lock(clients)
+                clients.Add(client);
+
+            client.RunTask = Task.Run(async () => {
                 try {
-                    ListenClient(client, lobby);
-
-                    clients.Remove(client);
-                    IdManager.FreeId(client.Id);
-                    client.TcpClient.Close();
-
-                    if(client.Username != null) {
-                        Database.LogOut(client.Username, client.Player);
-                        client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
-
-                        if(client.InGame) // remove player from maps
-                            Player.SendDeletePlayer(client.Player.Map.Players, client);
-                    }
+                    await ListenClient(client, lobby);
                 } catch(Exception e) {
                     client.Logger.LogError(e, "[{userID}] Error: ", client.DiscordId);
                 }
+                client.TcpClient.Close();
+
+                lock(clients)
+                    clients.Remove(client);
+                IdManager.FreeId(client.Id);
+
+                if(client.Username != null) {
+                    Database.LogOut(client.Username, client.Player);
+                    client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
+
+                    if(client.InGame) // remove player from maps
+                        Player.SendDeletePlayer(client.Player.Map.Players, client);
+                }
             });
         }
+        server.Stop();
     }
 
-    static void Main(string[] args) {
-        var serverLogger = loggerFactory.CreateLogger("Server");
-        serverLogger.LogInformation("Starting server...");
-
-        var serverTokenSource = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) => {
-            e.Cancel = true;
-
-            serverLogger.LogInformation("Stopping server...");
-
-            foreach(var client in clients) {
-                client.Close();
-            }
-
-            Task.WaitAll(clients.Select(x => x.RunTask).ToArray());
-            serverTokenSource.Cancel();
-        };
-
-        loggerFactory.CreateLogger("Server").LogInformation("Loading data...");
-
-        var quests = ManualQuest.Load("./quests.json");
-        Program.quests = quests.ToDictionary(x => x.Id);
+    static void LoadData(string path) {
+        var quests = ManualQuest.Load($"{path}/quests.json");
         minigameQuests = quests.Where(x => x.Minigame != null).ToDictionary(x => x.Minigame.Id);
         // order so that minigames have the least priority
         questMap = (Lookup<int, ManualQuest.Sub>)quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Start.Concat(x.End)).ToLookup(x => x.Npc);
 
-        var archive = SeanArchive.Extract("./client_table_eng.sdb");
+        var archive = SeanArchive.Extract($"{path}/client_table_eng.sdb");
         byte[] GetItem(string name) => archive.First(x => x.Name == name).Contents;
 
         teleporters = SeanDatabase.Load<Teleport>(GetItem("teleport_list.txt"));
@@ -310,17 +292,17 @@ class Program {
 
         var mapList = SeanDatabase.Load<MapList>(GetItem("map_list.txt"));
 
-        var npcs = NpcData.Load("./npc_data.json");
-        var shops = Shop.Load("./shop_data.json");
+        var npcs = NpcData.Load($"{path}/npc_data.json");
+        var shops = Shop.Load($"{path}/shop_data.json");
 
         Shops = new Dictionary<int, Shop>();
         foreach(var shop in shops) {
-            foreach(var npc in shop?.Npcs) {
+            foreach(var npc in shop.Npcs) {
                 Shops[npc] = shop;
             }
         }
 
-        var mob_data = JsonNode.Parse(File.ReadAllText("./mob_data.json")).AsArray();
+        var mob_data = JsonNode.Parse(File.ReadAllText($"{path}/mob_data.json")).AsArray();
         var cutMobs = mobAtts.Where(x => x.Name != null).ToArray();
 
         // bundle all entities together to make lookup easier
@@ -365,7 +347,23 @@ class Program {
         Debug.Assert(teleporters.All(x => x.FromMap == 0 || maps[x.FromMap] != null)); // all teleporters registered
         Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all npcs registered
         Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all resources registered
+    }
 
+    static void Main(string[] args) {
+        var serverLogger = loggerFactory.CreateLogger("Server");
+        serverLogger.LogInformation("Starting server...");
+
+        var serverTokenSource = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) => {
+            e.Cancel = true;
+            serverTokenSource.Cancel();
+        };
+
+        loggerFactory.CreateLogger("Server").LogInformation("Loading data...");
+
+        LoadData("./");
+
+        // todo: add config file
         var sb = new MySqlConnectionStringBuilder {
             Server = "127.0.0.1",
             UserID = "root",
@@ -378,5 +376,13 @@ class Program {
         Commands.RunConsole();
 
         Server(25000, true, serverTokenSource.Token);
+
+        serverLogger.LogInformation("Stopping server...");
+
+        foreach(var client in clients) {
+            client.Close();
+        }
+
+        Task.WaitAll(clients.Select(x => x.RunTask).ToArray());
     }
 }
