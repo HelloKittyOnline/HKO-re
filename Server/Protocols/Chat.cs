@@ -43,6 +43,8 @@ static class Chat {
     static void ReceiveMapChannel(Client client) {
         var msg = client.ReadWString();
         Program.ChatLogger.Write(LogEventLevel.Information, "[Map] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+        if(Commands.HandleChat(client, msg))
+            return;
         SendMapChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Map) != 0), client, msg);
     }
 
@@ -65,6 +67,8 @@ static class Chat {
     static void ReceiveNormalChannel(Client client) {
         var msg = client.ReadWString();
         Program.ChatLogger.Write(LogEventLevel.Information, "[Nrm] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+        if(Commands.HandleChat(client, msg))
+            return;
         SendNormalChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Local) != 0), client, msg);
     }
 
@@ -72,6 +76,8 @@ static class Chat {
     static void ReceiveTradeChannel(Client client) {
         var msg = client.ReadWString();
         Program.ChatLogger.Write(LogEventLevel.Information, "[Trd] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+        if(Commands.HandleChat(client, msg))
+            return;
         SendTradeChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Trade) != 0), client, msg);
     }
 
@@ -84,6 +90,8 @@ static class Chat {
     static void ReceiveAdviceChannel(Client client) {
         var msg = client.ReadWString();
         Program.ChatLogger.Write(LogEventLevel.Information, "[Adv] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+        if(Commands.HandleChat(client, msg))
+            return;
         SendAdviceChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Advice) != 0), client, msg);
     }
 
@@ -144,14 +152,14 @@ static class Chat {
     }
 
     // 03_03
-    static void Send03(Client client, string sender, string msg, Color color) {
+    static void SendBannerMessage(Client client, string sender, string msg, Color color) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x03); // first switch
         b.WriteByte(0x03); // second switch
 
-        b.WriteWString(msg);
         b.WriteWString(sender);
+        b.WriteWString(msg);
 
         b.WriteByte(color.R);
         b.WriteByte(color.G);
@@ -189,14 +197,14 @@ static class Chat {
     }
 
     // 03_07
-    static void Send07(Client client, Client sender, string msg) {
+    static void Send07(Client client, string sender, string msg) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x03); // first switch
         b.WriteByte(0x07); // second switch
 
-        b.WriteShort(sender.Id);
-        b.WriteWString(sender.Player.Name);
+        b.WriteShort(0); // unused
+        b.WriteWString(sender);
         b.WriteWString(msg);
 
         b.Send(client);
@@ -209,7 +217,7 @@ static class Chat {
         b.WriteByte(0x03); // first switch
         b.WriteByte(0x08); // second switch
 
-        b.WriteShort(0); // unused?
+        b.WriteShort(sender.Id); // unused?
         b.WriteWString(sender.Player.Name);
         b.WriteWString(msg);
 
@@ -231,15 +239,18 @@ static class Chat {
     }
 
     // 03_0C
-    static void Send0C(Client client, Client sender, string msg) {
+    static void SendPrivChar(Client client, Client other) {
         var b = new PacketBuilder();
 
         b.WriteByte(0x03); // first switch
         b.WriteByte(0x0C); // second switch
 
-        b.WriteWString("");
-        b.WriteByte(0);
-        b.WriteString("", 2);
+        b.WriteWString(other.Player.Name);
+        b.WriteByte(0); // idk
+
+        // b.WriteString("", 2);
+        b.WriteShort(18 * 4);
+        other.Player.WriteEntities(b);
 
         b.Send(client);
     }

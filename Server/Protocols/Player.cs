@@ -81,7 +81,7 @@ static class Player {
         }
     }
 
-    static void ChangeMap(Client client) {
+    public static void ChangeMap(Client client) {
         var map = client.Player.Map;
 
         SendChangeMap(client);

@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Server.Protocols;
 
 namespace Server;
 
@@ -17,13 +20,38 @@ class Command : Attribute {
     }
 }
 
+[AttributeUsage(AttributeTargets.Method)]
+class ChatCommand : Attribute {
+    public readonly string Usage;
+    public readonly string Description;
+    public readonly bool AdminOnly;
+
+    public ChatCommand(string usage, string description, bool adminOnly) {
+        Usage = usage;
+        Description = description;
+        AdminOnly = adminOnly;
+    }
+}
+
 static class Commands {
     private delegate void CommandFunc(string[] args);
+    private delegate void ChatCommandFunc(Client client, string[] args);
+
     private static Dictionary<string, CommandFunc> commands = new();
+    private static Dictionary<string, (bool admin, ChatCommandFunc func)> chatCommands = new();
+
     private static string helpString;
 
     static Commands() {
         int usageLength = 0;
+
+        foreach(var method in typeof(Commands).GetMethods()) {
+            var cmd = method.GetCustomAttribute<ChatCommand>();
+            if(cmd == null)
+                continue;
+
+            chatCommands[method.Name.ToLower()] = (cmd.AdminOnly, method.CreateDelegate<ChatCommandFunc>());
+        }
 
         foreach(var method in typeof(Commands).GetMethods()) {
             var cmd = method.GetCustomAttribute<Command>();
@@ -51,13 +79,18 @@ static class Commands {
                 if(command == null)
                     break;
 
-                var elements = command.Split(" ");
+                var elements = SplitCommand(command);
                 if(elements.Length == 0)
                     return;
 
-                Commands.Handle(elements);
+                Handle(elements);
             }
         });
+    }
+
+    private static string[] SplitCommand(string message) {
+        // TODO: make better
+        return message.Split(" ");
     }
 
     public static void Handle(string[] args) {
@@ -74,6 +107,32 @@ static class Commands {
         }
     }
 
+    public static bool HandleChat(Client client, string message) {
+        if(!message.StartsWith('\\'))
+            return false;
+
+        try {
+            var args = SplitCommand(message);
+
+            // todo: if admin check through server commands
+            if(chatCommands.TryGetValue(args[0][1..], out var cmd)) {
+                if(!cmd.admin) { // TODO: check player admin
+                    cmd.func(client, args);
+                }
+            } else {
+                // TODO: send error chat message to client
+            }
+        } catch(Exception e) {
+            client.Logger.LogError(e, "Error handling chat command {message}", message);
+        }
+
+        return true;
+    }
+
+    private static Client FindPlayer(string name) {
+        return Program.clients.FirstOrDefault(x => x.Username == name);
+    }
+
     [Command("help", "display this info")]
     public static void Help(string[] args) {
         Console.Write(helpString);
@@ -82,8 +141,18 @@ static class Commands {
     [Command("online", "Displays the count and names of online users")]
     public static void Online(string[] args) {
         Console.WriteLine($"There are currently {Program.clients.Count} players online");
-        if(Program.clients.Count != 0)
-            Console.WriteLine(string.Join(" ", Program.clients.Where(x => x.InGame).Select(x => x.Player.Name)));
+
+        foreach(var client in Program.clients) {
+            var ip = client.TcpClient.Client.RemoteEndPoint;
+
+            if(client.Username == null) {
+                Console.WriteLine(ip);
+            } else if(client.Player == null || !client.InGame) {
+                Console.WriteLine($"{ip} - {client.DiscordId} - {client.Username}");
+            } else {
+                Console.WriteLine($"{ip} - {client.DiscordId} - {client.Username} - {client.Player.Name}");
+            }
+        }
     }
 
     [Command("totalUsers", "Displays the count of registered users")]
@@ -98,7 +167,7 @@ static class Commands {
             return;
         }
 
-        var player = Program.clients.FirstOrDefault(x => x.Player?.Name == args[1]);
+        var player = FindPlayer(args[1]);
         if(player == null) {
             Console.WriteLine($"Unknown player {args[1]}");
             return;
@@ -110,5 +179,37 @@ static class Commands {
     [Command("clear", "Clear the console window")]
     public static void Clear(string[] args) {
         Console.Clear();
+    }
+
+    [Command("kick [ip|username]", "kick player")]
+    public static void Kick(string[] args) {
+        Client client = null;
+
+        if(IPEndPoint.TryParse(args[1], out var ip)) {
+            client = Program.clients.FirstOrDefault(x => x.TcpClient.Client.RemoteEndPoint.Equals(ip));
+        } else {
+            client = FindPlayer(args[1]);
+        }
+
+        if(client == null) {
+            Console.WriteLine("Could not find player");
+            return;
+        }
+
+        client.Close();
+    }
+
+    [ChatCommand("stuck", "Teleports you back to sanrio harbour", false)]
+    public static void Stuck(Client client, string[] args) {
+        var player = client.Player;
+
+        // delete players from old map
+        Player.SendDeletePlayer(player.Map.Players, client);
+
+        player.PositionX = 7705;
+        player.PositionY = 6007;
+        player.CurrentMap = 8;
+
+        Player.ChangeMap(client);
     }
 }
