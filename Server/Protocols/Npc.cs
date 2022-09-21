@@ -152,8 +152,8 @@ static class Npc {
 
         // TODO: gracefully handle canceling quests
 
-        // client.Player.QuestFlags[questId] = 0;
-        // SendDeleteQuest(client, questId);
+        client.Player.QuestFlags[questId] = 0;
+        SendDeleteQuest(client, questId);
     }
 
     // 05_0A
