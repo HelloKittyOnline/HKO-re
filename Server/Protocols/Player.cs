@@ -469,9 +469,9 @@ static class Player {
             }
         }
         foreach(var (key, val) in player.CheckpointFlags) {
-            if(val == 1) {
-                questBytes[Program.checkpoints[key].QuestFlag] = true;
-            }
+            var data = Program.checkpoints[key];
+            if(val == 1) questBytes[data.ActiveQuestFlag] = true;
+            if(val == 2 && data.CollectedQuestFlag != 0) questBytes[data.CollectedQuestFlag] = true;
         }
         foreach(var val in player.Keys)
             questBytes[val] = true;

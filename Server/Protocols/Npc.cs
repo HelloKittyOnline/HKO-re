@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -203,7 +203,9 @@ static class Npc {
             return;
 
         client.Player.CheckpointFlags[id] = 2;
-        UpdateFlag(client, dat.QuestFlag, false);
+        UpdateFlag(client, dat.ActiveQuestFlag, false);
+        if(dat.CollectedQuestFlag != 0)
+            UpdateFlag(client, dat.CollectedQuestFlag, true);
         UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
     }
     #endregion

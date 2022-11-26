@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -182,7 +182,7 @@ abstract class Reward {
                     continue;
 
                 client.Player.CheckpointFlags[id] = 1;
-                Npc.UpdateFlag(client, Program.checkpoints[id].QuestFlag, true);
+                Npc.UpdateFlag(client, Program.checkpoints[id].ActiveQuestFlag, true);
             }
         }
     }
