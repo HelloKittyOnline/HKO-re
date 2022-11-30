@@ -12,26 +12,28 @@ If you want to join the public server, look no further! The instructions below w
 
 ### Things You'll need:
 1) Hello Kitty Online Installer: https://archive.org/details/pod-19902-setup
-2) An internet browser
-3) A Discord account
-4) That's it!
+2) Clean Flash Player Installer: https://gitlab.com/cleanflash/installer/-/releases
+3) An internet browser
+4) A Discord account
+5) That's it!
 
 ### Steps:
 1) Install Hello Kitty Online like normal, accepting all of the standard install options.
-2) After Hello Kitty is Installed, open this file in notepad or any other text editor: `C:\Program Files (x86)\SanrioTown\Hello Kitty Online\Leading.ini`
-3) Change the text to say `http://hko.evidentfla.me:8080/single/leading.txt` (You may need administrator privileges to save the changes)
-4) Navigate to https://hko.evidentfla.me in your web browser, sign in with your Discord account, and create your username and password (You will use this to sign in to HKO)
-5) Run Hello Kitty Online from your Desktop or Start Menu
-6) It will now download and update Hello Kitty Online with the latest maps and files. Ignore the 403 error as that is normal. This will take a long time as HKO itself throttles the download speed, not the server. Go to the store, come back, eat dinner, and *maybe* it will be done. Your internet speed doesn't necessarily matter.
+2) Install Clean Flash Player. The minigames require Adobe Flash, we recommend installing a Clean Flash Player build from the link above. Accept all the standard options.
+3) After Hello Kitty is Installed, open this file in notepad or any other text editor: `C:\Program Files (x86)\SanrioTown\Hello Kitty Online\Leading.ini`
+4) Change the text to say `http://hko.evidentfla.me:8080/single/leading.txt` (You may need administrator privileges to save the changes)
+5) Navigate to https://hko.evidentfla.me in your web browser, sign in with your Discord account, and create your username and password (You will use this to sign in to HKO)
+6) Run Hello Kitty Online from your Desktop or Start Menu
+7) It will now download and update Hello Kitty Online with the latest maps and files. Ignore the 403 error as that is normal. This will take a long time as HKO itself throttles the download speed, not the server. Go to the store, come back, eat dinner, and *maybe* it will be done. Your internet speed doesn't necessarily matter.
 
 **Note**: While it may seem that it is close to 100%, the percentage counter is for each individual patch. There are 5 total patches amounting to just under 5GB. HKO artificially limits the download speed, meaning it will take a while. On a gigabit connection, it took roughly 2.5 hours to download through HKO. Expect slower connections to be about the same. Remember, HKO was built in 2008.
 
 **Note 2**: An experimental autoupdate replacement has been released here: https://github.com/HKOServer/HKO-re/releases/tag/Autoupdate It unlocks the download speed so that you are not limited by HKO itself. It must be run as administrator.
 
-7) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
-8) Login with the username and password you created earlier
-9) Select `World 1` and enter the game!
-10) Have Fun!
+8) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
+9) Login with the username and password you created earlier
+10) Select `World 1` and enter the game!
+11) Have Fun!
 
 If you find any issues:
 
