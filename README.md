@@ -28,7 +28,7 @@ If you want to join the public server, look no further! The instructions below w
 
 **Note**: While it may seem that it is close to 100%, the percentage counter is for each individual patch. There are 5 total patches amounting to just under 5GB. HKO artificially limits the download speed, meaning it will take a while. On a gigabit connection, it took roughly 2.5 hours to download through HKO. Expect slower connections to be about the same. Remember, HKO was built in 2008.
 
-**Note 2**: An experimental autoupdate replacement has been released here: https://github.com/HKOServer/HKO-re/releases/tag/Autoupdate It unlocks the download speed so that you are not limited by HKO itself. It must be run as administrator.
+**Note 2**: An experimental autoupdate replacement has been released here: https://github.com/HelloKittyOnline/HKO-re/releases/tag/Autoupdate It unlocks the download speed so that you are not limited by HKO itself. It must be run as administrator.
 
 8) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
 9) Login with the username and password you created earlier
@@ -37,7 +37,7 @@ If you want to join the public server, look no further! The instructions below w
 
 If you find any issues:
 
-1) Check the [Issues](https://github.com/HKOServer/HKO-re/issues) tab! We may already know of the issue and are working on it!
+1) Check the [Issues](https://github.com/HelloKittyOnline/HKO-re/issues) tab! We may already know of the issue and are working on it!
 2) Check the [Discord Server](https://discord.gg/7Yh52hU2NE)! We are willing to help figure out any issues you may have in the #bugs channel.
 3) Open an Issue!
 
@@ -63,7 +63,7 @@ If you find any issues:
 
 **4**. Install MySQL (community version is fine) or MariaDB and create the admin user
 
-The extractor assumes that you are running a 64 bit version of Windows and have installed Hello Kitty Online in the default folder. If this is not true, you will have to change this line: https://github.com/HKOServer/HKO-re/blob/main/Extractor/Program.cs#L8 to the correct path.
+The extractor assumes that you are running a 64 bit version of Windows and have installed Hello Kitty Online in the default folder. If this is not true, you will have to change this line: https://github.com/HelloKittyOnline/HKO-re/blob/main/Extractor/Program.cs#L8 to the correct path.
 
 **5**. Open a MySQL or MariaDB console and run the following (including the semicolons!):
 ```
@@ -83,7 +83,7 @@ CREATE TABLE account (
 
 This will create a folder called `HKO-re`.
 
-**7**. Replace these lines: https://github.com/HKOServer/HKO-re/blob/main/Server/Program.cs#L349 with your MySQL credentials.
+**7**. Replace these lines: https://github.com/HelloKittyOnline/HKO-re/blob/main/Server/Program.cs#L349 with your MySQL credentials.
 
 **8**. Open an administrator PowerShell instance (search for Powershell, right click, run as admin)
 
