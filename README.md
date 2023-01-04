@@ -24,15 +24,15 @@ If you want to join the public server, look no further! The instructions below w
 There are two ways to get the update files. One is through our autoupdate application (recommended) and the other way is through the client itself (legacy). Our autoupdate application removes the speed cap when downloading making it a better choice for fast connections. If installing via the client, skip to step 5. Otherwise, continue.
 
 3) Download the latest autoupdate application from here: https://github.com/HelloKittyOnline/HKO-re/releases/tag/Autoupdate After running it, it should start downloading the update files
-4) Skip to step 10
+4) Skip to step 9
 
 5) After Hello Kitty is Installed, open this file in notepad or any other text editor: `C:\Program Files (x86)\SanrioTown\Hello Kitty Online\Leading.ini`
 6) Change the text to say `http://hko.evidentfla.me:8080/single/leading.txt` (You may need administrator privileges to save the changes)
-7) Navigate to https://hko.evidentfla.me in your web browser, sign in with your Discord account, and create your username and password (You will use this to sign in to HKO)
-8) Run Hello Kitty Online from your Desktop or Start Menu
-9) It will now download and update Hello Kitty Online with the latest maps and files. Ignore the 403 error as that is normal. This will take a long time as HKO itself throttles the download speed, not the server. Go to the store, come back, eat dinner, and *maybe* it will be done. Your internet speed doesn't necessarily matter.
-10) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
-11) Login with the username and password you created earlier
+7) Run Hello Kitty Online from your Desktop or Start Menu
+8) It will now download and update Hello Kitty Online with the latest maps and files. Ignore the 403 error as that is normal. This will take a long time as HKO itself throttles the download speed, not the server. Go to the store, come back, eat dinner, and *maybe* it will be done. Your internet speed doesn't necessarily matter.
+9) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
+10) Navigate to https://hko.evidentfla.me in your web browser, sign in with your Discord account, and create your username and password (You will use this to sign in to HKO)
+11) Login with the username and password you created in step 10
 12) Select `World 1` and enter the game!
 13) Have Fun!
 
