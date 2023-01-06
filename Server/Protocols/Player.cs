@@ -263,10 +263,7 @@ static class Player {
         player.Equipment[type - 1] = item;
         SendSetEquItem(client, item, type);
 
-        var slot = equ.GetEntSlot();
-
-        player.DisplayEntities[slot] = item.Id;
-
+        player.UpdateEntities();
         SendPlayerAtt(client);
         client.UpdateStats();
     }
@@ -278,6 +275,8 @@ static class Player {
         var player = client.Player;
 
         var item = player.Equipment[equipSlot - 1];
+        if(item.Id == 0)
+            return;
 
         int pos = player.AddItem(item.Id, 1);
         if(pos == -1) {
@@ -289,11 +288,7 @@ static class Player {
         SendSetEquItem(client, InventoryItem.Empty, equipSlot);
         Inventory.SendSetItem(client, item, (byte)(pos + 1));
 
-        var att = Program.items[item.Id];
-        var equ = Program.equipment[att.SubId];
-
-        int slot = equ.GetEntSlot();
-        player.DisplayEntities[slot] = player.BaseEntities[slot];
+        player.UpdateEntities();
         SendPlayerAtt(client);
         client.UpdateStats();
     }

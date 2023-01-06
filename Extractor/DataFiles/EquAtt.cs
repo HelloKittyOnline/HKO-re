@@ -5,7 +5,7 @@ namespace Extractor;
 public enum EquipType {
     Head = 1,
     Eyes = 2,
-    Mouth = 3,
+    Mouth = 3, // lower face
     Ears = 4,
     Neck = 5,
     Top = 6,
@@ -57,20 +57,36 @@ public struct EquAtt {
     [SeanField(25)] public int Unknown25 { get; set; }
 
     public int GetEntSlot() {
+        // 0 - skin
+        // 2 - face
+        // 3 - shoes
+        // 4 - pants
+        // 5 - shirt
+        // 6 - hair
+        // 14,15,16,17 - does not work
+
         return Type switch {
-            EquipType.Head => 16,
-            EquipType.Eyes => 15,
-            EquipType.Mouth => 14,
-            EquipType.Ears => 13,
-            EquipType.Neck => 12,
-            EquipType.Top => 5,
-            EquipType.Pants => 4,
             EquipType.Shoes => 3,
+            EquipType.Pants => 4,
+            EquipType.Top => 5,
             EquipType.Hands => 7,
-            EquipType.AccessoryTop => 8,
-            EquipType.AccessoryPants => 9,
-            EquipType.AccessoryShoes => 10,
-            EquipType.AccessoryHeld => 11,
+
+            EquipType.AccessoryShoes => 3,
+            EquipType.AccessoryPants => 4,
+            EquipType.AccessoryTop => 5,
+            EquipType.AccessoryHeld => 7,
+
+            EquipType.Head => 8,
+            EquipType.Eyes => 10,
+            EquipType.Mouth => 9,
+            EquipType.Ears => 11,
+            EquipType.Neck => 13,
+
+            EquipType.Makeup => 1,
+            EquipType.Hairstyle => 1,
+            EquipType.Tattoo => 1,
+            EquipType.SkinTone => 1,
+            EquipType.FacialFeatures => 1,
             _ => throw new Exception("Unexpected type")
         };
     }

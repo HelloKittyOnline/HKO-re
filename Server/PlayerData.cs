@@ -204,18 +204,7 @@ class PlayerData {
         Dreams ??= new HashSet<int>();
 
         DisplayEntities = new int[18];
-        BaseEntities.CopyTo(DisplayEntities, 0);
-        foreach(var item in Equipment) {
-            if(item.Id == 0)
-                continue;
-
-            var att = Program.items[item.Id];
-            var equ = Program.equipment[att.SubId];
-            var slot = equ.GetEntSlot();
-
-            DisplayEntities[slot] = item.Id;
-        }
-
+        UpdateEntities();
         UpdateStats();
         Hp = MaxHp;
         Sta = MaxSta;
@@ -302,7 +291,7 @@ class PlayerData {
 
         // skill levels
         for(int i = 1; i <= 8; i++) {
-            b.WriteShort((short)Levels[i]);
+            b.WriteShort(Levels[i]);
         }
 
         // skill exp
@@ -381,5 +370,22 @@ class PlayerData {
 
         if(Sta > MaxSta)
             Sta = MaxSta;
+    }
+
+    public void UpdateEntities() {
+        BaseEntities.CopyTo(DisplayEntities, 0);
+
+        foreach(var item in Equipment) {
+            if(item.Id == 0)
+                continue;
+
+            var att = Program.items[item.Id];
+            var equ = Program.equipment[att.SubId];
+            var slot = equ.GetEntSlot();
+
+            DisplayEntities[slot] = item.Id;
+        }
+
+        // TODO: broadcast new appearance
     }
 }
