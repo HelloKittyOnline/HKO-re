@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Autoupdater;
+namespace Launcher;
 
 /// <summary>
 /// Version of progress bar with additional features, such as displaying text over progress
@@ -13,8 +13,8 @@ public class ProgressBarEx : ProgressBar {
     // ------------------------------------------------------------------------------------------------------
     // Constants and fields
 
-    public const int WM_PAINT = 0xF;
-    public const int WS_EX_COMPOSITED = 0x2000_000;
+    private const int WM_PAINT = 0xF;
+    private const int WS_EX_COMPOSITED = 0x2000_000;
 
     private TextDisplayType _style = TextDisplayType.Percent;
     private string _manualText = "";
@@ -34,7 +34,7 @@ public class ProgressBarEx : ProgressBar {
     [Category("Appearance")]
     [Description("What type of text to display on the progress bar.")]
     public TextDisplayType DisplayType {
-        get { return _style; }
+        get => _style;
         set {
             _style = value;
             Invalidate();
@@ -45,7 +45,7 @@ public class ProgressBarEx : ProgressBar {
     [Category("Appearance")]
     [Description("If DisplayType is Manual, the text to display.")]
     public string ManualText {
-        get { return _manualText; }
+        get => _manualText;
         set {
             _manualText = value;
             Invalidate();
@@ -69,7 +69,7 @@ public class ProgressBarEx : ProgressBar {
     /// <summary>Windows-control creation parameters</summary>
     protected override CreateParams CreateParams {
         get {
-            CreateParams parms = base.CreateParams;
+            var parms = base.CreateParams;
 
             // Force control to double-buffer painting
             parms.ExStyle |= WS_EX_COMPOSITED;
@@ -93,39 +93,25 @@ public class ProgressBarEx : ProgressBar {
         if(DisplayType == TextDisplayType.None)
             return;
 
-        string text = GetDisplayText();
+        using var g = Graphics.FromHwnd(Handle);
 
-        using(Graphics g = Graphics.FromHwnd(Handle)) {
-            Rectangle rect = new Rectangle(0, 0, Width, Height);
-            StringFormat format = new StringFormat(StringFormatFlags.NoWrap);
-            format.Alignment = StringAlignment.Center;
-            format.LineAlignment = StringAlignment.Center;
+        var rect = new Rectangle(0, 0, Width, Height);
+        var format = new StringFormat(StringFormatFlags.NoWrap) {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center
+        };
 
-            using(Brush textBrush = new SolidBrush(TextColor)) {
-                g.DrawString(text, Font, textBrush, rect, format);
-            }
-        }
+        using var textBrush = new SolidBrush(TextColor);
+        g.DrawString(GetDisplayText(), Font, textBrush, rect, format);
     }
 
     private string GetDisplayText() {
-        string result = "";
-
-        switch(DisplayType) {
-            case TextDisplayType.Percent:
-                if(Maximum != 0)
-                    result = ((int)(((float)Value / (float)Maximum) * 100)).ToString() + " %";
-                break;
-
-            case TextDisplayType.Count:
-                result = Value.ToString() + " / " + Maximum.ToString();
-                break;
-
-            case TextDisplayType.Manual:
-                result = ManualText;
-                break;
-        }
-
-        return result;
+        return DisplayType switch {
+            TextDisplayType.Percent => Maximum != 0 ? $"{(int)((float)Value / Maximum * 100)} %" : "",
+            TextDisplayType.Count => $"{Value} / {Maximum}",
+            TextDisplayType.Manual => ManualText,
+            _ => throw new ArgumentOutOfRangeException(nameof(DisplayType))
+        };
     }
 
     // ------------------------------------------------------------------------------------------------------

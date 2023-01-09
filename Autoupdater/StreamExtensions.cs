@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Autoupdater;
+namespace Launcher;
 
 // taken from https://stackoverflow.com/a/46497896
 public static class StreamExtensions {
