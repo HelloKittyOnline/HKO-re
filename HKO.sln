@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Extractor", "Extractor\Extr
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Server", "Server\Server.csproj", "{425F974C-1CC5-47E1-BA25-85DA3EC857E6}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Launcher", "Autoupdater\Launcher.csproj", "{E33C909F-FBBC-4D0B-B828-D1B4D92BE992}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Launcher", "Launcher\Launcher.csproj", "{E33C909F-FBBC-4D0B-B828-D1B4D92BE992}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
