@@ -11,7 +11,7 @@ using MySql.Data.MySqlClient;
 namespace Server;
 
 class IdManager {
-    private static HashSet<int> AvalibleIds = new HashSet<int>();
+    private static HashSet<int> AvalibleIds = new();
     private static int MaxId = 0;
 
     public static int GetId() {
@@ -26,6 +26,10 @@ class IdManager {
     public static void FreeId(int id) {
         if(id == MaxId) {
             MaxId--;
+            while (AvalibleIds.Contains(MaxId)) {
+                AvalibleIds.Remove(MaxId);
+                MaxId--;
+            }
         } else {
             AvalibleIds.Add(id);
         }
@@ -97,7 +101,7 @@ static class Database {
             return LoginResponse.AlreadyOnline;
         }
 
-        var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         LogRequest("select * from account where username = @name");
@@ -134,7 +138,7 @@ static class Database {
     }
 
     public static void LogOut(string username, PlayerData data) {
-        var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         LogRequest("update account set data = @data where username = @name");
@@ -157,7 +161,7 @@ static class Database {
     }
 
     public static OrderItem[] GetOrders(ulong userId) {
-        var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         LogRequest("select * from orders where accountId = @userId");
@@ -181,7 +185,7 @@ static class Database {
     }
 
     public static OrderItem GetOrder(ulong userId, int orderId) {
-        var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         LogRequest("select * from orders where accountId = @userId");
@@ -207,7 +211,7 @@ static class Database {
     }
 
     public static void DeleteOrder(int orderId) {
-        var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         LogRequest("DELETE FROM orders WHERE id = @id");
@@ -220,7 +224,7 @@ static class Database {
     }
 
     public static int GetRegisteredUserCount() {
-        var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
         LogRequest("SELECT COUNT(*) FROM account");
