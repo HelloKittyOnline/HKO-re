@@ -4,7 +4,7 @@ Join us on Discord! https://discord.gg/7Yh52hU2NE
 
 ***
 ## About
-This is the main repo for the Hello Kitty Online Server Project. It includes the Server the Launcher and a Resource Extractor.
+This is the main repo for the Hello Kitty Online Server Project. It includes the Server, the Launcher, and a Resource Extractor.
 ***
 
 ## Joining the Public Server
@@ -14,12 +14,12 @@ If you want to join the public server, look no further! The instructions below w
 Download and run the latest [launcher](https://github.com/HelloKittyOnline/HKO-re/releases/latest) application. Continue with [Logging in](#logging-in)
 
 ### Manual install
-1) Install [Hello Kitty Online](https://archive.org/details/pod-19902-setup) like normal, accepting all of the standard install options. \
-2) Install [Clean Flash Player](https://gitlab.com/cleanflash/installer/-/releases). The minigames require having a Flash Player installed. Accept **all** the standard options. \
+1) Install [Hello Kitty Online](https://archive.org/details/pod-19902-setup) like normal, accepting all of the standard install options. 
+2) Install [Clean Flash Player](https://gitlab.com/cleanflash/installer/-/releases). The minigames require having a Flash Player installed. Accept **all** the standard options. 
 3) After Hello Kitty is Installed, start notepad or any other text editor as administrator and open `C:\Program Files (x86)\SanrioTown\Hello Kitty Online\Leading.ini`
-4) Change the text to say `http://hko.evidentfla.me:8080/single/leading.txt` \
+4) Change the text to say `http://hko.evidentfla.me:8080/single/leading.txt` 
 5) Run Hello Kitty Online from your Desktop or Start Menu. 
-6) It will now download and update Hello Kitty Online with the latest maps and files. Ignore the 403 error as that is normal. This will take a long time as HKO itself throttles the download speed, not the server. \
+6) It will now download and update Hello Kitty Online with the latest maps and files. Ignore the 403 error as that is normal. This will take a long time as HKO itself throttles the download speed, not the server. 
 7) Once all of the files have finished downloading, Click `Start Game` and you'll be at the login screen! `Patch Now` does not do anything.
 
 ### Logging in
@@ -37,5 +37,5 @@ If you have any issues:
 ***
 
 ## Setting up dev enviroment
-The Server setup is quite complicated and individual steps often change. \
+The Server setup is quite complicated and individual steps often change.
 Join the discord server and ask in #general-dev for setup help.
