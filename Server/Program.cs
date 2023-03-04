@@ -10,7 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Extractor;
 using Microsoft.Extensions.Logging;
-using MySql.Data.MySqlClient;
+using MySqlConnector;
 using Serilog;
 using Serilog.Extensions.Logging;
 using Server.Protocols;

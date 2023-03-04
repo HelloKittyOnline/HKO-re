@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using MySql.Data.MySqlClient;
+using MySqlConnector;
 
 namespace Server;
 
@@ -86,7 +86,7 @@ enum LoginResponse {
 }
 
 static class Database {
-    private static HashSet<string> _online = new HashSet<string>();
+    private static HashSet<string> _online = new();
     private static string _connectionString;
 
     public static void SetConnectionString(string str) {
@@ -106,11 +106,11 @@ static class Database {
 
         LogRequest("select * from account where username = @name");
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "select * from account where username = @name";
         command.Parameters.AddWithValue("name", username);
 
-        var reader = command.ExecuteReader(CommandBehavior.SingleRow);
+        using var reader = command.ExecuteReader(CommandBehavior.SingleRow);
 
         if(!reader.Read()) {
             return LoginResponse.NoUser;
@@ -143,7 +143,7 @@ static class Database {
 
         LogRequest("update account set data = @data where username = @name");
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "update account set data = @data where username = @name";
         command.Parameters.AddWithValue("name", username);
 
@@ -166,11 +166,11 @@ static class Database {
 
         LogRequest("select * from orders where accountId = @userId");
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "select * from orders where accountId = @userId";
         command.Parameters.AddWithValue("userId", userId);
 
-        var reader = command.ExecuteReader();
+        using var reader = command.ExecuteReader();
 
         var items = new List<OrderItem>();
         while(reader.Read()) {
@@ -190,11 +190,11 @@ static class Database {
 
         LogRequest("select * from orders where accountId = @userId");
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "select * from orders where id = @id";
         command.Parameters.AddWithValue("id", orderId);
 
-        var reader = command.ExecuteReader();
+        using var reader = command.ExecuteReader();
 
         if(!reader.Read())
             return null;
@@ -216,7 +216,7 @@ static class Database {
 
         LogRequest("DELETE FROM orders WHERE id = @id");
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM orders WHERE id = @id";
         command.Parameters.AddWithValue("id", orderId);
 
@@ -229,7 +229,7 @@ static class Database {
 
         LogRequest("SELECT COUNT(*) FROM account");
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM account";
 
         return Convert.ToInt32(command.ExecuteScalar());
