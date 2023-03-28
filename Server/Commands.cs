@@ -188,7 +188,6 @@ static class Commands {
             return;     
         }
         Client client = null;
-
         if(IPEndPoint.TryParse(args[1], out var ip)) { 
             client = Program.clients.FirstOrDefault(x => x.TcpClient.Client.RemoteEndPoint.Equals(ip));
         } else {
@@ -196,7 +195,7 @@ static class Commands {
         }
         if(client == null) {
             Console.WriteLine("Could not find player");
-             return;
+            return;
         }
         client.Close();         
     }
