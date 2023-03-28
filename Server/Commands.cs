@@ -182,25 +182,23 @@ static class Commands {
     }
 
     [Command("kick [ip|username]", "kick player")]
-    public static void Kick(string[] args)
-    {
+    public static void Kick(string[] args) {
+        if(args.Length <= 1) {
+            Console.WriteLine("Please set a valid player");
+            return;     
+        }
         Client client = null;
 
-        if(args.Length > 1) {
-        if(IPEndPoint.TryParse(args[1], out var ip)) {
-             client = Program.clients.FirstOrDefault(x => x.TcpClient.Client.RemoteEndPoint.Equals(ip));
+        if(IPEndPoint.TryParse(args[1], out var ip)) { 
+            client = Program.clients.FirstOrDefault(x => x.TcpClient.Client.RemoteEndPoint.Equals(ip));
         } else {
             client = FindPlayer(args[1]);
-          }
+        }
         if(client == null) {
             Console.WriteLine("Could not find player");
              return;
         }
-            client.Close();
-        }
-         else {
-            Console.WriteLine("Please set a valid player");
-        }
+        client.Close();         
     }
 
     [ChatCommand("stuck", "Teleports you back to sanrio harbour", false)]
