@@ -1,97 +1,66 @@
-﻿using System;
+using System;
 using Extractor;
 
 namespace Server.Protocols;
 
 static class Inventory {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x01: // 00586fd2
-                MoveItem(client);
-                break;
-            // case 0x09_02: // 00587048 // take from farm inv?
-            // case 0x09_03: // 005870bc
-            case 0x06: // 0058714a
-                SplitItem(client);
-                break;
-            case 0x0F: // 00587207
-                UseItem(client);
-                break;
-            case 0x10: // 005872a6
-                DeleteItem(client);
-                break;
-            // case 0x09_11: // 0058731c
-            case 0x20: // 005873ea
-                GetItemDelivery(client);
-                break;
-            case 0x21: // 00587492
-                GetItemDeliveryItem(client);
-                break;
-            case 0x22: // 0058751f // merge items?
-                Recv22(client);
-                break;
-            default:
-                client.LogUnknown(0x09, id);
-                break;
-        }
-    }
-
-    private static void Recv22(Client client) {
-        var a = client.ReadInt32();
-        var b = client.ReadByte();
-    }
-
     #region Request
-    // 09_01
+    [Request(0x09, 0x01)] // 00586fd2
     static void MoveItem(Client client) {
-        var idk1 = client.ReadByte();
+        var fromInv = client.ReadByte();
         var fromPos = client.ReadByte() - 1;
 
-        var idk2 = client.ReadByte();
-        var destPos = client.ReadByte() - 1;
+        var toInv = client.ReadByte();
+        var toPos = client.ReadByte() - 1;
 
-        var player = client.Player;
-
-        var from = player.Inventory[fromPos];
-        var to = player.Inventory[destPos];
-
-        var itemData = Program.items[from.Id];
-
-        if(to.Id == 0 || (to.Id == from.Id && to.Count + from.Count <= itemData.StackLimit)) {
-            player.Inventory[fromPos] = new InventoryItem();
-
-            player.Inventory[destPos].Id = from.Id;
-            player.Inventory[destPos].Count += from.Count;
-
-            SendSetItem(client, player.Inventory[fromPos], (byte)(fromPos + 1));
-            SendSetItem(client, player.Inventory[destPos], (byte)(destPos + 1));
-        } else {
-            // fail
+        lock(client.Player) {
+            var from = client.GetItem(fromInv, fromPos);
+            var to = client.GetItem(toInv, toPos);
+            from.MoveTo(to);
         }
     }
 
-    // 09_06
+    [Request(0x09, 0x02)] // 00587048
+    static void MoveToInv(Client client) {
+        var a = client.ReadByte() - 1;
+
+        lock(client.Player) {
+            client.GetItem(InvType.Farm, a).MoveTo(InvType.Player);
+        }
+    }
+
+    [Request(0x09, 0x03)] // 005870bc
+    static void MoveToFarm(Client client) {
+        var a = client.ReadByte() - 1;
+        lock(client.Player) {
+            client.GetItem(InvType.Player, a).MoveTo(InvType.Farm);
+        }
+    }
+
+    [Request(0x09, 0x06)] // 0058714a
     static void SplitItem(Client client) {
         var pos = client.ReadByte() - 1;
-        // TODO: test count limits
-        var count = client.ReadByte();
+        var count = client.ReadByte(); // min: 1 - max: entire stack
+        if(count == 0)
+            return;
 
-        var player = client.Player;
+        lock(client.Player) {
+            var item = client.GetItem(InvType.Player, pos);
+            if(item.Id == 0 || item.Count <= count)
+                return;
 
-        for(int i = 0; i < player.InventorySize; i++) {
-            // find empty slot
-            if(player.Inventory[i].Id != 0)
-                continue;
+            var inv = client.GetInv(InvType.Player);
+            if(!inv.FindEmpty(out var empty)) // no empty slot
+                return;
 
-            player.Inventory[i].Id = player.Inventory[pos].Id;
-            player.Inventory[i].Count = count;
+            item.Count -= count;
+            empty.Item = new InventoryItem {
+                Id = item.Id,
+                Count = count,
+            };
 
-            player.Inventory[pos].Count -= count;
-
-            SendSetItem(client, player.Inventory[i], (byte)(i + 1));
-            SendSetItem(client, player.Inventory[pos], (byte)(pos + 1));
-            break;
+            item.SendUpdate(false);
+            empty.SendUpdate(false);
         }
     }
 
@@ -102,7 +71,7 @@ static class Inventory {
         data[index >> 3] |= (byte)(1 << (index & 7));
     }
 
-    // 09_0F
+    [Request(0x09, 0x0F)] // 00587207
     static void UseItem(Client client) {
         var slot = client.ReadByte();
         var b = client.ReadInt16();
@@ -114,81 +83,167 @@ static class Inventory {
         if(slot - 1 >= client.Player.InventorySize)
             return;
 
-        var item = client.Player.Inventory[slot - 1];
-        if(item.Id == 0)
+        lock(client.Player) {
+            var item = client.GetItem(InvType.Player, slot - 1);
+            if(item.Id == 0)
+                return;
+
+            var itemData = Program.items[item.Id];
+
+            switch(itemData.Type) {
+                case ItemType.Fertilizer:
+                    UseFertilizer(client, item, c, d);
+                    break;
+                case ItemType.Seed:
+                    UseSeed(client, item, c, d);
+                    break;
+                case ItemType.Item_Guide:
+                    UseItemGuide(client, item);
+                    break;
+                case ItemType.Watering_Can:
+                    UseWateringCan(client, item, c, d);
+                    break;
+            }
+        }
+    }
+
+    static void UseFertilizer(Client client, ItemRef item, int y, int x) {
+        var farm = (Server.Farm)client.Player.Map;
+        // todo: check access rights?
+
+        if(farm.Fertilization[x + y * 20] == 100)
             return;
 
-        var itemData = Program.items[item.Id];
+        item.Remove(1);
+        farm.Fertilization[x + y * 20] = 100;
 
-        if(itemData.Type == ItemType.Item_Guide) {
-            var prodRule = itemData.SubId;
-
-            var prodData = Program.prodRules[prodRule];
-            var skill = prodData.GetSkill();
-
-            if(client.Player.Levels[(int)skill] < prodData.RequiredLevel) {
-                SendUsedSkillBook(client, SkillUsedFlag.LevelNotMet, prodRule);
-                return;
-            }
-
-            // SkillUsedFlag.WrongItem ???
-
-            client.Player.ProductionFlags.GetBit(prodRule);
-
-            if(client.Player.ProductionFlags.GetBit(prodRule)) {
-                SendUsedSkillBook(client, SkillUsedFlag.AlreadyKnow, prodRule);
-                return;
-            }
-
-            client.Player.Inventory[slot - 1] = InventoryItem.Empty;
-            client.Player.ProductionFlags.SetBit(prodRule);
-            SendSetItem(client, InventoryItem.Empty, slot);
-
-            SendUsedSkillBook(client, SkillUsedFlag.Success, prodRule);
-        }
+        Farm.SendSetFertilizer(client, (byte)y, (byte)x, 100);
     }
 
-    // 09_10
+    static void UseSeed(Client client, ItemRef item, int y, int x) {
+        var farm = (Server.Farm)client.Player.Map;
+        // todo: check access rights? / check for planting level
+
+        var data = item.Item.Data;
+
+        int i = x + y * 20;
+
+        if(farm.Fertilization[i] == 0) // no fertilizer
+            return;
+        if(farm.Plants[i].SeedId != 0) // occupied
+            return;
+
+        var seed = Program.seeds[data.SubId];
+
+        if(farm.Level < seed.Level || client.Player.Levels[(int)Skill.Farming] < seed.Level) {
+            Farm.Send03(client, 2, 0);
+            return;
+        }
+
+        item.Remove(1);
+
+        var p = farm.Plants[i] = new() {
+            IsItem = false,
+            SeedId = data.SubId,
+            State = PlantState.Seed
+        };
+        farm.ActivePlants.Add(i);
+
+        Farm.SendSetPlant(client, (byte)x, (byte)y, p);
+        client.AddExpAction(Skill.Farming, seed.Level);
+    }
+
+    static void UseItemGuide(Client client, ItemRef item) {
+        var prodRule = item.Item.Data.SubId;
+
+        var prodData = Program.prodRules[prodRule];
+        var skill = prodData.GetSkill();
+
+        if(client.Player.Levels[(int)skill] < prodData.RequiredLevel) {
+            SendUsedSkillBook(client, SkillUsedFlag.LevelNotMet, prodRule);
+            return;
+        }
+
+        if(client.Player.ProductionFlags.GetBit(prodRule)) {
+            SendUsedSkillBook(client, SkillUsedFlag.AlreadyKnow, prodRule);
+            return;
+        }
+
+        client.Player.ProductionFlags.SetBit(prodRule);
+        item.Clear();
+
+        SendUsedSkillBook(client, SkillUsedFlag.Success, prodRule);
+    }
+
+    static void UseWateringCan(Client client, ItemRef item, int y, int x) {
+        var farm = (Server.Farm)client.Player.Map;
+
+        if(farm.Watered[x + y * 20] != 0)
+            return;
+
+        item.Remove(1);
+        farm.Watered[x + y * 20] = 100;
+
+        Farm.SendSetWatered(client, (byte)y, (byte)x, 1);
+    }
+
+    [Request(0x09, 0x10)] // 005872a6
     static void DeleteItem(Client client) {
-        var slot = client.ReadByte();
+        var slot = client.ReadByte() - 1;
         var inventory = client.ReadByte();
 
-        switch(inventory) {
-            case 1:
-                client.Player.Inventory[slot - 1] = InventoryItem.Empty;
-                SendSetItem(client, InventoryItem.Empty, slot);
-                break;
+        lock(client.Player) {
+            var item = client.GetItem(inventory, slot);
+            if((item.Item.Data.Transferable & TransferFlag.NON_DROPPABLE) != 0) {
+                Player.SendMessage(client, Player.MessageType.You_cannot_drop_this_item);
+            } else {
+                item.Clear();
+            }
         }
     }
 
-    // 09_20
+    [Request(0x09, 0x11)] // 0058731c
+    private static void Recv11(Client client) {
+        throw new NotImplementedException();
+    }
+
+    [Request(0x09, 0x20)] // 005873ea
     static void GetItemDelivery(Client client) {
         var items = Database.GetOrders(client.DiscordId);
         SendDeliveryItems(client, items);
     }
 
-    // 09_21
+    [Request(0x09, 0x21)] // 00587492
     static void GetItemDeliveryItem(Client client) {
         var orderStr = client.ReadString();
         var itemId = client.ReadInt32();
         var orderId = client.ReadInt32();
 
         var order = Database.GetOrder(client.DiscordId, orderId);
+        if(order == null)
+            return;
 
-        if(order != null && client.AddItem(order.ItemId, 1)) {
-            SendGotDelivery(client, "", orderId);
-            Database.DeleteOrder(orderId);
+        lock(client.Player) {
+            if(client.AddItem(order.ItemId, 1, true)) {
+                SendGotDelivery(client, "", orderId);
+                Database.DeleteOrder(orderId);
+            }
         }
+    }
+
+    [Request(0x09, 0x22)] // 0058751f // merge items?
+    private static void Recv22(Client client) {
+        var a = client.ReadInt32();
+        var b = client.ReadByte();
+
+        throw new NotImplementedException();
     }
     #endregion
 
     #region Response
     // 09_01
     public static void SendSetMoney(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x09); // first switch
-        b.WriteByte(0x01); // second switch
+        var b = new PacketBuilder(0x09, 0x01); // second switch
 
         b.WriteInt(client.Player.Money);
 
@@ -196,27 +251,21 @@ static class Inventory {
     }
 
     // 09_02
-    public static void SendSetItem(Client client, InventoryItem item, int index) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x09); // first switch
-        b.WriteByte(0x02); // second switch
+    public static void SendSetPlayerItem(Client client, InventoryItem item, byte index) {
+        var b = new PacketBuilder(0x09, 0x02);
 
         b.BeginCompress();
         b.Write(item);
         b.EndCompress();
 
-        b.WriteByte((byte)index); // inventory index
+        b.WriteByte(index); // inventory index
 
         b.Send(client);
     }
 
     // 09_03
     public static void SendGetItem(Client client, InventoryItem item, byte index, bool displayMessage) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x09); // first switch
-        b.WriteByte(0x03); // second switch
+        var b = new PacketBuilder(0x09, 0x03); // second switch
 
         b.BeginCompress();
         b.Write(item);
@@ -229,12 +278,22 @@ static class Inventory {
         b.Send(client);
     }
 
+    // 09_05
+    public static void SendSetFarmItem(Client client, InventoryItem item, byte index) {
+        var b = new PacketBuilder(0x09, 0x05); // second switch
+
+        b.BeginCompress();
+        b.Write(item);
+        b.EndCompress();
+
+        b.WriteByte(index); // inventory index
+
+        b.Send(client);
+    }
+
     // 09_0B
     public static void SendSetInventorySize(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x09); // first switch
-        b.WriteByte(0x0B); // second switch
+        var b = new PacketBuilder(0x09, 0x0B); // second switch
 
         b.WriteByte((byte)client.Player.InventorySize);
 
@@ -243,10 +302,7 @@ static class Inventory {
 
     // 09_20
     static void SendDeliveryItems(Client client, OrderItem[] items) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x09); // first switch
-        b.WriteByte(0x20); // second switch
+        var b = new PacketBuilder(0x09, 0x20);
 
         // very odd
         b.WriteInt(0); // string item count
@@ -271,15 +327,39 @@ static class Inventory {
 
     // 09_21
     static void SendGotDelivery(Client client, string orderName, int orderId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x09); // first switch
-        b.WriteByte(0x21); // second switch
+        var b = new PacketBuilder(0x09, 0x21);
 
         b.WriteByte(1); // success
 
         b.WriteString(orderName, 1);
         b.WriteInt(orderId);
+
+        b.Send(client);
+    }
+
+    // 09_23
+    public static void SendSetNormalTokens(Client client) {
+        var b = new PacketBuilder(0x09, 0x23); // second switch
+
+        b.WriteInt(client.Player.NormalTokens);
+
+        b.Send(client);
+    }
+
+    // 09_24
+    public static void SendSetSpecialTokens(Client client) {
+        var b = new PacketBuilder(0x09, 0x24);
+
+        b.WriteInt(client.Player.SpecialTokens);
+
+        b.Send(client);
+    }
+
+    // 09_25
+    public static void SendSetTickets(Client client) {
+        var b = new PacketBuilder(0x09, 0x25);
+
+        b.WriteInt(client.Player.Tickets);
 
         b.Send(client);
     }
@@ -294,10 +374,7 @@ static class Inventory {
 
     // 09_5B
     static void SendUsedSkillBook(Client client, SkillUsedFlag type, int prodId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x09); // first switch
-        b.WriteByte(0x5B); // second switch
+        var b = new PacketBuilder(0x09, 0x5B); // second switch
 
         // 1 = Skill learned successfully
         // 2 = You cannot learn this skill: level requirement not met

@@ -30,6 +30,11 @@ class PacketBuilder {
         WriteShort(0);
     }
 
+    public PacketBuilder(byte major, byte minor) : this() {
+        WriteByte(major); // first switch
+        WriteByte(minor); // second switch
+    }
+
     public void Write(byte[] buffer) {
         writer.Write(buffer);
     }
@@ -39,6 +44,9 @@ class PacketBuilder {
     }
 
     public void WriteByte(byte v) {
+        writer.Write(v);
+    }
+    public void WriteByte(bool v) {
         writer.Write(v);
     }
 
@@ -121,6 +129,7 @@ class PacketBuilder {
     }
 
     public void Send(Client client) {
+        Debug.Assert(!CompressMode);
         var buf = buffer.GetBuffer();
 
         // update data length
@@ -139,6 +148,28 @@ class PacketBuilder {
     }
 
     public void Send(IEnumerable<Client> clients) {
+        Debug.Assert(!CompressMode);
+        var buf = buffer.GetBuffer();
+
+        // update data length
+        var dataLength = buffer.Position - 5;
+        buf[3] = (byte)(dataLength & 0xFF);
+        buf[4] = (byte)(dataLength >> 8);
+
+        foreach(var client in clients) {
+#if DEBUG
+            if(dataLength >= 2 && !(buf[5] == 0x00 && buf[6] == 0x63))
+                client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
+#endif
+
+            lock(client.Stream) {
+                client.Stream.Write(buf, 0, (int)buffer.Position);
+            }
+        }
+    }
+
+    public void Send(Span<Client> clients) {
+        Debug.Assert(!CompressMode);
         var buf = buffer.GetBuffer();
 
         // update data length
@@ -159,8 +190,7 @@ class PacketBuilder {
     }
 
     public void BeginCompress() {
-        if(CompressMode)
-            throw new Exception("Already in compression mode");
+        Debug.Assert(!CompressMode, "Already in compression mode");
         CompressMode = true;
         CompressPos = (int)buffer.Position;
 
@@ -172,8 +202,7 @@ class PacketBuilder {
     public long CompressSize => buffer.Position - CompressPos - 5;
 
     public void EndCompress() {
-        if(!CompressMode)
-            throw new Exception("Have to be in compression mode");
+        Debug.Assert(CompressMode, "Have to be in compression mode");
         CompressMode = false;
 
         var pos = buffer.Position;

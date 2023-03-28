@@ -20,14 +20,11 @@ public class Man {
             shorts[i] = reader.ReadUInt16();
         }
 
-        // skip some stuff?
-        // var idk = reader.ReadBytes(104 * 2);
-
         if(reader.ReadCString(16) == "Static") {
             throw new NotImplementedException();
+        } else {
+            reader.BaseStream.Position -= 16;
         }
-
-        reader.BaseStream.Position -= 16;
 
         var anis = new List<Ani>();
 

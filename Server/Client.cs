@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Extractor;
 using Microsoft.Extensions.Logging;
 using Server.Protocols;
 
@@ -45,46 +45,56 @@ class Client {
         ConnectionSource.Cancel();
     }
 
-    public bool AddItem(int item, int count) {
-        var pos = Player.AddItem(item, count);
-        if(pos == -1) {
-            // inventory full
-            return false;
-        } else {
-            Inventory.SendGetItem(this, Player.Inventory[pos], (byte)(pos + 1), true);
-            return true;
+    public void AddExpAction(Skill skill, int level) {
+        AddExp(skill, (int)(600 / Math.Pow(2, Player.Levels[(int)skill] - level + 1)));
+    }
+
+    public void AddExp(Skill skill, int gain) {
+        var level = Player.Levels[(int)skill];
+
+        if(skill != Skill.General) {
+            AddExp(Skill.General, gain / 2);
         }
+
+        var required = Program.skills[level].GetExp(skill);
+        Player.Exp[(int)skill] += gain;
+
+        if(required != 0 && Player.Exp[(int)skill] >= required) {
+            Player.Levels[(int)skill]++;
+            Player.Exp[(int)skill] -= required;
+
+            if(skill == Skill.General) {
+                Inventory.SendSetInventorySize(this);
+            }
+        }
+        Protocols.Player.SendSkillChange(this, skill, true);
+    }
+
+    public ItemRef GetItem(int type, int index) {
+        return GetItem((InvType)type, index);
+    }
+    public ItemRef GetItem(InvType type, int index) {
+        return GetInv(type)[index];
+    }
+    public InvRef GetInv(InvType type) {
+        return new InvRef(this, type);
+    }
+
+    /// <summary>Adds an item to the players inventory and sends chat notification for it</summary>
+    public bool AddItem(int itemId, int count, bool notification) {
+        var inv = GetInv(InvType.Player);
+        return inv.AddItem(itemId, count, notification);
     }
 
     public bool RemoveItem(int itemId, int count) {
-        Debug.Assert(count < 256);
+        // bug: removing quest requirement does not toggle dialog marker
+        var inv = GetInv(InvType.Player);
+        return inv.RemoveItem(itemId, count);
+    }
 
-        for(int i = 0; i < Player.InventorySize; i++) {
-            if(Player.Inventory[i].Id == itemId) {
-                var _count = Player.Inventory[i].Count;
-
-                if(_count > count) {
-                    Player.Inventory[i].Count -= (byte)count;
-                    Inventory.SendSetItem(this, Player.Inventory[i], i + 1);
-                    return true;
-                }
-                if(_count == count) {
-                    Player.Inventory[i] = InventoryItem.Empty;
-                    Inventory.SendSetItem(this, InventoryItem.Empty, i + 1);
-                    return true;
-                }
-
-                // remove partial item and keep going
-                Player.Inventory[i] = InventoryItem.Empty;
-                count -= _count;
-                Inventory.SendSetItem(this, InventoryItem.Empty, i + 1);
-            }
-        }
-
-        // should never happen
-        // could not remove all items
-        Debug.Assert(false);
-        return false;
+    /// <summary>Adds an item randomly chose from a loot table to the players inventory and sends chat notification for it</summary>
+    public bool AddFromLootTable(int table) {
+        return GetInv(InvType.Player).AddFromLootTable(table);
     }
 
     public void StartAction(Action<CancellationToken> action, Action onCancel) {

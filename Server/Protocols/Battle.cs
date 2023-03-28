@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -6,29 +6,8 @@ using System.Threading;
 namespace Server.Protocols;
 
 static class Battle {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 3: // 00537da8
-                AttackMob(client);
-                break;
-            case 7: // 00537e23
-                TakeBreak(client);
-                break;
-            case 8: // pet mob? 00537e98
-                Recieve08(client);
-                break;
-            case 9: // feed mob? 00537f23
-                Recieve09(client);
-                break;
-            default:
-                client.LogUnknown(0x0C, id);
-                break;
-        }
-    }
-
     #region Request
-    // 0C_03
+    [Request(0x0C, 0x03)] // 00537da8
     private static void AttackMob(Client client) {
         var mobEntId = client.ReadInt32();
 
@@ -37,12 +16,8 @@ static class Battle {
         if(mob == null)
             return;
 
-        var mobAtt = Program.mobAtts[mob.MobId];
-
         if(mob.Hp == 0)
             return;
-
-        client.CancelAction();
 
         client.StartAction(token => {
             // TODO: improve damage formula
@@ -51,33 +26,40 @@ static class Battle {
                 if(token.IsCancellationRequested)
                     break;
 
-                var mobDamage = Math.Min(mob.Hp, 10);
+                lock(mob) {
+                    if(mob.Hp == 0) // other player has killed mob
+                        break;
 
-                mob.Hp -= mobDamage;
-                SendDamageToMob(map.Players, client.Id, mob.Id, (short)mobDamage, 0, 0);
-                if(mob.Hp <= 0) {
-                    mob.Hp = 0;
-                    mob.State = 4;
-                    mob.QueueRespawn();
+                    var mobDamage = Math.Min(mob.Hp, 10);
 
-                    var item = Program.lootTables[mobAtt.LootTable].GetRandom();
-                    if(item != -1) {
-                        client.AddItem(item, 1);
+                    mob.Hp -= mobDamage;
+                    SendDamageToMob(map.Players, client.Id, mob.Id, (short)mobDamage, 0, 0);
+                    if(mob.Hp <= 0) {
+                        mob.Hp = 0;
+                        mob.State = 4;
+                        mob.QueueRespawn(map);
+
+                        var mobAtt = Program.mobAtts[mob.MobId];
+                        client.AddFromLootTable(mobAtt.LootTable);
+
+                        break;
                     }
-
-                    break;
                 }
 
                 Thread.Sleep(500);
-
-                var playerDamage = Math.Min(client.Player.Hp, 10);
-
-                // TODO: implement player hp and stamina
-                // client.Player.Hp -= playerDamage;
-                SendDamageToPlayer(map.Players, client.Id, mob.Id, (short)playerDamage, 0, 0);
-                if(client.Player.Hp <= 0) {
-                    client.Player.Hp = 0;
+                if(token.IsCancellationRequested)
                     break;
+
+                lock(client.Player) {
+                    var playerDamage = Math.Min(client.Player.Hp, 10);
+
+                    // TODO: implement player hp and stamina
+                    // client.Player.Hp -= playerDamage;
+                    SendDamageToPlayer(map.Players, client.Id, mob.Id, (short)playerDamage, 0, 0);
+                    if(client.Player.Hp <= 0) {
+                        client.Player.Hp = 0;
+                        break;
+                    }
                 }
             }
         }, () => {
@@ -85,32 +67,32 @@ static class Battle {
         });
     }
 
-    // 0C_07
+    [Request(0x0C, 0x07)] // 00537e23
     private static void TakeBreak(Client client) {
         // after defeat message box ok
+        throw new NotImplementedException();
     }
 
-    // 0C_08
+    [Request(0x0C, 0x08)] // pet mob? 00537e98
     private static void Recieve08(Client client) {
         var petEntId = client.ReadInt32();
-
+        throw new NotImplementedException();
     }
-    // 0C_09
+
+    [Request(0x0C, 0x09)] // feed mob? 00537f23
     private static void Recieve09(Client client) {
         var petEntId = client.ReadInt32();
         var invSlot = client.ReadByte();
+        throw new NotImplementedException();
     }
     #endregion
 
     #region Response
     // 0C_01
-    public static void SendMobs(Client client, MobData[] mobs) {
-        var b = new PacketBuilder();
+    public static void SendMobs(Client client, IReadOnlyCollection<MobData> mobs) {
+        var b = new PacketBuilder(0x0C, 0x01);
 
-        b.WriteByte(0x0C); // first switch
-        b.WriteByte(0x01); // second switch
-
-        b.WriteInt(mobs.Length); // count
+        b.WriteInt(mobs.Count); // count
 
         b.BeginCompress();
         foreach(var mob in mobs) {
@@ -125,10 +107,7 @@ static class Battle {
     public static void SendMobMove(IEnumerable<Client> clients, MobData mob) {
         // if (mob.Hp == 0) return;
 
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0C); // first switch
-        b.WriteByte(0x02); // second switch
+        var b = new PacketBuilder(0x0C, 0x02);
 
         b.WriteInt(mob.Id); // count
         b.WriteShort((short)mob.X);
@@ -143,10 +122,7 @@ static class Battle {
 
     // 0C_03
     public static void SendDamageToMob(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0C); // first switch
-        b.WriteByte(0x03); // second switch
+        var b = new PacketBuilder(0x0C, 0x03);
 
         b.WriteShort(playerId); // source player id
         b.WriteInt(mobId); // mob id
@@ -160,10 +136,7 @@ static class Battle {
 
     // 0C_04
     public static void SendMobState(IEnumerable<Client> clients, MobData mob) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0C); // first switch
-        b.WriteByte(0x04); // second switch
+        var b = new PacketBuilder(0x0C, 0x04);
 
         b.WriteInt(mob.Id);
         b.WriteByte(mob.State);
@@ -175,10 +148,7 @@ static class Battle {
     public static void SendDamageToPlayer(IEnumerable<Client> clients, short playerId, int mobId, short d1, short d2, short d3) {
         // if(mob.Hp == 0) return;
 
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0C); // first switch
-        b.WriteByte(0x06); // second switch
+        var b = new PacketBuilder(0x0C, 0x06);
 
         b.WriteInt(mobId); // mob id
         b.WriteShort(playerId); // player id

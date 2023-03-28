@@ -1,8 +1,8 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
+using Extractor;
 
-namespace Server.Protocols; 
+namespace Server.Protocols;
 
 enum ShopType : byte {
     Money = 0,
@@ -31,105 +31,104 @@ class Shop {
 }
 
 static class Store {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x01: // 0054d96c
-                OpenStore(client);
-                break;
-            case 0x02: // 0054d9a4
-                BuyItem(client);
-                break;
-            case 0x03: // 0054da30
-                SellItem(client);
-                break;
-            default:
-                client.LogUnknown(0x0B, id);
-                break;
-        }
-    }
-
     #region Request
-    // 0B_01
+    [Request(0x0B, 0x01)] // 0054d96c
     static void OpenStore(Client client) {
         var npcId = client.ReadInt32();
-
-        if (!Program.Shops.TryGetValue(npcId, out var store)) {
-            return;
-        }
-
-        if(store != null) {
-            SendStoreInfo(client, npcId, store);
-        }
-    }
-
-    // 0B_02
-    static void BuyItem(Client client) {
-        var npcId = client.ReadInt32();
-        var itemNum = client.ReadByte();
 
         if(!Program.Shops.TryGetValue(npcId, out var store)) {
             return;
         }
 
-        if(itemNum >= store.Items.Length) {
-            throw new ArgumentOutOfRangeException(nameof(itemNum));
-        }
+        SendStoreInfo(client, npcId, store);
+    }
+
+    [Request(0x0B, 0x02)] // 0054d9a4
+    static void BuyItem(Client client) {
+        var npcId = client.ReadInt32();
+        var itemNum = client.ReadByte();
+
+        if(!Program.Shops.TryGetValue(npcId, out var store))
+            return;
+        if(itemNum >= store.Items.Length)
+            return;
 
         var item = store.Items[itemNum];
 
-        var canAfford = item.Price <= store.Type switch {
-            ShopType.Money => client.Player.Money,
-            ShopType.TokenNormal => client.Player.NormalTokens,
-            ShopType.TokenSpecial => client.Player.SpecialTokens,
-            ShopType.Ticket => client.Player.Tickets,
-            _ => throw new ArgumentOutOfRangeException(nameof(store.Type))
-        };
-
-        if(canAfford && client.AddItem(item.Id, item.Count)) {
-            client.Player.Money -= item.Price;
-            Inventory.SendSetMoney(client);
+        var player = client.Player;
+        lock(player) {
+            switch(store.Type) {
+                case ShopType.Money:
+                    if(item.Price <= player.Money && client.AddItem(item.Id, item.Count, false)) {
+                        client.Player.Money -= item.Price;
+                        Inventory.SendSetMoney(client);
+                    }
+                    break;
+                case ShopType.DreamFragments: {
+                    var inv = client.GetInv(InvType.Player);
+                    const int dreamFragmentId = 10204;
+                    if(item.Price <= inv.GetItemCount(dreamFragmentId) && client.AddItem(item.Id, item.Count, false)) {
+                        client.RemoveItem(dreamFragmentId, item.Price);
+                    }
+                    break;
+                }
+                case ShopType.TokenNormal:
+                    if(item.Price <= player.NormalTokens && client.AddItem(item.Id, item.Count, false)) {
+                        player.NormalTokens -= item.Price;
+                        Inventory.SendSetNormalTokens(client);
+                    }
+                    break;
+                case ShopType.TokenSpecial:
+                    if(item.Price <= player.SpecialTokens && client.AddItem(item.Id, item.Count, false)) {
+                        player.SpecialTokens -= item.Price;
+                        Inventory.SendSetSpecialTokens(client);
+                    }
+                    break;
+                case ShopType.Ticket:
+                    if(item.Price <= player.Tickets && client.AddItem(item.Id, item.Count, false)) {
+                        player.Tickets -= item.Price;
+                        Inventory.SendSetTickets(client);
+                    }
+                    break;
+            }
         }
     }
 
-    // 0B_03
+    [Request(0x0B, 0x03)] // 0054da30
     static void SellItem(Client client) {
         var npcId = client.ReadInt32();
         var itemSlot = client.ReadInt32() - 1;
 
-        if(itemSlot >= client.Player.InventorySize) {
-            return;
+        lock(client.Player) {
+            var item = client.GetItem(InvType.Player, itemSlot);
+            if(item.Id == 0)
+                return;
+
+            var itemData = item.Item.Data;
+
+            if((itemData.Transferable & TransferFlag.NON_TRANSFERABLE_TO_MERCHANT) != 0) {
+                Player.SendMessage(client, Player.MessageType.Failed_to_sell_item);
+                return;
+            }
+
+            client.Player.Money += itemData.Price * item.Count;
+            item.Clear();
+            Inventory.SendSetMoney(client);
         }
-
-        var item = client.Player.Inventory[itemSlot];
-        if(item.Id == 0) {
-            return;
-        }
-
-        var itemData = Program.items[item.Id];
-
-        client.Player.Inventory[itemSlot] = InventoryItem.Empty;
-        Inventory.SendSetItem(client, InventoryItem.Empty, (byte)(itemSlot + 1));
-
-        client.Player.Money += itemData.Price * item.Count;
-        Inventory.SendSetMoney(client);
     }
     #endregion
 
     #region Response
     // 0B_01
     static void SendStoreInfo(Client client, int npc, Shop store) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0B); // first switch
-        b.WriteByte(0x01); // second switch
+        var b = new PacketBuilder(0x0B, 0x01);
 
         b.WriteInt(npc);
 
         b.WriteInt(store.Village);
         b.WriteByte((byte)store.Type);
 
-        foreach (var item in store.Items) {
+        foreach(var item in store.Items) {
             b.WriteInt(item.Id);
             b.WriteInt(item.Count);
             b.WriteInt(item.Price);

@@ -1,55 +1,15 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Server.Protocols; 
+namespace Server.Protocols;
 
 static class Npc {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x01: // 00573de8
-                GetNpcDialog(client);
-                break;
-            case 0x02: // 00573e4a // npc data ack?
-                break;
-            case 0x03: // 00573ef2
-                TakeQuest(client);
-                break;
-            case 0x04: // 00573f74 // quest requirement completed
-                UpdateQuest(client);
-                break;
-            // case 0x05_05: // 00573fe8
-            case 0x06: // 0057405f
-                CancelQuest(client);
-                break;
-            //case 0x07: // 005740ca
-            //case 0x08: // 0057414f
-            //case 0x09: // 005741fe
-            case 0x0A: // 005742b7
-                FinishMinigame(client);
-                break;
-            //case 0x0B: // 0057431e
-            case 0x0C: // 0057438c
-                CollectCheckpoint(client);
-                break;
-            //case 0x11: // 00574400
-            //case 0x14: // 0057448b
-            //case 0x15: // 00574503
-            //case 0x16: // 00574580 // restart tutorial?
-            default:
-                client.LogUnknown(0x05, id);
-                break;
-        }
-    }
-
     static int GetNextDialog(Client client, int npcId) {
         var dialogs = Program.questMap[npcId];
 
         foreach(var item in dialogs) {
-            client.Player.QuestFlags.TryGetValue(item.Quest.Id, out var flag);
-
-            if(item.Check(client)) {
+            if(item.CheckRequirements(client)) {
                 return item.Dialog;
             }
         }
@@ -73,80 +33,91 @@ static class Npc {
         SetQuestMarkers(client, disable, enable);
     }
 
-    public static void UpdateQuestMarker(Client client, int npc) {
-        var dialog = GetNextDialog(client, npc);
-        SetQuestMarker(client, npc, dialog);
-    }
-
     #region Request
-    // 05_01
+    [Request(0x05, 0x01)] // 00573de8
     static void GetNpcDialog(Client client) {
         var npcId = client.ReadInt32();
         int dialog = GetNextDialog(client, npcId);
 
-        if(Program.npcEncyclopedia.TryGetValue(npcId, out var id)) {
-            client.Player.Npcs.Add(id);
+        lock(client.Player) {
+            if(Program.npcEncyclopedia.TryGetValue(npcId, out var id)) {
+                client.Player.Npcs.Add(id);
+            }
         }
 
         SendOpenDialog(client, dialog);
     }
 
-    // 05_03
+    // [Request(0x05, 0x02)] // 00573e4a // npc data ack?
+
+    [Request(0x05, 0x03)] // 00573ef2
     static void TakeQuest(Client client) {
         var npcId = client.ReadInt32();
         var questId = client.ReadInt32();
         var dialogId = client.ReadInt32();
         var rewardSelect = client.ReadInt32();
 
+        // todo: use questID instead of dialogID?
         var sub = Program.questMap[npcId].FirstOrDefault(x => x.Dialog == dialogId);
-
-        if(sub == null)
+        if(sub is null)
             return; // wrong id?
 
-        if(!sub.Check(client))
-            return; // requirements not met
+        lock(client.Player) {
+            if(rewardSelect == 0 && sub.Rewards.Any(x => x is Reward.Select))
+                return; // no reward selected
 
-        if(sub.Rewards.Any(x => x is Reward.Select) && rewardSelect == 0)
-            return; // no reward selected
+            if(!sub.CheckRequirements(client))
+                return; // requirements not met
 
-        if(client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10)
-            return; // quest limit reached
-
-        if(sub.Begins) {
-            if(sub.Quest.Minigame != null) {
-                sub.Quest.Minigame.Open(client); // do not actually accept minigame quest until after it was completed
-                return;
+            if(!sub.CheckRewards(client)) {
+                Player.SendMessage(client, Player.MessageType.Inventory_full);
+                return; // not enough inv space for reward
             }
 
-            client.Player.QuestFlags[questId] = QuestStatus.Running;
-            SendNewQuest(client, questId);
-        } else {
-            client.Player.QuestFlags[questId] = QuestStatus.Done;
+            if(client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10) {
+                Player.SendMessage(client, Player.MessageType.Quest_Log_is_full);
+                return; // quest limit reached
+            }
 
-            foreach(var req in sub.Requirements) {
-                if(req is Requirement.GiveItem item) {
-                    client.RemoveItem(item.Id, item.Count);
+            if(sub.Begins) {
+                if(sub.Quest.Minigame != null) {
+                    sub.Quest.Minigame.Open(client); // do not actually accept minigame quest until after it was completed
+                    return;
                 }
+
+                client.Player.QuestFlags[questId] = QuestStatus.Running;
+                SendNewQuest(client, questId);
+            } else {
+                client.Player.QuestFlags[questId] = QuestStatus.Done;
+
+                foreach(var req in sub.Requirements) {
+                    if(req is Requirement.GiveItem item) {
+                        client.RemoveItem(item.Id, item.Count);
+                    }
+                }
+
+                UpdateFlag(client, questId, true);
             }
 
-            UpdateFlag(client, questId, true);
-        }
+            foreach(var reward in sub.Rewards) {
+                reward.Handle(client, rewardSelect);
+            }
 
-        foreach(var reward in sub.Rewards) {
-            reward.Handle(client, rewardSelect);
+            // TODO: make this more efficient - could build a quest graph to determine which npcs have to be updated
+            UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
         }
-
-        // TODO: make this more efficient
-        UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
     }
 
-    // 05_04
+    [Request(0x05, 0x04)] // 00573f74 // quest requirement completed
     static void UpdateQuest(Client client) {
         var npcId = client.ReadInt32();
-        UpdateQuestMarker(client, npcId);
+        var dialog = GetNextDialog(client, npcId);
+        SetQuestMarker(client, npcId, dialog);
     }
 
-    // 05_06
+    // [Request(0x05, 0x05)] // 00573fe8
+
+    [Request(0x05, 0x06)] // 0057405f
     static void CancelQuest(Client client) {
         var questId = client.ReadInt32();
 
@@ -156,7 +127,11 @@ static class Npc {
         SendDeleteQuest(client, questId);
     }
 
-    // 05_0A
+    // [Request(0x05, 0x07)] // 005740ca
+    // [Request(0x05, 0x08)] // 0057414f
+    // [Request(0x05, 0x09)] // 005741fe
+
+    [Request(0x05, 0x0A)] // 005742b7
     static void FinishMinigame(Client client) {
         var gameId = client.ReadInt32();
         var score = client.ReadInt32();
@@ -168,55 +143,65 @@ static class Npc {
         if(!Program.minigameQuests.TryGetValue(gameId, out var quest))
             return; // quest not found?
 
-        if(!quest.Start.Any(x => x.Check(client)))
-            return; // starting condition not met
-
         if(quest.Minigame.Score > score)
             return; // score not met
 
-        if(client.Player.QuestFlags.TryGetValue(quest.Id, out var flag) && flag == QuestStatus.Done)
-            return; // quest already completed so no reward
+        lock(client.Player) {
+            if(!quest.Start.Any(x => x.CheckRequirements(client)))
+                return; // starting condition not met
 
-        client.Player.QuestFlags[quest.Id] = QuestStatus.Running;
+            if(client.Player.QuestFlags.TryGetValue(quest.Id, out var flag) && flag == QuestStatus.Done)
+                return; // quest already completed so no reward
+
+            client.Player.QuestFlags[quest.Id] = QuestStatus.Running;
+        }
         SendNewQuest(client, quest.Id);
         UpdateQuestMarkers(client, quest.End.Select(x => x.Npc));
     }
 
-    // 05_0C
+    // [Request(0x05, 0x0B)] // 0057431e
+
+    [Request(0x05, 0x0C)] // 0057438c
     static void CollectCheckpoint(Client client) {
         var id = client.ReadInt32();
 
-        client.Player.CheckpointFlags.TryGetValue(id, out var val);
-        if(val != 1)
-            return;
-
-        var dat = Program.checkpoints[id];
-
-        if(dat.ConsumeItem != 0) {
-            if(client.Player.GetItemCount(dat.ConsumeItem) < dat.ConsumeItemCount)
+        lock(client.Player) {
+            client.Player.CheckpointFlags.TryGetValue(id, out var val);
+            if(val != 1)
                 return;
 
-            client.RemoveItem(dat.ConsumeItem, dat.ConsumeItemCount);
+            var dat = Program.checkpoints[id];
+
+            if(dat.ConsumeItem != 0) {
+                if(client.GetInv(InvType.Player).GetItemCount(dat.ConsumeItem) < dat.ConsumeItemCount)
+                    return;
+
+                client.RemoveItem(dat.ConsumeItem, dat.ConsumeItemCount);
+            }
+
+            if(dat.Item == 0)
+                return;
+            if(!client.AddItem(dat.Item, dat.ItemCount, true))
+                return;
+
+            client.Player.CheckpointFlags[id] = 2;
+            UpdateFlag(client, dat.ActiveQuestFlag, false);
+            if(dat.CollectedQuestFlag != 0)
+                UpdateFlag(client, dat.CollectedQuestFlag, true);
+            UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
         }
-
-        if(dat.Item != 0 && !client.AddItem(dat.Item, dat.ItemCount))
-            return;
-
-        client.Player.CheckpointFlags[id] = 2;
-        UpdateFlag(client, dat.ActiveQuestFlag, false);
-        if(dat.CollectedQuestFlag != 0)
-            UpdateFlag(client, dat.CollectedQuestFlag, true);
-        UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
     }
+
+    // [Request(0x05, 0x11)] // 00574400
+    // [Request(0x05, 0x14)] // 0057448b
+    // [Request(0x05, 0x15)] // 00574503
+    // [Request(0x05, 0x16)] // 00574580 // restart tutorial?
     #endregion
 
     #region Response
     // 05_01
     public static void SendOpenDialog(Client client, int dialogId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x01); // second switch
+        var b = new PacketBuilder(0x05, 0x01);
 
         b.WriteInt(dialogId); // dialog id (0 == npc default)
 
@@ -225,10 +210,7 @@ static class Npc {
 
     // 05_02
     public static void SetQuestMarkers(Client client, IList<int> disable, IList<(int npc, int dialog)> enable) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x02); // second switch
+        var b = new PacketBuilder(0x05, 0x02);
 
         // disable quest markers
         b.WriteInt(disable.Count);
@@ -248,10 +230,7 @@ static class Npc {
 
     // 05_04
     public static void SetQuestMarker(Client client, int npcId, int dialogId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x04); // second switch
+        var b = new PacketBuilder(0x05, 0x04);
 
         // set quest marker
         b.WriteInt(npcId);
@@ -262,10 +241,7 @@ static class Npc {
 
     // 05_05
     public static void Send05_05(Client client, int dialogId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x05); // second switch
+        var b = new PacketBuilder(0x05, 0x05);
 
         // something timer related
         b.WriteInt(0); // npc id
@@ -277,10 +253,7 @@ static class Npc {
 
     // 05_06
     public static void SendDeleteQuest(Client client, int questId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x06); // second switch
+        var b = new PacketBuilder(0x05, 0x06);
 
         b.WriteInt(questId);
 
@@ -289,10 +262,7 @@ static class Npc {
 
     // 05_07
     public static void SendQuestExpired(Client client, int questId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x07); // second switch
+        var b = new PacketBuilder(0x05, 0x07);
 
         // something timer related
         b.WriteInt(questId);
@@ -303,10 +273,7 @@ static class Npc {
 
     // 05_09
     public static void SendOpenMinigame(Client client, int minigameId, int requiredScore, int param1, int param2) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x09); // second switch
+        var b = new PacketBuilder(0x05, 0x09);
 
         b.WriteInt(minigameId);
         b.WriteInt(0); // para1
@@ -323,10 +290,7 @@ static class Npc {
 
     // 05_0A
     public static void UpdateFlag(Client client, int flag, bool set) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x0A); // second switch
+        var b = new PacketBuilder(0x05, 0x0A);
 
         b.WriteInt(flag);
         b.WriteByte(Convert.ToByte(set));
@@ -336,10 +300,7 @@ static class Npc {
 
     // 05_0C
     public static void SendNewQuest(Client client, int questId) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x0C); // second switch
+        var b = new PacketBuilder(0x05, 0x0C);
 
         b.WriteInt(questId);
 
@@ -348,10 +309,7 @@ static class Npc {
 
     // 05_0F
     public static void SendSetFriendship(Client client, byte village) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x0F); // second switch
+        var b = new PacketBuilder(0x05, 0x0F);
 
         b.WriteByte(village);
         b.WriteShort(client.Player.Friendship[village - 1]);
@@ -361,10 +319,7 @@ static class Npc {
 
     // 05_14
     public static void Send05_14(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x05); // first switch
-        b.WriteByte(0x14); // second switch
+        var b = new PacketBuilder(0x05, 0x14);
 
         b.WriteByte(0x01);
 

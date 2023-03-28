@@ -167,13 +167,13 @@ static class Commands {
             return;
         }
 
-        var player = FindPlayer(args[1]);
-        if(player == null) {
+        var client = FindPlayer(args[1]);
+        if(client == null) {
             Console.WriteLine($"Unknown player {args[1]}");
             return;
         }
 
-        player.AddItem(int.Parse(args[2]), int.Parse(args[3]));
+        client.AddItem(int.Parse(args[2]), int.Parse(args[3]), true);
     }
 
     [Command("clear", "Clear the console window")]

@@ -1,13 +1,10 @@
-﻿namespace Server.Protocols;
+﻿using System;
+
+namespace Server.Protocols;
 
 static class Mail {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            // case 0x23_01: // 005a19da
-            default:
-                client.LogUnknown(0x23, id);
-                break;
-        }
+    [Request(0x23, 0x01)] // 005a19da
+    public static void Recv01(Client client) {
+        throw new NotImplementedException();
     }
 }

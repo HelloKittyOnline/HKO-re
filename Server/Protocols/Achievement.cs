@@ -1,20 +1,8 @@
 ﻿namespace Server.Protocols;
 
 static class Achievement {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            default:
-                client.LogUnknown(0x1B, id);
-                break;
-        }
-    }
-
     static void Send01(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x1B); // first switch
-        b.WriteByte(0x01); // second switch
+        var b = new PacketBuilder(0x1B, 0x01);
 
         b.WriteInt(0);
         b.WriteInt(0);
@@ -23,10 +11,7 @@ static class Achievement {
     }
 
     static void Send03(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x1B); // first switch
-        b.WriteByte(0x03); // second switch
+        var b = new PacketBuilder(0x1B, 0x03);
 
         b.WriteByte(0);
 
@@ -52,10 +37,7 @@ static class Achievement {
     }
 
     static void SendSetTitle(Client client, int other, Title title) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x1B); // first switch
-        b.WriteByte(0x04); // second switch
+        var b = new PacketBuilder(0x1B, 0x04);
 
         b.WriteInt(other);
         b.WriteByte((byte)title);

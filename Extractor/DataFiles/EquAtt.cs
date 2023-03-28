@@ -33,7 +33,7 @@ public struct EquAtt {
     [SeanField(5)] public int ActionPoints { get; set; }
     [SeanField(6)] public int EnergyDrain { get; set; }
     [SeanField(7)] public int DefenseValue { get; set; }
-    [SeanField(8)] public int CritValue { get; set; }
+    [SeanField(8)] public int CritValue { get; set; } // in 1 -> 0.01% increments
     [SeanField(9)] public int DodgeValue { get; set; }
 
     [SeanField(13)] public string MaleFile { get; set; }

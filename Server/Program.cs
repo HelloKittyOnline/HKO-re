@@ -18,7 +18,7 @@ using Server.Protocols;
 namespace Server;
 
 class Program {
-    internal static MapData[] maps;
+    internal static Dictionary<int, Instance> maps;
 
     internal static Dictionary<int, ManualQuest> minigameQuests;
     internal static Lookup<int, ManualQuest.Sub> questMap;
@@ -34,8 +34,11 @@ class Program {
     internal static Checkpoint[] checkpoints;
     internal static Dictionary<int, Shop> Shops;
     internal static Dictionary<int, int> npcEncyclopedia;
+    internal static Seed[] seeds;
+    internal static FarmData[] farms;
 
     internal static HashSet<Client> clients = new();
+    internal static Dictionary<int, Request.ReceiveFunction> handlers;
 
     public static ILoggerFactory loggerFactory = LoggerFactory.Create(builder => {
 #if DEBUG
@@ -111,109 +114,22 @@ class Program {
             client.Reader = new BinaryReader(ms);
 
             try {
-                switch(client.ReadByte()) {
-                    case 0x00:
-                        Login.Handle(client);
-                        break;
-                    case 0x01:
-                        CreateRole.Handle(client);
-                        break;
-                    case 0x02:
-                        Player.Handle(client);
-                        break;
-                    case 0x03:
-                        Chat.Handle(client);
-                        break;
-                    case 0x04:
-                        Friend.Handle(client);
-                        break;
-                    case 0x05:
-                        Npc.Handle(client);
-                        break;
-                    case 0x06:
-                        Protocols.Resource.Handle(client);
-                        break;
-                    case 0x07:
-                        Production.Handle(client);
-                        break;
-                    case 0x08:
-                        Trade.Handle(client);
-                        break;
-                    case 0x09:
-                        Inventory.Handle(client);
-                        break;
-                    case 0x0A:
-                        Farm.Handle(client);
-                        break;
-                    case 0x0B:
-                        Store.Handle(client);
-                        break;
-                    case 0x0C:
-                        Battle.Handle(client);
-                        break;
-                    case 0x0D:
-                        Pet.Handle(client);
-                        break;
-                    case 0x0E:
-                        Guild.Handle(client);
-                        break;
-                    case 0x0F:
-                        Hompy.Handle(client);
-                        break;
-                    // case 0x10: Bingo.Handle(client); break;
-                    // case 0x10_01: //
-                    case 0x11:
-                        NPCWalk.Handle(client);
-                        break;
-                    // case 0x12: ???
-                    // case 0x12_01: // 0052807b
-                    // case 0x12_02: // 005280f6
-                    case 0x13:
-                        Group.Handle(client);
-                        break;
-                    case 0x14:
-                        Redeem.Handle(client);
-                        break;
-                    case 0x15:
-                        Food4Friends.Handle(client);
-                        break;
-                    case 0x16:
-                        Tutorial.Handle(client);
-                        break;
-                    case 0x17:
-                        PODLeaderboard.Handle(client);
-                        break;
-                    case 0x18:
-                        PODHousing.Handle(client);
-                        break;
-                    case 0x19:
-                        EarthDay.Handle(client);
-                        break;
-                    // case 0x1A: MoleAwarenessEvent.Handle(client); break;
-                    case 0x1B:
-                        Achievement.Handle(client);
-                        break;
-                    case 0x1C:
-                        Flash.Handle(client);
-                        break;
-                    case 0x1F:
-                        CityCookOff.Handle(client);
-                        break;
-                    case 0x20:
-                        ChocolateDefense.Handle(client);
-                        break;
-                    case 0x21:
-                        Cheer.Handle(client);
-                        break;
-                    case 0x22:
-                        BirthdayEvent.Handle(client);
-                        break;
-                    case 0x23:
-                        Mail.Handle(client);
-                        break;
-                    default:
-                        client.LogUnknown(data[0], data[1]);
-                        break;
+                // skip id bytes
+                client.ReadByte();
+                client.ReadByte();
+
+                // case 0x10_01: // Bingo
+                // case 0x12_01: // 0052807b
+                // case 0x12_02: // 005280f6
+
+                if(handlers.TryGetValue(id, out var f)) {
+                    try {
+                        f(client);
+                    } catch(NotImplementedException e) {
+                        client.Logger.LogWarning("[{user}] Packet {major:X2}_{minor:X2} not implemented", client.DiscordId, data[0], data[1]);
+                    }
+                } else {
+                    client.LogUnknown(data[0], data[1]);
                 }
             } catch(Exception e) {
                 client.Logger.LogError(e, "[{userID}] Error handling packet {data}", client.DiscordId, data);
@@ -252,18 +168,35 @@ class Program {
                 } catch(Exception e) {
                     client.Logger.LogError(e, "[{userID}] Error: ", client.DiscordId);
                 }
-                client.TcpClient.Close();
-
                 lock(clients)
                     clients.Remove(client);
+
+                client.TcpClient.Close();
                 IdManager.FreeId(client.Id);
 
                 if(client.Username != null) {
+                    if(client.InGame) { // remove player from maps
+                        try {
+                            Player.SendDeletePlayer(client.Player.Map.Players, client);
+
+                            // TODO: kick other players from farm
+                            /*foreach (var player in client.Player.Farm.Players) {
+                                player.Player.ReturnFromFarm();
+                                SendChangeMap(player);
+                            }*/
+                            maps.Remove(client.Player.Farm.Id); // remove farm from map list
+                        } catch { }
+                    }
+
+                    if(client.Player.MapType == 3) {
+                        try {
+                            client.Player.ReturnFromFarm();
+                        } catch { }
+                    }
+
                     Database.LogOut(client.Username, client.Player);
                     client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
 
-                    if(client.InGame) // remove player from maps
-                        Player.SendDeletePlayer(client.Player.Map.Players, client);
                 }
             });
         }
@@ -281,19 +214,24 @@ class Program {
 
         teleporters = SeanDatabase.Load<Teleport>(GetItem("teleport_list.txt"));
         resources   = SeanDatabase.Load<Extractor.Resource>(GetItem("res_list.txt"));
-        lootTables  = ResCounter.Load(GetItem("res_counter.txt"));
+        lootTables  = SeanDatabase.Load<ResCounter>(GetItem("res_counter.txt"));
         items       = SeanDatabase.Load<ItemAtt>(GetItem("item_att.txt"));
         equipment   = SeanDatabase.Load<EquAtt>(GetItem("equ_att.txt"));
         skills      = SeanDatabase.Load<SkillInfo>(GetItem("skill_exp.txt"));
         checkpoints = SeanDatabase.Load<Checkpoint>(GetItem("check_point.txt"));
         mobAtts     = SeanDatabase.Load<MobAtt>(GetItem("mob_att.txt"));
-        prodRules   = ProdRule.Load(GetItem("prod_rule.txt"));
+        prodRules   = SeanDatabase.Load<ProdRule>(GetItem("prod_rule.txt"));
+        seeds       = SeanDatabase.Load<Seed>(GetItem("seed_att.txt"));
+        farms       = SeanDatabase.Load<FarmData>(GetItem("farm_list.txt"));
         npcEncyclopedia = SeanDatabase.Load<NpcEncyclopedia>(GetItem("npc_encyclopedia.txt")).Where(x => x.NpcId != 0).ToDictionary(x => x.NpcId, x => x.Id);
+
+        foreach(var resCounter in lootTables)
+            resCounter.Init();
 
         var mapList = SeanDatabase.Load<MapList>(GetItem("map_list.txt"));
 
-        var npcs = NpcData.Load($"{path}/npc_data.json");
-        var shops = Shop.Load($"{path}/shop_data.json");
+        var npcs = NpcData.Load($"{path}/npcs.json");
+        var shops = Shop.Load($"{path}/shops.json");
 
         Shops = new Dictionary<int, Shop>();
         foreach(var shop in shops) {
@@ -302,17 +240,17 @@ class Program {
             }
         }
 
-        var mob_data = JsonNode.Parse(File.ReadAllText($"{path}/mob_data.json")).AsArray();
+        var mob_data = JsonNode.Parse(File.ReadAllText($"{path}/maps.json")).AsArray();
         var cutMobs = mobAtts.Where(x => x.Name != null).ToArray();
 
         // bundle all entities together to make lookup easier
-        maps = new MapData[mapList.Length];
+        maps = new();
         for(int i = 0; i < mapList.Length; i++) {
             var item = mapList[i];
             if(item.Name == null)
                 continue;
 
-            var _mobs = mob_data.FirstOrDefault(x => (int)x["Id"] == i)?["Mobs"].AsArray();
+            var _mobs = mob_data.FirstOrDefault(x => (int)x["Id"] == i)?["Mobs"]?.AsArray();
             var mobs = new List<MobData>();
             if(_mobs != null) {
                 for(var j = 0; j < _mobs.Count; j++) {
@@ -334,15 +272,30 @@ class Program {
                 }
             }
 
-            maps[i] = new MapData {
-                Id = i,
-                Mobs = mobs.ToArray(),
-                Npcs = npcs.Where(x => x.MapId == i).ToArray(),
-                Resources = resources.Where(x => x.MapId == i).ToArray(),
-                Teleporters = teleporters.Where(x => x.FromMap == i).ToArray(),
-                Checkpoints = checkpoints.Where(x => x.Map == i).ToArray()
-            };
+            if(i <= 7) {
+                maps[i] = new DreamRoom {
+                    Id = i,
+                    MapData = item,
+                    _mobs = mobs.ToArray(),
+                    _npcs = npcs.Where(x => x.MapId == i).ToArray(),
+                    _resources = resources.Where(x => x.MapId == i).ToArray(),
+                    _teleporters = teleporters.Where(x => x.FromMap == i).ToArray(),
+                    _checkpoints = checkpoints.Where(x => x.Map == i).ToArray()
+                };
+            } else {
+                maps[i] = new StandardMap {
+                    Id = i,
+                    MapData = item,
+                    _mobs = mobs.ToArray(),
+                    _npcs = npcs.Where(x => x.MapId == i).ToArray(),
+                    _resources = resources.Where(x => x.MapId == i).ToArray(),
+                    _teleporters = teleporters.Where(x => x.FromMap == i).ToArray(),
+                    _checkpoints = checkpoints.Where(x => x.Map == i).ToArray()
+                };
+            }
         }
+
+        maps[50007] = maps[4]; // "dream room 4" for some reason
 
         Debug.Assert(teleporters.All(x => x.FromMap == 0 || maps[x.FromMap] != null)); // all teleporters registered
         Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all npcs registered
@@ -350,6 +303,8 @@ class Program {
     }
 
     static void Main(string[] args) {
+        handlers = Request.GetEndpoints();
+
         var serverLogger = loggerFactory.CreateLogger("Server");
         serverLogger.LogInformation("Starting server...");
 
@@ -375,6 +330,7 @@ class Program {
         Database.SetConnectionString(sb.ConnectionString);
         Commands.RunConsole();
 
+        Task.Run(Farm.FarmThread);
         Server(25000, true, serverTokenSource.Token);
 
         serverLogger.LogInformation("Stopping server...");

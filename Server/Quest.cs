@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -46,7 +46,7 @@ abstract class Requirement {
         public int Id { get; set; }
         public int Count { get; set; }
 
-        public override bool Check(Client client) => client.Player.GetItemCount(Id) >= Count;
+        public override bool Check(Client client) => client.GetInv(InvType.Player).GetItemCount(Id) >= Count;
     }
     public class ClearItem : Requirement {
         public int Id { get; set; }
@@ -60,7 +60,7 @@ abstract class Requirement {
         public int Id { get; set; }
         public int Count { get; set; }
 
-        public override bool Check(Client client) => client.Player.GetItemCount(Id) >= Count;
+        public override bool Check(Client client) => client.GetInv(InvType.Player).GetItemCount(Id) >= Count;
     }
 
     public class Idk : Requirement {
@@ -130,7 +130,7 @@ abstract class Reward {
         public int Amount { get; set; }
 
         public override void Handle(Client client, int select) {
-            client.Player.AddExp(client, Skill.General, Amount);
+            client.AddExp(Skill.General, Amount);
         }
     }
     public class Money : Reward {
@@ -147,7 +147,7 @@ abstract class Reward {
         public int Count { get; set; }
 
         public override void Handle(Client client, int select) {
-            client.AddItem(client.Player.Gender == 1 ? Male : Female, Count);
+            client.AddItem(client.Player.Gender == 1 ? Male : Female, Count, true);
         }
     }
     public class Friendship : Reward {
@@ -205,6 +205,17 @@ abstract class Reward {
         }
     }
 
+    /*
+    // TODO: rethink system - might make Sub entirely separate from quests
+    public class StartQuest : Reward {
+        public int Id { get; set; }
+
+        public override void Handle(Client client, int select) {
+            throw new NotImplementedException();
+        }
+    }
+    */
+
     public abstract void Handle(Client client, int select);
 }
 
@@ -218,8 +229,8 @@ class Minigame {
     }
 }
 
-class ManualQuest {
-    public class Sub {
+record ManualQuest {
+    public record Sub {
         public Requirement[] Requirements { get; set; }
         public int Npc { get; set; }
         public int Dialog { get; set; }
@@ -228,19 +239,27 @@ class ManualQuest {
         [JsonIgnore] public ManualQuest Quest { get; set; }
         [JsonIgnore] public bool Begins { get; set; }
 
-        public bool Check(Client client) {
+        public bool CheckRequirements(Client client) {
             return Requirements.All(x => x.Check(client));
+        }
+        public bool CheckRewards(Client client) {
+            var inv = client.GetInv(InvType.Player);
+
+            var count = Rewards.Count(x => x is Reward.Item); // max number of required inv slots
+            var free = inv.FreeSlots();
+
+            return free >= count;
         }
     }
 
     public int Id { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
     public Sub[] Start { get; set; }
     public Sub[] End { get; set; }
     public Minigame Minigame { get; set; }
 
     /*
+    public string Name { get; set; }
+    public string Description { get; set; }
     public int Village { get; set; }
     public int Icon { get; set; }
     public DateTime? Expire { get; set; }
@@ -249,8 +268,9 @@ class ManualQuest {
     */
 
     public static ManualQuest[] Load(string path) {
-        var options = new JsonSerializerOptions();
-        options.WriteIndented = true;
+        var options = new JsonSerializerOptions {
+            WriteIndented = true
+        };
         options.Converters.Add(new RequirementConverter());
         options.Converters.Add(new RewardConverter());
 

@@ -1,9 +1,13 @@
+﻿using Extractor;
+using Server.Protocols;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Extractor;
+using Resource = Extractor.Resource;
 
 namespace Server;
 
@@ -78,27 +82,50 @@ class MobData : IWriteAble {
         b.WriteInt(Y); // moving?
     }
 
-    public void QueueRespawn() {
+    public void QueueRespawn(Instance map) {
         respawnTask ??= Task.Run(() => {
             // TODO: actual respawn time?
             Thread.Sleep(10 * 1000);
             Hp = MaxHp;
             State = 1;
 
+            Battle.SendMobState(map.Players, this);
+
             respawnTask = null;
         });
     }
 }
 
-class MapData {
-    public int Id { get; set; }
+abstract class Instance {
+    [JsonIgnore] public int Id { get; set; }
 
-    public Teleport[] Teleporters { get; set; }
-    public Extractor.Resource[] Resources { get; set; }
-    public Checkpoint[] Checkpoints { get; set; }
+    [JsonIgnore] public virtual IEnumerable<Client> Players => Program.clients.Where(x => x.InGame && x.Player.CurrentMap == Id);
+    [JsonIgnore] public abstract IReadOnlyCollection<NpcData> Npcs { get; }
+    [JsonIgnore] public abstract IReadOnlyCollection<MobData> Mobs { get; }
 
-    public NpcData[] Npcs { get; set; }
-    public MobData[] Mobs { get; set; }
+    [JsonIgnore] public abstract IReadOnlyCollection<Teleport> Teleporters { get; }
+    [JsonIgnore] public abstract IReadOnlyCollection<Resource> Resources { get; }
+    [JsonIgnore] public abstract IReadOnlyCollection<Checkpoint> Checkpoints { get; }
+}
 
-    public IEnumerable<Client> Players => Program.clients.Where(x => x.InGame && x.Player.AdjustedMapId == Id);
+class StandardMap : Instance {
+    public MapList MapData;
+
+    public Teleport[] _teleporters;
+    public Resource[] _resources;
+    public Checkpoint[] _checkpoints;
+
+    public NpcData[] _npcs;
+    public MobData[] _mobs;
+
+    public override IReadOnlyCollection<NpcData> Npcs => _npcs;
+    public override IReadOnlyCollection<MobData> Mobs => _mobs;
+
+    public override IReadOnlyCollection<Teleport> Teleporters => _teleporters;
+    public override IReadOnlyCollection<Extractor.Resource> Resources => _resources;
+    public override IReadOnlyCollection<Checkpoint> Checkpoints => _checkpoints;
+}
+
+class DreamRoom : StandardMap {
+    public override IEnumerable<Client> Players { get; } = Enumerable.Empty<Client>();
 }

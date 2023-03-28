@@ -1,39 +1,32 @@
-﻿namespace Server.Protocols;
+﻿using System;
+
+namespace Server.Protocols;
 
 static class Group {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x01: // 00578950 // add player to group
-                AddToGroup(client);
-                break;
-            /*case 0x13_02: //
-            case 0x13_03: //
-            case 0x13_04: //
-            case 0x13_05: //
-            case 0x13_06: //
-            case 0x13_07: //
-            case 0x13_08: //
-            case 0x13_09: //
-            case 0x13_0A: //
-            case 0x13_0B: //
-            case 0x13_0C: //
-            case 0x13_0D: //
-            */
-            default:
-                client.LogUnknown(0x13, id);
-                break;
-        }
-    }
-
     #region Request
-    // 13_01
+    [Request(0x13, 0x01)] // 00578950 // add player to group
     static void AddToGroup(Client client) {
         var name = client.ReadWString();
 
         var group = client.ReadInt32(); // group id
         var playerId = client.ReadInt32(); // player id?
         // playerId = 0 -> unknown
+
+        throw new NotImplementedException();
     }
+
+    // [Request(0x13, 0x02)] //
+    // [Request(0x13, 0x03)] //
+    // [Request(0x13, 0x04)] //
+    // [Request(0x13, 0x05)] //
+    // [Request(0x13, 0x06)] //
+    // [Request(0x13, 0x07)] //
+    // [Request(0x13, 0x08)] //
+    // [Request(0x13, 0x09)] //
+    // [Request(0x13, 0x0A)] //
+    // [Request(0x13, 0x0B)] //
+    // [Request(0x13, 0x0C)] //
+    // [Request(0x13, 0x0D)] //
+
     #endregion
 }

@@ -5,33 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Server.Protocols;
 
 static class Login {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x00_01: // 0059af3e // Auth
-                AcceptClient(client);
-                break;
-            case 0x00_03: // 0059afd7 // after user selected world
-                SelectServer(client);
-                break;
-            case 0x00_04: // 0059b08f // list of languages? sent after lobbyServer
-                ServerList(client);
-                break;
-            case 0x00_0B: // 0059b14a // source location 0059b14a // sent after realmServer
-                Recieve_00_0B(client);
-                break;
-            case 0x00_10: break; // 0059b1ae // finished loading?
-            case 0x00_63: // 0059b253
-                Ping(client);
-                break;
-            default:
-                client.LogUnknown(0x00, id);
-                break;
-        }
-    }
-
     #region Request
-    // 00_01
+    [Request(0x00, 0x01)] // 0059af3e
     static void AcceptClient(Client client) {
         var data = PacketBuilder.DecodeCrazy(client.Reader);
 
@@ -46,6 +21,7 @@ static class Login {
                 client.Player = player;
                 client.Username = username;
                 client.DiscordId = discordId;
+                player?.Init(client);
                 SendAcceptClient(client);
                 break;
             case LoginResponse.NoUser:
@@ -65,7 +41,7 @@ static class Login {
         }
     }
 
-    // 00_03
+    [Request(0x00, 0x03)] // 0059afd7 // after user selected world
     static void SelectServer(Client client) {
         int serverNum = client.ReadInt16();
         int worldNum = client.ReadInt16();
@@ -74,7 +50,7 @@ static class Login {
         SendLobby(client, false);
     }
 
-    // 00_04
+    [Request(0x00, 0x04)] // 0059b08f // list of languages? sent after lobbyServer
     static void ServerList(Client client) {
         var count = client.ReadInt32();
 
@@ -85,7 +61,7 @@ static class Login {
         SendServerList(client);
     }
 
-    // 00_0B
+    [Request(0x00, 0x0B)] // 0059b14a // sent after realmServer
     static void Recieve_00_0B(Client client) {
         var idk1 = client.ReadString(); // "@"
         var idk2 = client.ReadInt32(); // = 0
@@ -95,7 +71,12 @@ static class Login {
         // SendCharacterData(res, false);
     }
 
-    // 00_63
+    [Request(0x00, 0x10)] // 0059b1ae finished loading?
+    static void Recv10(Client client) {
+        // TODO: what to do with this?
+    }
+
+    [Request(0x00, 0x63)] // 0059b253
     static void Ping(Client client) {
         int number = client.ReadInt32();
         SendPong(client, number);
@@ -105,10 +86,7 @@ static class Login {
     #region Response
     // 00_01
     public static void SendLobby(Client client, bool lobby) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0x1); // second switch
+        var b = new PacketBuilder(0x00, 0x01);
 
         b.WriteString(lobby ? "LobbyServer" : "RealmServer", 1);
 
@@ -120,10 +98,8 @@ static class Login {
 
     // 00_02_01
     static void SendAcceptClient(Client client) {
-        var b = new PacketBuilder();
+        var b = new PacketBuilder(0x00, 0x02);
 
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0x2); // second switch
         b.WriteByte(0x1); // third switch
 
         b.WriteString("", 1);
@@ -135,10 +111,8 @@ static class Login {
 
     // 00_02_02
     static void SendInvalidLogin(Client client, byte id) {
-        var b = new PacketBuilder();
+        var b = new PacketBuilder(0x00, 0x02);
 
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0x2); // second switch
         b.WriteByte(id); // third switch
 
         b.Send(client);
@@ -146,10 +120,8 @@ static class Login {
 
     // 00_02_03
     static void SendPlayerBanned(Client client) {
-        var b = new PacketBuilder();
+        var b = new PacketBuilder(0x00, 0x02);
 
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0x2); // second switch
         b.WriteByte(0x3); // third switch
 
         b.WriteString("01/01/1999", 1); // unban timeout (01/01/1999 = never)
@@ -159,10 +131,7 @@ static class Login {
 
     // 00_04
     static void SendServerList(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0x4); // second switch
+        var b = new PacketBuilder(0x00, 0x04);
 
         // some condition?
         b.WriteShort(0);
@@ -188,10 +157,7 @@ static class Login {
 
     // 00_05
     static void Send00_05(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0x5); // second switch
+        var b = new PacketBuilder(0x00, 0x05);
 
         int count = 1;
         b.WriteInt(count);
@@ -206,10 +172,7 @@ static class Login {
 
     // 00_0B
     static void SendChangeServer(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0xB); // second switch
+        var b = new PacketBuilder(0x00, 0x0B);
 
         b.WriteInt(1); // sets some global var
 
@@ -222,10 +185,7 @@ static class Login {
 
     // 00_0C_x // x = 0-7
     static void Send00_0C(Client client, byte x) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0xC); // second switch
+        var b = new PacketBuilder(0x00, 0x0C);
 
         b.WriteByte(x); // 0-7 switch
 
@@ -234,10 +194,7 @@ static class Login {
 
     // 00_0D_x // x = 2-6
     static void Send00_0D(Client client, short x) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0xD); // second switch
+        var b = new PacketBuilder(0x00, 0x0D);
 
         b.WriteShort(x); // (2-6) switch
 
@@ -247,10 +204,7 @@ static class Login {
     // 00_0E
     // almost the same as 00_0B
     static void Send00_0E(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x0); // first switch
-        b.WriteByte(0xE); // second switch
+        var b = new PacketBuilder(0x00, 0x0E);
 
         b.WriteInt(0); // some global
 
@@ -263,10 +217,7 @@ static class Login {
 
     // 00_11
     public static void SendTimoutVal(Client client, int ms = 65536) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x00); // first switch
-        b.WriteByte(0x11); // second switch
+        var b = new PacketBuilder(0x00, 0x11);
 
         // sets some global timeout flag
         // if more ms have been passed since then game sends 0x7F and disconnects
@@ -277,10 +228,7 @@ static class Login {
 
     // 00_63
     static void SendPong(Client client, int number) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x00); // first switch
-        b.WriteByte(0x63); // second switch
+        var b = new PacketBuilder(0x00, 0x63);
 
         b.WriteInt(number);
 

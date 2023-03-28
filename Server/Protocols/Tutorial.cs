@@ -1,20 +1,10 @@
-﻿namespace Server.Protocols;
+﻿using System;
+
+namespace Server.Protocols;
 
 static class Tutorial {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x01: // 0054c11c
-                Recv01(client);
-                break;
-            // case 0x02: // 0054c1a8 // start tutorial?
-            default:
-                client.LogUnknown(0x16, id);
-                break;
-        }
-    }
-
-    static void Recv01(Client client) {
+    [Request(0x16, 0x01)] // 0054c11c
+    static void Step(Client client) {
         // 01-00-00-00
         var action = client.ReadByte();
         // 0 = prev
@@ -142,11 +132,13 @@ static class Tutorial {
         }
     }
 
-    public static void Send01(Client client, int a, int b, int c, bool showText, bool showPrev, bool showNext) {
-        var _b = new PacketBuilder();
+    [Request(0x16, 0x02)] // 0054c1a8 // start tutorial?
+    public static void Recv02(Client client) {
+        throw new NotImplementedException();
+    }
 
-        _b.WriteByte(0x16); // first switch
-        _b.WriteByte(0x01); // second switch
+    public static void Send01(Client client, int a, int b, int c, bool showText, bool showPrev, bool showNext) {
+        var _b = new PacketBuilder(0x16, 0x01);
 
         _b.WriteInt(a); // id 1
         _b.WriteInt(b); // id 2
@@ -162,10 +154,7 @@ static class Tutorial {
     }
 
     public static void Send02(Client client, byte v1, int x, int y) {
-        var _b = new PacketBuilder();
-
-        _b.WriteByte(0x16); // first switch
-        _b.WriteByte(0x02); // second switch
+        var _b = new PacketBuilder(0x16, 0x02);
 
         _b.WriteByte(v1);
         _b.WriteInt(x);
@@ -175,10 +164,7 @@ static class Tutorial {
     }
 
     static void Send03(Client client, int npcId) {
-        var _b = new PacketBuilder();
-
-        _b.WriteByte(0x16); // first switch
-        _b.WriteByte(0x03); // second switch
+        var _b = new PacketBuilder(0x16, 0x03);
 
         _b.WriteInt(npcId);
 

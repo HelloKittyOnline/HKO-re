@@ -9,12 +9,14 @@ public struct MapList {
     [SeanField(3)] public int SpawnX { get; set; }
     [SeanField(4)] public int SpawnY { get; set; }
 
+    [SeanField(5)] public int Idk5 { get; set; }
+
     [SeanField(6)] public string Name { get; set; }
     [SeanField(7)] public string File { get; set; }
     [SeanField(8)] public string Ost { get; set; }
 
-    [SeanField(9)] public int Idk9 { get; set; }
-    [SeanField(10)] bool somethingParticles { get; set; }
+    [SeanField(9)] public int Idk9 => 0;
+    [SeanField(10)] public bool somethingParticles { get; set; }
 
     [SeanField(11)] public int WorldMapX { get; set; }
     [SeanField(12)] public int WorldMapY { get; set; }
@@ -29,9 +31,9 @@ public struct MapList {
     [SeanField(18)] public bool somethingEntity { get; set; }
     [SeanField(19)] public int areaMapScale { get; set; }
     [SeanField(20)] public int Idk20 { get; set; }
-    [SeanField(20)] public int packageId { get; set; }
-    [SeanField(21)] public int widthScale { get; set; }
-    [SeanField(22)] public int heightScale { get; set; }
-    [SeanField(23)] public int Idk23 { get; set; }
-    [SeanField(24)] public int Idk24 { get; set; }
+
+    [SeanField(21)] public int packageId { get; set; }
+    [SeanField(22)] public int widthScale { get; set; }
+    [SeanField(23)] public int heightScale { get; set; }
+    [SeanField(24)] public int Idk24 => 0;
 }

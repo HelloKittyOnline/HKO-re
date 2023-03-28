@@ -1,24 +1,10 @@
-﻿using System;
-using System.Threading;
-using Extractor;
+﻿using System.Threading;
 
 namespace Server.Protocols;
 
 static class Resource {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x01: // 005a2513
-                HarvestResource(client);
-                break;
-            default:
-                client.LogUnknown(0x06, id);
-                break;
-        }
-    }
-
     #region Request
-    // 06_01
+    [Request(0x06, 0x01)] // 005a2513
     static void HarvestResource(Client client) {
         // gathering
 
@@ -27,6 +13,15 @@ static class Resource {
 
         var resource = Program.resources[resId];
 
+        var skill = resource.GetSkill(action);
+        var level = client.Player.Levels[(int)skill];
+        var toolLevel = client.Player.GetToolLevel(skill);
+
+        if(level < resource.Level || toolLevel < resource.Level) {
+            Send06_01(client, 4, 0);
+            return;
+        }
+        
         // TODO: harvest time??
         const int harvestTime = 5 * 1000;
 
@@ -35,24 +30,10 @@ static class Resource {
             if(token.IsCancellationRequested)
                 return;
 
-            var item = Program.lootTables[resource.LootTable].GetRandom();
-            if(item != -1) {
-                client.AddItem(item, 1);
+            lock(client.Player) {
+                client.AddFromLootTable(resource.LootTable);
+                client.AddExpAction(skill, resource.Level);
             }
-
-            var type = action switch {
-                1 => resource.Type1,
-                2 => resource.Type2,
-                _ => throw new ArgumentOutOfRangeException()
-            };
-
-            client.Player.AddExpAction(client, type switch {
-                0 => Skill.Gathering,
-                1 => Skill.Mining,
-                2 => Skill.Woodcutting,
-                3 => Skill.Farming, // ?
-                _ => throw new ArgumentOutOfRangeException()
-            }, resource.Level);
 
             Send06_01(client, 7, 0);
         }, () => {
@@ -66,10 +47,7 @@ static class Resource {
     #region Response
     // 06_01
     static void Send06_01(Client client, byte type, int time) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x06); // first switch
-        b.WriteByte(0x01); // second switch
+        var b = new PacketBuilder(0x06, 0x01);
 
         b.WriteByte(type);
         // 1  = "Item is being used"

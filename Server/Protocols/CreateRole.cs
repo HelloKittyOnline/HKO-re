@@ -4,30 +4,8 @@ using System.Text;
 namespace Server.Protocols;
 
 static class CreateRole {
-    public static void Handle(Client client) {
-        var id = client.ReadByte();
-        switch(id) {
-            case 0x01: // 00566b0d // sent after character creation
-                CreateCharacter(client);
-                break;
-            case 0x02: // 00566b72
-                GetCharacter(client);
-                break;
-            case 0x03: // 00566bce // Delete character
-                client.Player = null;
-                SendCharacterData(client);
-                break;
-            case 0x05: // 00566c47 // check character name
-                CheckName(client);
-                break;
-            default:
-                client.LogUnknown(0x01, id);
-                break;
-        }
-    }
-
     #region Request
-    // 01_01
+    [Request(0x01, 0x01)] // 00566b0d // sent after character creation
     static void CreateCharacter(Client client) {
         client.ReadByte(); // 0
 
@@ -49,15 +27,23 @@ static class CreateRole {
             data[67], // birthDay
             entities);
 
+        client.Player.Init(client);
+
         SendCharacterData(client);
     }
 
-    // 01_02
+    [Request(0x01, 0x02)] // 00566b72
     static void GetCharacter(Client client) {
         SendCharacterData(client);
     }
 
-    // 01_03
+    [Request(0x01, 0x03)] // 00566bce // Delete character
+    static void DeleteCharacter(Client client) {
+        client.Player = null;
+        SendCharacterData(client);
+    }
+
+    [Request(0x01, 0x05)] // 00566c47 // check character name
     static void CheckName(Client client) {
         var name = client.ReadWString();
 
@@ -70,10 +56,7 @@ static class CreateRole {
     // 01_02
     // triggers character creation
     public static void SendCharacterData(Client client) {
-        var b = new PacketBuilder();
-
-        b.WriteByte(0x1); // first switch
-        b.WriteByte(0x2); // second switch
+        var b = new PacketBuilder(0x01, 0x02);
 
         if(client.Player == null) {
             // indicates if a character already exists

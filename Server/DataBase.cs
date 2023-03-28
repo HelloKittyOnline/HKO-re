@@ -15,23 +15,27 @@ class IdManager {
     private static int MaxId = 0;
 
     public static int GetId() {
-        if(AvalibleIds.Count == 0) {
-            return ++MaxId;
-        } else {
+        lock(AvalibleIds) {
+            if(AvalibleIds.Count == 0) {
+                return ++MaxId;
+            }
+
             int id = AvalibleIds.First();
             AvalibleIds.Remove(id);
             return id;
         }
     }
     public static void FreeId(int id) {
-        if(id == MaxId) {
-            MaxId--;
-            while (AvalibleIds.Contains(MaxId)) {
-                AvalibleIds.Remove(MaxId);
+        lock(AvalibleIds) {
+            if(id == MaxId) {
                 MaxId--;
+                while(AvalibleIds.Contains(MaxId)) {
+                    AvalibleIds.Remove(MaxId);
+                    MaxId--;
+                }
+            } else {
+                AvalibleIds.Add(id);
             }
-        } else {
-            AvalibleIds.Add(id);
         }
     }
 }
@@ -130,7 +134,6 @@ static class Database {
                 Converters = { new DictionaryInt32Converter() }
             });
             discordId = reader.GetUInt64("id");
-            playerData.Init();
         }
 
         _online.Add(username);

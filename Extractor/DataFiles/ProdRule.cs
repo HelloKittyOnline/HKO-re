@@ -1,49 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace Extractor;
 
+[SeanItem(25)]
 public struct ProdRule {
-    public int Id { get; set; }
-    public int ItemId { get; set; }
-    public int RequiredLevel { get; set; }
-    public int Count { get; set; }
-    public Item[] Ingredients { get; set; }
+    [SeanField(0)] public int Id { get; set; }
+    [SeanField(1)] public int ItemId { get; set; }
+    [SeanField(2)] public int RequiredLevel { get; set; }
+    [SeanField(3)] public int Count { get; set; }
+    [SeanArray(4, 5)] public Item[] Ingredients { get; set; }
 
     public struct Item {
-        public int ItemId;
-        public int Count;
-    }
-
-    public static ProdRule[] Load(byte[] data) {
-        var contents = new SeanDatabase(data);
-
-        var items = new ProdRule[contents.ItemCount];
-        for(int i = 0; i < contents.ItemCount; i++) {
-            var req = new List<Item>();
-            for(int j = 0; j < 5; j++) {
-                var id = contents.Items[i, j * 2 + 4];
-                var count = contents.Items[i, j * 2 + 5];
-
-                if(id == 0)
-                    continue;
-
-                req.Add(new Item {
-                    ItemId = id,
-                    Count = count,
-                });
-            }
-
-            items[i] = new ProdRule {
-                Id = contents.Items[i, 0],
-                RequiredLevel = contents.Items[i, 1],
-                ItemId = contents.Items[i, 2],
-                Count = contents.Items[i, 3],
-                Ingredients = req.ToArray()
-            };
-        }
-
-        return items;
+        [SeanField(0)] public int ItemId { get; set; }
+        [SeanField(1)] public int Count { get; set; }
     }
 
     public Skill GetSkill() {

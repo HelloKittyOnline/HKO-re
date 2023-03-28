@@ -1,25 +1,27 @@
+using Extractor;
+using Server.Protocols;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
-using Extractor;
-using Server.Protocols;
 
 namespace Server;
 
 struct InventoryItem : IWriteAble {
-    public static readonly InventoryItem Empty = new InventoryItem();
-
     public int Id { get; set; }
     public byte Count { get; set; }
-    public byte Durability { get; set; }
+    // public byte Durability { get; set; }
+    public byte Charges { get; set; }
+
+    [JsonIgnore]
+    public ItemAtt Data => Program.items[Id];
 
     public void Write(PacketBuilder w) {
         w.WriteInt(Id); // id
 
         w.WriteByte(Count); // count
-        w.WriteByte(Durability); // durability
-        w.WriteByte(0); // pet something
+        w.WriteByte(0); // durability - unused
+        w.WriteByte(Charges); // charges
         w.WriteByte(0); // unused?
 
         w.WriteByte(0); // idk
@@ -40,6 +42,7 @@ enum QuestStatus {
 
 class PlayerData {
     public int CurrentMap { get; set; } = 1; // Dream Room 1
+    public int ReturnMap = 8;
 
     [JsonIgnore]
     public int AdjustedMapId {
@@ -53,7 +56,8 @@ class PlayerData {
             return CurrentMap % 10;
         }
     }
-    [JsonIgnore] public MapData Map => Program.maps[AdjustedMapId];
+
+    [JsonIgnore] public Instance Map => Program.maps[CurrentMap];
 
     [JsonIgnore]
     public int MapType {
@@ -146,6 +150,7 @@ class PlayerData {
     public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
     public InventoryItem[] Inventory { get; set; }
     public InventoryItem[] Equipment { get; set; }
+    public InventoryItem[] Tools { get; set; }
 
     public int[] Quickbar { get; set; }
 
@@ -161,6 +166,8 @@ class PlayerData {
     public string Introduction { get; set; } = "";
 
     public byte[] ProductionFlags { get; set; }
+
+    public Farm Farm { get; set; }
 
     [JsonIgnore]
     public int TutorialState = 0;
@@ -187,13 +194,9 @@ class PlayerData {
         for(int i = 0; i < 9; i++) {
             Levels[i] = 1;
         }
-
-        Init();
-
-        Debug.Assert(entities.Length == 18);
     }
 
-    internal void Init() {
+    internal void Init(Client client) {
         // Dynamically load Display Entities
 
         // todo: remove down the line
@@ -202,76 +205,16 @@ class PlayerData {
         Npcs ??= new HashSet<int>();
         Keys ??= new HashSet<int>();
         Dreams ??= new HashSet<int>();
+        Farm ??= new Farm();
+        Farm.Owner = client;
+        Farm.Init();
+        Tools ??= new InventoryItem[3];
 
         DisplayEntities = new int[18];
         UpdateEntities();
         UpdateStats();
         Hp = MaxHp;
         Sta = MaxSta;
-    }
-
-    public void AddExpAction(Client client, Skill skill, int level) {
-        AddExp(client, skill, (int)(600 / Math.Pow(2, Levels[(int)skill] - level + 1)));
-    }
-
-    public void AddExp(Client client, Skill skill, int gain) {
-        var level = Levels[(int)skill];
-
-        if(skill != Skill.General) {
-            AddExp(client, Skill.General, gain / 2);
-        }
-
-        var required = Program.skills[level].GetExp(skill);
-        Exp[(int)skill] += gain;
-
-        if(required != 0 && Exp[(int)skill] >= required) {
-            Levels[(int)skill]++;
-            Exp[(int)skill] -= required;
-
-            if(skill == Skill.General) {
-                Protocols.Inventory.SendSetInventorySize(client);
-            }
-        }
-        Player.SendSkillChange(client, skill, true);
-    }
-
-    // [Obsolete("Use client.AddItem instead.",)]
-    public int AddItem(int itemId, int count) {
-        int open = -1;
-
-        var itemData = Program.items[itemId];
-
-        // add to existing stack or create new stack
-        // todo: handle item overflow
-        for(int i = 0; i < InventorySize; i++) {
-            var invItem = Inventory[i];
-            if(invItem.Id == 0 && open == -1) {
-                open = i;
-            }
-            if(invItem.Id == itemId && invItem.Count < itemData.StackLimit) {
-                Inventory[i].Count += (byte)count;
-                return i;
-            }
-        }
-
-        if(open != -1) {
-            Inventory[open].Id = itemId;
-            Inventory[open].Count = (byte)count;
-        }
-        return open;
-    }
-
-    public bool HasItem(int itemId, int count = 1) {
-        return GetItemCount(itemId) >= count;
-    }
-    public int GetItemCount(int itemId) {
-        int count = 0;
-        for(int i = 0; i < InventorySize; i++) {
-            if(Inventory[i].Id == itemId) {
-                count += Inventory[i].Count;
-            }
-        }
-        return count;
     }
 
     public void WriteEntities(PacketBuilder b) {
@@ -333,6 +276,18 @@ class PlayerData {
         });
     }
 
+    public int GetToolLevel(Skill type) {
+        var ind = type switch {
+            Skill.Gathering => 0,
+            Skill.Mining => 1,
+            Skill.Woodcutting => 2,
+            // Skill.Farming => 3,
+        };
+
+        var item = Tools[ind];
+        return item.Id == 0 ? 0 : item.Data.Level;
+    }
+
     public void UpdateStats() {
         var hp = 100;
         var sta = 100;
@@ -380,6 +335,8 @@ class PlayerData {
                 continue;
 
             var att = Program.items[item.Id];
+
+            Debug.Assert(att.Type == ItemType.Equipment);
             var equ = Program.equipment[att.SubId];
             var slot = equ.GetEntSlot();
 
@@ -387,5 +344,13 @@ class PlayerData {
         }
 
         // TODO: broadcast new appearance
+    }
+
+    public void ReturnFromFarm() {
+        var map = (StandardMap)Program.maps[ReturnMap]; // potentially throws cast exception
+
+        CurrentMap = map.Id;
+        PositionX = map.MapData.FarmX;
+        PositionY = map.MapData.FarmY;
     }
 }
