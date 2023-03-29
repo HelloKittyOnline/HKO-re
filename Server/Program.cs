@@ -225,8 +225,9 @@ class Program {
         farms       = SeanDatabase.Load<FarmData>(GetItem("farm_list.txt"));
         npcEncyclopedia = SeanDatabase.Load<NpcEncyclopedia>(GetItem("npc_encyclopedia.txt")).Where(x => x.NpcId != 0).ToDictionary(x => x.NpcId, x => x.Id);
 
-        foreach(var resCounter in lootTables)
-            resCounter.Init();
+        for(int i = 0; i < lootTables.Length; i++) {
+            lootTables[i].Init();
+        }
 
         var mapList = SeanDatabase.Load<MapList>(GetItem("map_list.txt"));
 

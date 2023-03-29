@@ -285,7 +285,7 @@ class PlayerData {
         };
 
         var item = Tools[ind];
-        return item.Id == 0 ? 0 : item.Data.Level;
+        return item.Id == 0 ? 1 : item.Data.Level;
     }
 
     public void UpdateStats() {

@@ -786,14 +786,14 @@ static class Player {
         w.WriteInt(res.X); // x 
         w.WriteInt(res.Y); // y
 
-        w.WriteShort(res.NameId); // nameId
+        w.WriteShort(res.ResourceType); // nameId
         w.WriteShort(res.Level); // count
 
         w.WriteByte(1); // rotation
         w.Write0(3); // unused
 
-        w.WriteShort(res.Type1); // type 1 - 0 = gather, 1 = mine, 2 = attack, 3 = ?
-        w.WriteShort(res.Type2); // type 2 - 0 = gather, 1 = mine, 2 = attack
+        w.WriteShort(res.Type1);
+        w.WriteShort(res.LootTable2 == 0 ? (short)3 : res.Type2);
 
         w.WriteByte(0); // 5 = no lan man?
         w.Write0(3); // unused

@@ -10,6 +10,9 @@ static class Resource {
 
         var resId = client.ReadInt32();
         var action = client.ReadByte(); // 1 or 2
+        if (action is not (1 or 2)) {
+            return;
+        }
 
         var resource = Program.resources[resId];
 
@@ -18,7 +21,7 @@ static class Resource {
         var toolLevel = client.Player.GetToolLevel(skill);
 
         if(level < resource.Level || toolLevel < resource.Level) {
-            Send06_01(client, 4, 0);
+            SendMessage(client, 4);
             return;
         }
         
@@ -31,22 +34,22 @@ static class Resource {
                 return;
 
             lock(client.Player) {
-                client.AddFromLootTable(resource.LootTable);
+                client.AddFromLootTable(action == 1 ? resource.LootTable1 : resource.LootTable2);
                 client.AddExpAction(skill, resource.Level);
             }
 
-            Send06_01(client, 7, 0);
+            SendMessage(client, 7);
         }, () => {
-            Send06_01(client, 8, 0);
+            SendMessage(client, 8);
         });
 
-        Send06_01(client, 2, harvestTime);
+        SendMessage(client, 2, harvestTime);
     }
     #endregion
 
     #region Response
     // 06_01
-    static void Send06_01(Client client, byte type, int time) {
+    static void SendMessage(Client client, byte type, int time = 0) {
         var b = new PacketBuilder(0x06, 0x01);
 
         b.WriteByte(type);
