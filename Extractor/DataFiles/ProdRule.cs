@@ -5,8 +5,8 @@ namespace Extractor;
 [SeanItem(25)]
 public struct ProdRule {
     [SeanField(0)] public int Id { get; set; }
-    [SeanField(1)] public int ItemId { get; set; }
-    [SeanField(2)] public int RequiredLevel { get; set; }
+    [SeanField(1)] public int RequiredLevel { get; set; }
+    [SeanField(2)] public int ItemId { get; set; }
     [SeanField(3)] public int Count { get; set; }
     [SeanArray(4, 5)] public Item[] Ingredients { get; set; }
 
