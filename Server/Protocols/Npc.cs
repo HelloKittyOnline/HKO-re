@@ -172,17 +172,16 @@ static class Npc {
 
             var dat = Program.checkpoints[id];
 
-            if(dat.ConsumeItem != 0) {
-                if(client.GetInv(InvType.Player).GetItemCount(dat.ConsumeItem) < dat.ConsumeItemCount)
-                    return;
-
-                client.RemoveItem(dat.ConsumeItem, dat.ConsumeItemCount);
-            }
-
-            if(dat.Item == 0)
+            // check if player has required item
+            if(client.GetInv(InvType.Player).GetItemCount(dat.ConsumeItem) < dat.ConsumeItemCount)
                 return;
+
+            // give player reward item
             if(!client.AddItem(dat.Item, dat.ItemCount, true))
                 return;
+
+            // remove required item
+            client.RemoveItem(dat.ConsumeItem, dat.ConsumeItemCount);
 
             client.Player.CheckpointFlags[id] = 2;
             UpdateFlag(client, dat.ActiveQuestFlag, false);

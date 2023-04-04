@@ -759,10 +759,10 @@ static class Player {
         w.WriteByte((byte)npc.Rotation);
         w.Write0(3); // unused
 
-        w.WriteInt(npc.Action1);
-        w.WriteInt(npc.Action2);
-        w.WriteInt(npc.Action3);
-        w.WriteInt(npc.Action4);
+        w.WriteInt((int)npc.Action1);
+        w.WriteInt((int)npc.Action2);
+        w.WriteInt((int)npc.Action3);
+        w.WriteInt((int)npc.Action4);
     }
 
     // 02_16

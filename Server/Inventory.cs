@@ -74,9 +74,19 @@ readonly ref struct InvRef {
     public bool FindInsert(int itemId, int count, out ItemRef item) {
         var limit = Program.items[itemId].StackLimit;
 
+        // find existing stack
         for(int i = 0; i < inv.Length; i++) {
             var _item = inv[i];
-            if(_item.Id == 0 || (_item.Id == itemId && _item.Count + count <= limit)) {
+            if(_item.Id == itemId && _item.Count + count <= limit) {
+                item = this[i];
+                return true;
+            }
+        }
+
+        // no fitting item found make new stack
+        for(int i = 0; i < inv.Length; i++) {
+            var _item = inv[i];
+            if(_item.Id == 0) {
                 item = this[i];
                 return true;
             }
@@ -93,7 +103,7 @@ readonly ref struct InvRef {
 
             var el = this[i];
             var _count = el.Count;
-            
+
             if(count < _count) {
                 inv[i].Count -= (byte)count;
                 el.SendUpdate(false);
@@ -122,6 +132,8 @@ readonly ref struct InvRef {
         return false;
     }
     public int GetItemCount(int itemId) {
+        if(itemId == 0)
+            return 0;
         int count = 0;
         foreach(var item in inv) {
             if(item.Id == itemId) {

@@ -82,11 +82,16 @@ class Client {
 
     /// <summary>Adds an item to the players inventory and sends chat notification for it</summary>
     public bool AddItem(int itemId, int count, bool notification) {
+        if(itemId == 0)
+            return true;
         var inv = GetInv(InvType.Player);
         return inv.AddItem(itemId, count, notification);
     }
 
     public bool RemoveItem(int itemId, int count) {
+        if(itemId == 0)
+            return true;
+
         // bug: removing quest requirement does not toggle dialog marker
         var inv = GetInv(InvType.Player);
         return inv.RemoveItem(itemId, count);
