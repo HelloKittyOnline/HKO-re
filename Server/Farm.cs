@@ -49,18 +49,19 @@ struct Plant : IWriteAble {
 class Farm : Instance, IWriteAble {
     public string Name { get; set; } = "";
     public byte Type { get; set; } = 1;
-    public Plant[] Plants { get; set; } = new Plant[20 * 20];
-    public byte[] Fertilization { get; set; } = new byte[20 * 20];
-    public byte[] Watered { get; set; } = new byte[20 * 20];
+    public Plant[] Plants { get; set; }
+    public byte[] Fertilization { get; set; }
+    public byte[] Watered { get; set; }
 
-    public TimeSpan DayTime;
+    public TimeSpan DayTime { get; set; }
 
-    public InventoryItem[] Inventory = new InventoryItem[200];
+    public InventoryItem[] Inventory { get; set; }
 
     /// <summary>
     /// indices of plants which need to be processed
     /// </summary>
-    [JsonIgnore] public List<int> ActivePlants = new();
+    [JsonIgnore] 
+    public List<int> ActivePlants = new();
 
     [JsonIgnore]
     public Client Owner {
@@ -84,6 +85,11 @@ class Farm : Instance, IWriteAble {
     [JsonIgnore] public override IReadOnlyCollection<Checkpoint> Checkpoints => Array.Empty<Checkpoint>();
 
     public void Init() {
+        Plants ??= new Plant[20 * 20];
+        Fertilization ??= new byte[20 * 20];
+        Watered ??= new byte[20 * 20];
+        Inventory ??= new InventoryItem[200];
+
         for(int i = 0; i < Plants.Length; i++) {
             if(Plants[i].SeedId != 0) {
                 ActivePlants.Add(i);
