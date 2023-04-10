@@ -138,8 +138,10 @@ class PlayerData {
     public int[] Exp { get; set; }
     public short[] Friendship { get; set; }
 
-    public Dictionary<int, QuestStatus> QuestFlags { get; set; } // TODO: cache active quests?
+    // TODO: cache active quests?
+    public Dictionary<int, QuestStatus> QuestFlags { get; set; } // todo: eventually rename to globalFlags
     public Dictionary<int, int> CheckpointFlags { get; set; }
+    public Dictionary<int, uint> QuestFlags1 { get; set; } // TODO: cache active quests?
 
     // used for encyclopedia
     public HashSet<int> Npcs { get; set; }
@@ -209,6 +211,7 @@ class PlayerData {
         Farm.Owner = client;
         Farm.Init();
         Tools ??= new InventoryItem[3];
+        QuestFlags1 ??= new Dictionary<int, uint>();
 
         DisplayEntities = new int[18];
         UpdateEntities();

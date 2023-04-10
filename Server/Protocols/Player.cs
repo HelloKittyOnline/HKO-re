@@ -428,18 +428,15 @@ static class Player {
 
         var currentQuests = player.QuestFlags.Where(x => x.Value == QuestStatus.Running).ToArray();
         // active quests
-        for(int i = 0; i < 10; i++) {
-            if(i < currentQuests.Length) {
-                b.WriteInt(currentQuests[i].Key); // questId
-                b.WriteByte(0); // flags1
-                b.WriteByte(0); // flags2
-            } else {
-                b.WriteInt(0); // questId
-                b.WriteByte(0); // flags1
-                b.WriteByte(0); // flags2
-            }
+        for(int i = 0; i < currentQuests.Length && i < 10; i++) {
+            var id = currentQuests[i].Key;
+            player.QuestFlags1.TryGetValue(id, out var flag);
+            b.WriteInt(id); // questId
+            b.WriteByte((byte)(flag & 0xFF)); // flags1
+            b.WriteByte((byte)((flag >> 8) & 0xFF)); // flags2
             b.Write0(2); // unused
         }
+        b.Write0((4 + 1 + 1 + 2) * (10 - currentQuests.Length)); // remaining slots
 
         b.WriteByte(0);
         b.WriteByte(0); // crystals

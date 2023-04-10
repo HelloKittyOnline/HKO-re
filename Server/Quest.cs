@@ -111,6 +111,25 @@ abstract class Requirement {
         }
     }
 
+    public class Flags : Requirement {
+        public int QuestId;
+        public int[] Ids { get; set; }
+
+        public override bool Check(Client client) {
+            client.Player.QuestFlags1.TryGetValue(QuestId, out var flags);
+            return Ids.All(x => (flags & (1 << x)) != 0);
+        }
+    }
+    public class NotFlag : Requirement {
+        public int QuestId;
+        public int Id { get; set; }
+
+        public override bool Check(Client client) {
+            client.Player.QuestFlags1.TryGetValue(QuestId, out var flag);
+            return (flag & (1 << Id)) == 0;
+        }
+    }
+
     public abstract bool Check(Client client);
 }
 
@@ -205,16 +224,42 @@ abstract class Reward {
         }
     }
 
-    /*
-    // TODO: rethink system - might make Sub entirely separate from quests
     public class StartQuest : Reward {
-        public int Id { get; set; }
+        public int QuestId;
 
         public override void Handle(Client client, int select) {
-            throw new NotImplementedException();
+            client.Player.QuestFlags[QuestId] = QuestStatus.Running;
+            Npc.SendNewQuest(client, QuestId);
         }
     }
-    */
+
+    public class EndQuest : Reward {
+        public int QuestId;
+
+        public override void Handle(Client client, int select) {
+            client.Player.QuestFlags[QuestId] = QuestStatus.Done;
+            client.Player.QuestFlags1.Remove(QuestId);
+            Npc.UpdateFlag(client, QuestId, true);
+        }
+    }
+    public class StartMinigame : Reward {
+        public int Id;
+        public int Score;
+
+        public override void Handle(Client client, int select) {
+            Npc.SendOpenMinigame(client, Id, Score, 0, 0);
+        }
+    }
+    public class Flag : Reward {
+        public int QuestId;
+        public byte Id { get; set; }
+
+        public override void Handle(Client client, int select) {
+            client.Player.QuestFlags1.TryGetValue(QuestId, out var val);
+            client.Player.QuestFlags1[QuestId] = val | (1u << Id);
+            Npc.SetQuestFlag(client, QuestId, Id);
+        }
+    }
 
     public abstract void Handle(Client client, int select);
 }
@@ -223,10 +268,6 @@ abstract class Reward {
 class Minigame {
     public int Id { get; set; }
     public int Score { get; set; }
-
-    public void Open(Client client) {
-        Npc.SendOpenMinigame(client, Id, Score, 0, 0);
-    }
 }
 
 record ManualQuest {
@@ -235,9 +276,6 @@ record ManualQuest {
         public int Npc { get; set; }
         public int Dialog { get; set; }
         public Reward[] Rewards { get; set; }
-
-        [JsonIgnore] public ManualQuest Quest { get; set; }
-        [JsonIgnore] public bool Begins { get; set; }
 
         public bool CheckRequirements(Client client) {
             return Requirements.All(x => x.Check(client));
@@ -253,19 +291,10 @@ record ManualQuest {
     }
 
     public int Id { get; set; }
-    public Sub[] Start { get; set; }
-    public Sub[] End { get; set; }
-    public Minigame Minigame { get; set; }
-
-    /*
     public string Name { get; set; }
     public string Description { get; set; }
-    public int Village { get; set; }
-    public int Icon { get; set; }
-    public DateTime? Expire { get; set; }
-    public string[] Reset { get; set; }
-    public int Type { get; set; }
-    */
+    public Minigame Minigame { get; set; }
+    public Sub[] Sections { get; set; }
 
     public static ManualQuest[] Load(string path) {
         var options = new JsonSerializerOptions {
@@ -275,14 +304,31 @@ record ManualQuest {
         options.Converters.Add(new RewardConverter());
 
         var items = JsonSerializer.Deserialize<ManualQuest[]>(File.ReadAllText(path), options);
-
         foreach(var item in items) {
-            foreach(var sub in item.Start) {
-                sub.Quest = item;
-                sub.Begins = true;
-            }
-            foreach(var sub in item.End) {
-                sub.Quest = item;
+            foreach(var section in item.Sections) {
+                foreach(var req in section.Requirements) {
+                    if(req is Requirement.NotFlag n)
+                        n.QuestId = item.Id;
+                    if(req is Requirement.Flags f)
+                        f.QuestId = item.Id;
+                }
+                foreach(var rew in section.Rewards) {
+                    switch(rew) {
+                        case Reward.StartMinigame q:
+                            q.Id = item.Minigame.Id;
+                            q.Score = item.Minigame.Score;
+                            break;
+                        case Reward.Flag f:
+                            f.QuestId = item.Id;
+                            break;
+                        case Reward.StartQuest s:
+                            s.QuestId = item.Id;
+                            break;
+                        case Reward.EndQuest e:
+                            e.QuestId = item.Id;
+                            break;
+                    }
+                }
             }
         }
 

@@ -207,7 +207,7 @@ class Program {
         var quests = ManualQuest.Load($"{path}/quests.json");
         minigameQuests = quests.Where(x => x.Minigame != null).ToDictionary(x => x.Minigame.Id);
         // order so that minigames have the least priority
-        questMap = (Lookup<int, ManualQuest.Sub>)quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Start.Concat(x.End)).ToLookup(x => x.Npc);
+        questMap = (Lookup<int, ManualQuest.Sub>)quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Sections).ToLookup(x => x.Npc);
 
         var archive = SeanArchive.Extract($"{path}/client_table_eng.sdb");
         byte[] GetItem(string name) => archive.First(x => x.Name == name).Contents;

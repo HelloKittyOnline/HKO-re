@@ -79,24 +79,10 @@ static class Npc {
                 return; // quest limit reached
             }
 
-            if(sub.Begins) {
-                if(sub.Quest.Minigame != null) {
-                    sub.Quest.Minigame.Open(client); // do not actually accept minigame quest until after it was completed
-                    return;
+            foreach(var req in sub.Requirements) {
+                if(req is Requirement.GiveItem item) {
+                    client.RemoveItem(item.Id, item.Count);
                 }
-
-                client.Player.QuestFlags[questId] = QuestStatus.Running;
-                SendNewQuest(client, questId);
-            } else {
-                client.Player.QuestFlags[questId] = QuestStatus.Done;
-
-                foreach(var req in sub.Requirements) {
-                    if(req is Requirement.GiveItem item) {
-                        client.RemoveItem(item.Id, item.Count);
-                    }
-                }
-
-                UpdateFlag(client, questId, true);
             }
 
             foreach(var reward in sub.Rewards) {
@@ -122,8 +108,8 @@ static class Npc {
         var questId = client.ReadInt32();
 
         // TODO: gracefully handle canceling quests
-
-        client.Player.QuestFlags[questId] = 0;
+        if(client.Player.QuestFlags[questId] == QuestStatus.Running)
+            client.Player.QuestFlags[questId] = QuestStatus.None;
         SendDeleteQuest(client, questId);
     }
 
@@ -147,7 +133,7 @@ static class Npc {
             return; // score not met
 
         lock(client.Player) {
-            if(!quest.Start.Any(x => x.CheckRequirements(client)))
+            if(!quest.Sections.Any(x => x.Rewards.Any(y => y is Reward.StartMinigame) && x.CheckRequirements(client)))
                 return; // starting condition not met
 
             if(client.Player.QuestFlags.TryGetValue(quest.Id, out var flag) && flag == QuestStatus.Done)
@@ -156,7 +142,7 @@ static class Npc {
             client.Player.QuestFlags[quest.Id] = QuestStatus.Running;
         }
         SendNewQuest(client, quest.Id);
-        UpdateQuestMarkers(client, quest.End.Select(x => x.Npc));
+        UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
     }
 
     // [Request(0x05, 0x0B)] // 0057431e
@@ -293,6 +279,16 @@ static class Npc {
 
         b.WriteInt(flag);
         b.WriteByte(Convert.ToByte(set));
+
+        b.Send(client);
+    }
+
+    // 05_0B
+    public static void SetQuestFlag(Client client, int questId, byte flagId) {
+        var b = new PacketBuilder(0x05, 0x0B);
+
+        b.WriteInt(questId);
+        b.WriteByte(flagId);
 
         b.Send(client);
     }
