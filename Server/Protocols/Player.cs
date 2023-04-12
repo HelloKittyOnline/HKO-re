@@ -390,8 +390,8 @@ static class Player {
 
         // farm inventory
         for(int i = 0; i < 200; i++)
-            b.Write(new InventoryItem());
-        b.WriteByte(0); // size
+            b.Write(player.Farm.Inventory[i]);
+        b.WriteByte(200); // size
         b.Write0(3); // unused
 
         for(int i = 0; i < 100; i++)
