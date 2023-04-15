@@ -35,15 +35,16 @@ public class AniFrame {
             for(int i = 0; i < Width * Height; i++) {
                 var val = s[i];
 
-                var b = (val & 0b11111) << 3;
+                // rgb 565 to rgb 888
+                var b = ((val & 0b11111) * 255 + 15) / 31;
                 val >>= 5;
-                var g = (val & 0b111111) << 2;
+                var g = ((val & 0b111111) * 255 + 31) / 63;
                 val >>= 6;
-                var r = (val & 0b11111) << 3;
+                var r = ((val & 0b11111) * 255 + 15) / 31;
 
                 var a = 255;
-                if(Alpha != null)
-                    a = Alpha[i] << 3;
+                if(Alpha != null) // for some reason they only used 5 bits alpha even though they could have used all 8
+                    a = (Alpha[i] * 255 + 15) / 31;
 
                 var x = i % Width;
                 var y = i / Width;
@@ -84,6 +85,30 @@ public class AniFrame {
         }
 
         return data;
+    }
+
+    public Rectangle CalcBounds() {
+        if(Width == 0 || Height == 0 || Alpha == null)
+            return new Rectangle(0, 0, Width, Height);
+
+        int left = int.MaxValue;
+        int right = int.MinValue;
+        int top = int.MaxValue;
+        int bottom = int.MinValue;
+
+        for(int i = 0; i < Width * Height; i++) {
+            if(Alpha[i] != 0) {
+                var x = i % Width;
+                var y = i / Width;
+
+                left = Math.Min(left, x);
+                right = Math.Max(right, x);
+                top = Math.Min(top, y);
+                bottom = Math.Max(bottom, y);
+            }
+        }
+
+        return Rectangle.FromLTRB(left, top, right, bottom);
     }
 }
 

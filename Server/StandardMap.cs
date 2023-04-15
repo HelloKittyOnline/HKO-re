@@ -80,6 +80,8 @@ class MobData : IWriteAble {
     public byte Speed => 10;
     public int MaxHp => Program.mobAtts[MobId].Hp;
 
+    private bool isRespawning = false;
+
     public MobData(int id, int mobId, int x, int y) {
         Id = id;
         MobId = mobId;
@@ -90,7 +92,6 @@ class MobData : IWriteAble {
         IsPet = 0;
 
         State = 1;
-        // 0 = normal
         // 1 = normal
         // 2 = alert
         // 3 = squigly
@@ -99,8 +100,6 @@ class MobData : IWriteAble {
         // 6 = squigly also gone
         // 7 = normal
     }
-
-    private Task respawnTask;
 
     public void Write(PacketBuilder b) {
         b.WriteInt(Id);
@@ -119,17 +118,19 @@ class MobData : IWriteAble {
         b.WriteInt(Y); // moving?
     }
 
-    public void QueueRespawn(Instance map) {
-        respawnTask ??= Task.Run(() => {
-            // TODO: actual respawn time?
-            Thread.Sleep(10 * 1000);
-            Hp = MaxHp;
-            State = 1;
+    public async void QueueRespawn(Instance map) {
+        if(isRespawning)
+            return;
 
-            Battle.SendMobState(map.Players, this);
+        isRespawning = true;
 
-            respawnTask = null;
-        });
+        // TODO: actual respawn time?
+        await Task.Delay(10 * 1000);
+        Hp = MaxHp;
+        State = 1;
+        isRespawning = false;
+
+        Battle.SendMobState(map.Players, this);
     }
 }
 

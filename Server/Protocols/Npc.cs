@@ -48,7 +48,8 @@ static class Npc {
         SendOpenDialog(client, dialog);
     }
 
-    // [Request(0x05, 0x02)] // 00573e4a // npc data ack?
+    [Request(0x05, 0x02)] // 00573e4a // npc data ack?
+    static void Recv02(Client client) { }
 
     [Request(0x05, 0x03)] // 00573ef2
     static void TakeQuest(Client client) {
@@ -131,6 +132,11 @@ static class Npc {
 
         if(quest.Minigame.Score > score)
             return; // score not met
+
+        if(client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10) {
+            Player.SendMessage(client, Player.MessageType.Quest_Log_is_full);
+            return; // quest limit reached
+        }
 
         lock(client.Player) {
             if(!quest.Sections.Any(x => x.Rewards.Any(y => y is Reward.StartMinigame) && x.CheckRequirements(client)))

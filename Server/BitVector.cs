@@ -1,4 +1,4 @@
-﻿namespace Server; 
+﻿namespace Server;
 
 internal class BitVector : IWriteAble {
     private byte[] Bytes { get; }
@@ -7,8 +7,12 @@ internal class BitVector : IWriteAble {
         Bytes = new byte[size];
     }
 
+    public BitVector(byte[] bytes) {
+        Bytes = bytes;
+    }
+
     public bool this[int i] {
-        get => (Bytes[i >> 3] & 1 << (i & 7)) != 0;
+        get => (Bytes[i >> 3] & (1 << (i & 7))) != 0;
         set {
             if(value)
                 Bytes[i >> 3] |= (byte)(1 << (i & 7));

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace Server.Protocols;
 
@@ -19,10 +19,10 @@ static class Battle {
         if(mob.Hp == 0)
             return;
 
-        client.StartAction(token => {
+        client.StartAction(async token => {
             // TODO: improve damage formula
             while(true) {
-                Thread.Sleep(500);
+                await Task.Delay(500);
                 if(token.IsCancellationRequested)
                     break;
 
@@ -46,7 +46,7 @@ static class Battle {
                     }
                 }
 
-                Thread.Sleep(500);
+                await Task.Delay(500);
                 if(token.IsCancellationRequested)
                     break;
 

@@ -1,8 +1,8 @@
-﻿using Extractor;
+using Extractor;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace Server.Protocols;
 
@@ -66,13 +66,13 @@ static class Farm {
 
         const int harvestTime = 5 * 1000;
 
-        client.StartAction(token => {
-            Thread.Sleep(harvestTime);
+        client.StartAction(async token => {
+            await Task.Delay(harvestTime);
             if(token.IsCancellationRequested)
                 return;
 
             lock(farm) {
-                ref var plant = ref farm.Plants[index];
+                var plant = farm.Plants[index];
 
                 if(plant.SeedId == 0 || plant.State == PlantState.None)
                     return;
@@ -111,6 +111,8 @@ static class Farm {
                     client.AddExpAction(Skill.Woodcutting, data.Level);
                     client.AddFromLootTable(data.ChopLoot);
                 }
+
+                farm.Plants[index] = plant;
             }
 
             Send03(client, 4, 0); // stop

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Linq;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace Server.Protocols;
 
@@ -38,11 +38,11 @@ static class Production {
 
         const int productionTime = 5 * 1000;
 
-        client.StartAction(token => {
+        client.StartAction(async token => {
             while(true) {
                 Send01(client, 3, productionTime);
 
-                Thread.Sleep(productionTime);
+                await Task.Delay(productionTime);
                 if(token.IsCancellationRequested)
                     break;
 

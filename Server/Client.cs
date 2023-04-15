@@ -102,7 +102,7 @@ class Client {
         return GetInv(InvType.Player).AddFromLootTable(table);
     }
 
-    public void StartAction(Action<CancellationToken> action, Action onCancel) {
+    public async void StartAction(Func<CancellationToken, Task> action, Action onCancel) {
         actionToken?.Cancel();
 
         var source = new CancellationTokenSource();
@@ -114,14 +114,12 @@ class Client {
                 actionToken = null;
         });
 
-        Task.Run(() => {
-            action(actionToken.Token);
+        await action(actionToken.Token);
 
-            // action completed
-            // if the token is our own delete it
-            if(actionToken == source)
-                actionToken = null;
-        });
+        // action completed
+        // if the token is our own delete it
+        if(actionToken == source)
+            actionToken = null;
     }
 
     public void CancelAction() {

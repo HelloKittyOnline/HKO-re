@@ -32,7 +32,7 @@ public enum ItemType {
     // 26
     Guild_Petition_Form = 27,
     Bundle_Item = 28,
-    // 29
+    Emoticon = 29,
     // 30
     Farm_Draw_Pattern = 31,
     Crop_Remover = 32,

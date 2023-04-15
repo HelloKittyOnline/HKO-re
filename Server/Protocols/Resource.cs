@@ -1,4 +1,4 @@
-﻿using System.Threading;
+﻿using System.Threading.Tasks;
 
 namespace Server.Protocols;
 
@@ -10,7 +10,7 @@ static class Resource {
 
         var resId = client.ReadInt32();
         var action = client.ReadByte(); // 1 or 2
-        if (action is not (1 or 2)) {
+        if(action is not (1 or 2)) {
             return;
         }
 
@@ -24,12 +24,12 @@ static class Resource {
             SendMessage(client, 4);
             return;
         }
-        
+
         // TODO: harvest time??
         const int harvestTime = 5 * 1000;
 
-        client.StartAction(token => {
-            Thread.Sleep(harvestTime);
+        client.StartAction(async token => {
+            await Task.Delay(harvestTime);
             if(token.IsCancellationRequested)
                 return;
 

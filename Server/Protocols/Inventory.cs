@@ -170,7 +170,7 @@ static class Inventory {
         }
 
         client.Player.ProductionFlags.SetBit(prodRule);
-        item.Clear();
+        item.Remove(1);
 
         SendUsedSkillBook(client, SkillUsedFlag.Success, prodRule);
     }

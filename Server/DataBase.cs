@@ -90,8 +90,11 @@ enum LoginResponse {
 }
 
 static class Database {
-    private static HashSet<string> _online = new();
     private static string _connectionString;
+
+    private static JsonSerializerOptions jsonOptions = new() {
+        Converters = { new DictionaryInt32Converter() }
+    };
 
     public static void SetConnectionString(string str) {
         _connectionString = str;
@@ -101,9 +104,6 @@ static class Database {
         playerData = null;
         discordId = 0;
 
-        if(_online.Contains(username)) {
-            return LoginResponse.AlreadyOnline;
-        }
 
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
@@ -120,6 +120,12 @@ static class Database {
             return LoginResponse.NoUser;
         }
 
+        var dId = reader.GetUInt64("id");
+        discordId = dId;
+        if(Program.clients.Any(x => x.DiscordId == dId)) {
+            return LoginResponse.AlreadyOnline;
+        }
+
         var buff = new byte[48];
 
         reader.GetBytes("password", 0, buff, 0, 48);
@@ -130,37 +136,29 @@ static class Database {
 
         if(!reader.IsDBNull("data")) {
             var data = reader.GetString("data");
-            playerData = JsonSerializer.Deserialize<PlayerData>(data, new JsonSerializerOptions {
-                Converters = { new DictionaryInt32Converter() }
-            });
-            discordId = reader.GetUInt64("id");
+            playerData = JsonSerializer.Deserialize<PlayerData>(data, jsonOptions);
         }
 
-        _online.Add(username);
         return LoginResponse.Ok;
     }
 
-    public static void LogOut(string username, PlayerData data) {
+    public static void LogOut(ulong discordId, PlayerData data) {
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
-        LogRequest("update account set data = @data where username = @name");
+        LogRequest("update account set data = @data where id = @discordId");
 
         using var command = connection.CreateCommand();
-        command.CommandText = "update account set data = @data where username = @name";
-        command.Parameters.AddWithValue("name", username);
+        command.CommandText = "update account set data = @data where id = @discordId";
+        command.Parameters.AddWithValue("discordId", discordId);
 
         if(data == null) {
             command.Parameters.AddWithValue("data", null);
         } else {
-            command.Parameters.AddWithValue("data", JsonSerializer.Serialize(data, new JsonSerializerOptions {
-                Converters = { new DictionaryInt32Converter() }
-            }));
+            command.Parameters.AddWithValue("data", JsonSerializer.Serialize(data, jsonOptions));
         }
 
         command.ExecuteNonQuery();
-
-        _online.Remove(username);
     }
 
     public static OrderItem[] GetOrders(ulong userId) {
@@ -244,7 +242,7 @@ static class Database {
     }
 
     private static byte[] HashPassword(byte[] salt, string password) {
-        var rfc = new Rfc2898DeriveBytes(password, salt, 10000);
+        var rfc = new Rfc2898DeriveBytes(password, salt, 10000, HashAlgorithmName.SHA1); // consider switching hashing algorithm
         return rfc.GetBytes(256 / 8);
     }
 

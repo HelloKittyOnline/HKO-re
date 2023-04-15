@@ -284,17 +284,20 @@ static class Player {
     /*
     [Request(0x02, 0x28)] // 005df86e
     [Request(0x02, 0x29)] // 005df8e4
-    [Request(0x02, 0x2A)] // 005df946 // sent from the same function as 0x0A why?
     [Request(0x02, 0x2B)] // 005df9cb
     [Request(0x02, 0x2C)] // 005dfa40
     [Request(0x02, 0x2D)] // 005dfab4
     */
+    [Request(0x02, 0x2A)] // 005df946 // sent from the same function as 0x0A why?
+    static void Recv2A(Client client) {
+        // todo: what to do with this?
+    }
 
     [Request(0x02, 0x32)] // 005dfb8c //  client version information
     static void CheckPackageVersions(Client client) {
         int count = client.ReadInt32();
 
-        var result = new List<string>();
+        /*var result = new List<string>();
         for(int i = 0; i < count; i++) {
             var name = client.ReadString();
             var version = client.ReadString();
@@ -304,7 +307,6 @@ static class Player {
             }
         }
 
-        /*
         for(int i = result.Count - 1; i >= 0; i--) {
             // FIXME: only send if required?
             string item = result[i];
@@ -603,7 +605,7 @@ static class Player {
 
     // 02_09
     public static void SendChangeMap(Client client) {
-        var b = new PacketBuilder(0x2, 0x9);
+        var b = new PacketBuilder(0x02, 0x9);
         var player = client.Player;
 
         b.WriteInt(player.CurrentMap);

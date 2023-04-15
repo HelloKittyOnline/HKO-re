@@ -61,59 +61,58 @@ class Program {
         .CreateLogger();
 
     static async Task ListenClient(Client client, bool lobby) {
-        Login.SendLobby(client, lobby);
+        try {
+            Login.SendLobby(client, lobby);
 
-        var head = new byte[5];
+            var head = new byte[5];
 
-        while(true) {
-            byte[] data; // todo: reuse buffer
+            while(true) {
+                byte[] data; // todo: reuse buffer
 
-            try {
-                if(await client.Stream.ReadAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
+                try {
+                    if(await client.Stream.ReadAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
+                        break;
+                    }
+
+                    var length = head[3] | head[4] << 8;
+                    if(length > 16 * 1024 * 1024) {
+                        break; // limit maximum package size to prevent oom attack
+                    }
+
+                    data = new byte[length];
+                    if(await client.Stream.ReadAsync(data, client.Token) != length) {
+                        break;
+                    }
+                } catch {
+                    // if(client.Token.IsCancellationRequested) // TODO: send disconnect reason?
+                    // network error likely connection reset by peer or action canceled
                     break;
                 }
 
-                var length = head[3] | head[4] << 8;
-
-                data = new byte[length];
-                if(await client.Stream.ReadAsync(data, client.Token) != length) {
-                    break;
+                if(data.Length == 1) {
+                    if(data[0] == 0x7E) { // 005551be
+                    } else if(data[0] == 0x7F) { // 005bb8a9
+                        var b = new PacketBuilder(); // reset timeout
+                        b.WriteByte(0x7F);
+                        b.Send(client);
+                    }
+                    continue;
                 }
-            } catch {
-                // if(client.Token.IsCancellationRequested) // TODO: send disconnect reason?
-                // network error likely connection reset by peer or action canceled
-                break;
-            }
 
-            if(data.Length == 1) {
-                if(data[0] == 0x7E) { // 005551be
-                } else if(data[0] == 0x7F) { // 005bb8a9
-                    // reset timeout
-                    var b = new PacketBuilder();
+                var id = (data[0] << 8) | data[1];
 
-                    b.WriteByte(0x7F);
-
-                    b.Send(client);
+                if(client.Username == null && id != 1) {
+                    break; // first package has to be login attempt
                 }
-                continue;
-            }
-
-            var id = (data[0] << 8) | data[1];
-
-            if(client.Username == null && id != 1) {
-                // invalid data
-                break;
-            }
 #if DEBUG
-            if(id != 0x0063) { // skip ping
-                client.Logger.LogTrace("[{userID}] S <- C: {:X2}_{:X2} {data}", client.DiscordId, id >> 8, id & 0xFF, data);
-            }
+                if(id != 0x0063) { // skip ping
+                    client.Logger.LogTrace("[{userID}] S <- C: {:X2}_{:X2} {data}", client.DiscordId, id >> 8, id & 0xFF, data);
+                }
 #endif
 
-            var ms = new MemoryStream(data);
-            client.Reader = new BinaryReader(ms);
+                var ms = new MemoryStream(data);
+                client.Reader = new BinaryReader(ms);
 
-            try {
                 // skip id bytes
                 client.ReadByte();
                 client.ReadByte();
@@ -127,18 +126,53 @@ class Program {
                         f(client);
                     } catch(NotImplementedException e) {
                         client.Logger.LogWarning("[{user}] Packet {major:X2}_{minor:X2} not implemented", client.DiscordId, data[0], data[1]);
+                    } catch(Exception e) {
+                        client.Logger.LogError(e, "[{userID}] Error handling packet {data}", client.DiscordId, data);
+                        break;
                     }
                 } else {
                     client.LogUnknown(data[0], data[1]);
                 }
-            } catch(Exception e) {
-                client.Logger.LogError(e, "[{userID}] Error handling packet {data}", client.DiscordId, data);
-                break;
             }
+        } catch(Exception e) {
+            client.Logger.LogError(e, "[{userID}] Error: ", client.DiscordId);
+        }
+
+        lock(clients)
+            clients.Remove(client);
+
+        client.TcpClient.Close();
+        IdManager.FreeId(client.Id);
+
+        if(client.Username != null) {
+            if(client.InGame) { // remove player from maps
+                try {
+                    Player.SendDeletePlayer(client.Player.Map.Players, client);
+
+                    // TODO: kick other players from farm
+                    /*foreach (var player in client.Player.Farm.Players) {
+                        player.Player.ReturnFromFarm();
+                        SendChangeMap(player);
+                    }*/
+                    maps.Remove(client.Player.Farm.Id); // remove farm from map list
+                    maps.Remove(client.Player.Farm.House.Floor0.Id);
+                    maps.Remove(client.Player.Farm.House.Floor1.Id);
+                    maps.Remove(client.Player.Farm.House.Floor2.Id);
+                } catch { }
+            }
+
+            if(client.Player.MapType == 3 || client.Player.MapType == 4) {
+                try {
+                    client.Player.ReturnFromFarm();
+                } catch { }
+            }
+
+            Database.LogOut(client.DiscordId, client.Player);
+            client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
         }
     }
 
-    private static void Server(int port, bool lobby, CancellationToken token) {
+    private static async Task Server(int port, bool lobby, CancellationToken token) {
         var server = new TcpListener(IPAddress.Any, port);
         server.Start();
 
@@ -150,54 +184,19 @@ class Program {
 
             try {
                 // throws if cancellation token is triggered
-                tcpClient = server.AcceptTcpClientAsync(token).AsTask().Result;
+                tcpClient = await server.AcceptTcpClientAsync(token);
             } catch when(token.IsCancellationRequested) {
                 break;
             }
 
-            logger.LogInformation($"Client {tcpClient.Client.RemoteEndPoint} {tcpClient.Client.LocalEndPoint}");
+            logger.LogInformation($"Client {tcpClient.Client.RemoteEndPoint}");
 
             var client = new Client(tcpClient);
-
             lock(clients)
                 clients.Add(client);
 
             client.RunTask = Task.Run(async () => {
-                try {
-                    await ListenClient(client, lobby);
-                } catch(Exception e) {
-                    client.Logger.LogError(e, "[{userID}] Error: ", client.DiscordId);
-                }
-                lock(clients)
-                    clients.Remove(client);
-
-                client.TcpClient.Close();
-                IdManager.FreeId(client.Id);
-
-                if(client.Username != null) {
-                    if(client.InGame) { // remove player from maps
-                        try {
-                            Player.SendDeletePlayer(client.Player.Map.Players, client);
-
-                            // TODO: kick other players from farm
-                            /*foreach (var player in client.Player.Farm.Players) {
-                                player.Player.ReturnFromFarm();
-                                SendChangeMap(player);
-                            }*/
-                            maps.Remove(client.Player.Farm.Id); // remove farm from map list
-                        } catch { }
-                    }
-
-                    if(client.Player.MapType == 3) {
-                        try {
-                            client.Player.ReturnFromFarm();
-                        } catch { }
-                    }
-
-                    Database.LogOut(client.Username, client.Player);
-                    client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
-
-                }
+                await ListenClient(client, lobby);
             });
         }
         server.Stop();
@@ -303,7 +302,7 @@ class Program {
         Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all resources registered
     }
 
-    static void Main(string[] args) {
+    static async Task Main(string[] args) {
         handlers = Request.GetEndpoints();
 
         var serverLogger = loggerFactory.CreateLogger("Server");
@@ -332,14 +331,16 @@ class Program {
         Commands.RunConsole();
 
         Task.Run(Farm.FarmThread);
-        Server(25000, true, serverTokenSource.Token);
+        await Server(25000, true, serverTokenSource.Token);
 
         serverLogger.LogInformation("Stopping server...");
 
+        // start logging out all users
         foreach(var client in clients) {
             client.Close();
         }
 
+        // wait for all users to finish logging out
         Task.WaitAll(clients.Select(x => x.RunTask).ToArray());
     }
 }

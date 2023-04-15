@@ -1,8 +1,7 @@
-﻿using Extractor;
+using Extractor;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Server;
@@ -122,7 +121,8 @@ class Farm : Instance, IWriteAble {
         b.Write0(0x2ff8 - 0x2FA0);
     }
 
-    public static void FarmThread() {
+    // TODO: change to one Task per farm
+    public static async void FarmThread() {
         var lastTime = DateTimeOffset.UtcNow;
         while(true) {
             var now = DateTimeOffset.UtcNow;
@@ -136,8 +136,8 @@ class Farm : Instance, IWriteAble {
                 ProcFarm(client, passed);
             }
 
-            // optimization: calculate wait time based on shortest plant
-            Thread.Sleep(1000);
+            // todo: optimization: calculate wait time based on shortest plant / suspend if no plants active
+            await Task.Delay(1000);
         }
     }
 
@@ -212,7 +212,6 @@ class Farm : Instance, IWriteAble {
                     if(isOnFarm)
                         UpdateAsync(client, id, plant);
                 }
-                // todo: stuff
             }
         }
     }
