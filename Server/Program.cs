@@ -155,9 +155,6 @@ class Program {
                         SendChangeMap(player);
                     }*/
                     maps.Remove(client.Player.Farm.Id); // remove farm from map list
-                    maps.Remove(client.Player.Farm.House.Floor0.Id);
-                    maps.Remove(client.Player.Farm.House.Floor1.Id);
-                    maps.Remove(client.Player.Farm.House.Floor2.Id);
                 } catch { }
             }
 
