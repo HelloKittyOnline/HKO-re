@@ -84,12 +84,11 @@ static class Farm {
                     plant.HarvestCount++;
                     if(plant.HarvestCount % 30 == 0) { // wither
                         plant.State = PlantState.Withered;
-                        SendSetPlant(client, x, y, plant);
+                        farm.ActivePlants.Remove(index);
                     }
                     if(plant.HarvestCount % 5 == 0) { // regress
                         plant.State = PlantState.Growing;
                         farm.ActivePlants.Add(index);
-                        SendSetPlant(client, x, y, plant);
                     }
 
                     client.AddExpAction(Skill.Gathering, data.Level);
@@ -101,17 +100,17 @@ static class Farm {
                     plant.CutCount++;
                     if(plant.CutCount == 5) {
                         // destroy
-                        farm.Plants[index] = new Plant();
+                        plant = new Plant();
                         farm.Fertilization[index] = 0;
 
-                        SendSetPlant(client, x, y, plant);
-                        SendSetFertilizer(client, x, y, 0);
+                        SendSetFertilizer(client, y, x, 0);
                     }
 
                     client.AddExpAction(Skill.Woodcutting, data.Level);
                     client.AddFromLootTable(data.ChopLoot);
                 }
 
+                SendSetPlant(client, x, y, plant);
                 farm.Plants[index] = plant;
             }
 
@@ -120,7 +119,7 @@ static class Farm {
             Send03(client, 6, 0); // cancel
         });
 
-        Send03(client, 1, 0); // start
+        Send03(client, 1, harvestTime); // start
     }
 
     [Request(0x0A, 0x04)] // 00581504

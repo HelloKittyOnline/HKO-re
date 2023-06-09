@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Server;
 
@@ -50,7 +51,7 @@ class Farm : Instance, IWriteAble {
     public byte Type { get; set; } = 1;
     public Plant[] Plants { get; set; }
     public byte[] Fertilization { get; set; }
-    public byte[] Watered { get; set; }
+    public byte[] Watered { get; set; } // i = x + y * 20
 
     public TimeSpan DayTime { get; set; }
 
@@ -146,8 +147,8 @@ class Farm : Instance, IWriteAble {
     }
 
     private static void ProcFarm(Client client, TimeSpan passed) {
-        // todo: figure out where times come from
-        var growStep = TimeSpan.FromSeconds(10);
+        // todo: figure out correct time value
+        var growStep = TimeSpan.FromSeconds(30);
         var dayLength = TimeSpan.FromMinutes(50);
 
         var farm = client.Player.Farm;
@@ -164,22 +165,30 @@ class Farm : Instance, IWriteAble {
 
                 // update plant wither status - plant withers after 2 days without water
                 for(int i = 0; i < farm.Plants.Length; i++) {
+                    if(farm.Watered[i] == 100) {
+                        farm.Watered[i] = 0;
+                        Protocols.Farm.SendSetWatered(client, (byte)(i / 20), (byte)(i % 20), 0);
+                        continue;
+                    }
+
                     ref var plant = ref farm.Plants[i];
-                    if(plant.SeedId == 0 || farm.Watered[i] == 100)
+                    if(plant.SeedId == 0)
                         continue;
 
                     // todo send warning message
                     plant.DaysWithoutWater++;
                     if(plant.DaysWithoutWater == 2) {
                         plant.State = PlantState.Withered;
+                        farm.ActivePlants.Remove(i);
 
                         if(isOnFarm)
                             UpdateAsync(client, i, plant);
                     }
                 }
 
-                farm.Watered.AsSpan().Clear();
-                Protocols.Farm.UpdateWatered(farm.Players, farm);
+                // batching does not work because images are not cleared
+                // farm.Watered.AsSpan().Clear();
+                // Protocols.Farm.UpdateWatered(farm.Players, farm);
             }
             var newStep = (int)farm.DayTime.TotalMinutes / 10;
 
@@ -192,6 +201,12 @@ class Farm : Instance, IWriteAble {
                 var id = farm.ActivePlants[i];
 
                 ref var plant = ref farm.Plants[id];
+                if(plant.SeedId == 0) { // should never happen but just in case
+                    client.Logger.LogWarning("[{userID}] removed invalid plant index", client.DiscordId);
+                    farm.ActivePlants.RemoveAt(i);
+                    i--;
+                    continue;
+                }
                 plant.LiveTime += passed;
 
                 if(plant.LiveTime < growStep) {
@@ -211,6 +226,9 @@ class Farm : Instance, IWriteAble {
 
                     if(isOnFarm)
                         UpdateAsync(client, id, plant);
+                } else {
+                    farm.ActivePlants.RemoveAt(i); // probably withered
+                    i--;
                 }
             }
         }
