@@ -82,11 +82,10 @@ static class Farm {
                         return;
 
                     plant.HarvestCount++;
-                    if(plant.HarvestCount % 30 == 0) { // wither
+                    if(plant.HarvestCount >= 30) { // wither
                         plant.State = PlantState.Withered;
                         farm.ActivePlants.Remove(index);
-                    }
-                    if(plant.HarvestCount % 5 == 0) { // regress
+                    } else if(plant.HarvestCount % 5 == 0) { // regress
                         plant.State = PlantState.Growing;
                         farm.ActivePlants.Add(index);
                     }
@@ -98,7 +97,7 @@ static class Farm {
                         return;
 
                     plant.CutCount++;
-                    if(plant.CutCount == 5) {
+                    if(plant.CutCount >= 5) {
                         // destroy
                         plant = new Plant();
                         farm.Fertilization[index] = 0;
