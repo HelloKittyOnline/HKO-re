@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Extractor;
 
 namespace Server.Protocols;
@@ -38,6 +39,21 @@ static class Player {
                 Npc.SendDeleteQuest(client, 100);
                 Tutorial.Send01(client, 4, 1, 1, true, false, false);
                 break;
+
+            case 92 when client.Player.QuestFlags.GetValueOrDefault(1008, QuestStatus.None) == QuestStatus.Running: // handle map visit for quest 1008 "Check Out The View"
+                client.SetQuestFlag(1008, 0);
+                break;
+
+            // handle map investigate for quest 167 "Lost in the Forest"
+            case 32:
+                DelayInvestigate(client, 32, 0);
+                break;
+            case 31:
+                DelayInvestigate(client, 31, 1);
+                break;
+            case 33:
+                DelayInvestigate(client, 33, 2);
+                break;
         }
 
         Battle.SendMobs(client, map.Mobs);
@@ -50,6 +66,19 @@ static class Player {
         var temp = new Span<Client>(ref client);
         SendAddPlayers(others, temp); // send other players to client
         SendAddPlayers(temp, others); // send client to other players
+    }
+
+    static async Task DelayInvestigate(Client client, int map, byte flag) {
+        if (client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) != QuestStatus.Running) {
+            return;
+        }
+
+        await Task.Delay(10_000);
+
+        // check again just to make sure
+        if(client.InGame && client.Player.CurrentMap == map && client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) == QuestStatus.Running) {
+            client.SetQuestFlag(167, flag);
+        }
     }
 
     #region Request
@@ -151,6 +180,10 @@ static class Player {
             var tp = Program.teleporters[tpId];
             if(tp.FromMap != oldMap.Id || tp.ToMap == 0)
                 return;
+
+            if(tp.KeyItem != 0 && client.GetInv(InvType.Player).GetItemCount(tp.KeyItem) < tp.KeyItemCount) {
+                return; // missing key item
+            }
 
             player.PositionX = tp.ToX;
             player.PositionY = tp.ToY;

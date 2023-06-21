@@ -102,6 +102,16 @@ class Client {
         return GetInv(InvType.Player).AddFromLootTable(table);
     }
 
+    public void SetQuestFlag(int questId, byte flag) {
+        lock (Player) {
+            Player.QuestFlags1.TryGetValue(questId, out var val); // defaults to 0
+            if((val & (1u << flag)) != 0)
+                return; // skip if flag already set
+            Player.QuestFlags1[questId] = val | (1u << flag);
+        }
+        Npc.SetQuestFlag(this, questId, flag);
+    }
+
     public async void StartAction(Func<CancellationToken, Task> action, Action onCancel) {
         actionToken?.Cancel();
 

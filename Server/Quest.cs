@@ -255,9 +255,7 @@ abstract class Reward {
         public byte Id { get; set; }
 
         public override void Handle(Client client, int select) {
-            client.Player.QuestFlags1.TryGetValue(QuestId, out var val);
-            client.Player.QuestFlags1[QuestId] = val | (1u << Id);
-            Npc.SetQuestFlag(client, QuestId, Id);
+            client.SetQuestFlag(QuestId, Id);
         }
     }
 
