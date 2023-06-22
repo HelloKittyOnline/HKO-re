@@ -38,7 +38,8 @@ struct Plant : IWriteAble {
         b.WriteByte((byte)data.Level);
         b.Write0(5);
         b.WriteByte((byte)State);
-        b.Write0(2);
+        b.WriteByte(0);
+        b.WriteByte(1); // if($ == 0 && state == 3) state = 2 why??
         b.WriteByte((byte)(5 - CutCount));
         b.Write0(2);
         b.WriteByte(IsItem);
