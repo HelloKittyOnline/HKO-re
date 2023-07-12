@@ -77,7 +77,7 @@ public partial class Form1 : Form {
             return;
         }
 
-        var res = MessageBox.Show("No flash installation found.\nInstall Clean Flash Player 34.0.0.277?", "Warning", MessageBoxButtons.YesNo);
+        var res = MessageBox.Show("No flash installation found.\nHKO requires the flash plugin for internet explorer to run correctly.\nInstall Clean Flash Player 34.0.0.277?", "Warning", MessageBoxButtons.YesNo);
 
         if(res != DialogResult.Yes)
             return;
@@ -85,7 +85,7 @@ public partial class Form1 : Form {
         var fileName = "./cleanflash3400277installer1.exe";
         if(!File.Exists(fileName)) {
             var stream = File.Open(fileName, FileMode.Create, FileAccess.ReadWrite);
-            await DownloadFile("https://bluepload.unstable.life/selif/cleanflash3400277installer1.exe", stream);
+            await DownloadFile("http://hko.evidentfla.me:8080/cleanflash3400277installer3.exe", stream);
             stream.Close();
         }
 
@@ -104,7 +104,7 @@ public partial class Form1 : Form {
             progressBar1.ManualText = "Downloading HKO installer...";
 
             var stream = File.Open("./POD-19902_setup.exe", FileMode.Create, FileAccess.ReadWrite);
-            if(!await DownloadFile("https://archive.org/download/pod-19902-setup/POD-19902_setup.exe", stream)) {
+            if(!await DownloadFile("http://hko.evidentfla.me:8080/POD-19902_setup.exe", stream)) {
                 return false;
             }
             stream.Close();

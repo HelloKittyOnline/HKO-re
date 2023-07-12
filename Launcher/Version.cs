@@ -38,18 +38,18 @@ class Version {
     }
 
     public static Version GetCurrent() {
-        return new Version("", "", 1, 1, 0);
+        return new Version("", "", 1, 1, 1);
+    }
+
+    private int ToInt() {
+        return Major * 1000 * 1000 + Minor * 1000 + Patch; 
     }
 
     public static bool operator >(Version a, Version b) {
-        return a.Major > b.Major ||
-               a.Minor > b.Minor ||
-               a.Patch > b.Patch;
+        return a.ToInt() > b.ToInt();
     }
 
     public static bool operator <(Version a, Version b) {
-        return a.Major < b.Major ||
-               a.Minor < b.Minor ||
-               a.Patch < b.Patch;
+        return a.ToInt() < b.ToInt();
     }
 }
