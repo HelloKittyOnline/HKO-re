@@ -144,7 +144,13 @@ class Farm : Instance, IWriteAble {
     }
 
     private static void UpdateAsync(Client client, int i, Plant plant) {
-        Task.Run(() => Protocols.Farm.SendSetPlant(client, i % 20, i / 20, plant));
+        Task.Run(() => {
+            try {
+                Protocols.Farm.SendSetPlant(client, i % 20, i / 20, plant);
+            } catch {
+                client.Close(); // likely network error, remove client
+            }
+        });
     }
 
     private static void ProcFarm(Client client, TimeSpan passed) {

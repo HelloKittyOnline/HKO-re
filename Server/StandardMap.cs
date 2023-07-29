@@ -1,4 +1,4 @@
-﻿using Extractor;
+using Extractor;
 using Server.Protocols;
 using System;
 using System.Collections.Generic;
@@ -130,7 +130,9 @@ class MobData : IWriteAble {
         State = 1;
         isRespawning = false;
 
-        Battle.SendMobState(map.Players, this);
+        try {
+            Battle.SendMobState(map.Players, this);
+        } catch { }
     }
 }
 

@@ -103,7 +103,7 @@ class Client {
     }
 
     public void SetQuestFlag(int questId, byte flag) {
-        lock (Player) {
+        lock(Player) {
             Player.QuestFlags1.TryGetValue(questId, out var val); // defaults to 0
             if((val & (1u << flag)) != 0)
                 return; // skip if flag already set
@@ -119,12 +119,24 @@ class Client {
         actionToken = source;
 
         source.Token.Register(() => {
-            onCancel();
+            try {
+                onCancel();
+            } catch {
+                Close();
+            }
             if(actionToken == source)
                 actionToken = null;
         });
 
-        await action(actionToken.Token);
+        try {
+            await action(actionToken.Token);
+        } catch (ObjectDisposedException e) when (e.ObjectName == "System.Net.Sockets.NetworkStream") {
+            Logger.LogInformation(e, "[{user}] Disconnected while performing action", DiscordId);
+            Close();
+        } catch(Exception e) {
+            Logger.LogError(e, "[{user}] Async error", DiscordId);
+            Close();
+        }
 
         // action completed
         // if the token is our own delete it

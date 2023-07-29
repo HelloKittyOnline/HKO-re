@@ -71,7 +71,7 @@ class Program {
 
                 try {
                     if(await client.Stream.ReadAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
-                        break;
+                        break; // if count == 0 connection has been closed properly
                     }
 
                     var length = head[3] | head[4] << 8;
@@ -84,8 +84,12 @@ class Program {
                         break;
                     }
                 } catch {
-                    // if(client.Token.IsCancellationRequested) // TODO: send disconnect reason?
-                    // network error likely connection reset by peer or action canceled
+                    if(client.Token.IsCancellationRequested) {
+                        // TODO: send disconnect reason?
+                        // intentionally disconnected
+                    } else {
+                        // likely connection reset by peer or read timeout
+                    }
                     break;
                 }
 
@@ -182,6 +186,8 @@ class Program {
             try {
                 // throws if cancellation token is triggered
                 tcpClient = await server.AcceptTcpClientAsync(token);
+                tcpClient.ReceiveTimeout = 30 * 1000;
+                tcpClient.SendTimeout = 30 * 1000;
             } catch when(token.IsCancellationRequested) {
                 break;
             }

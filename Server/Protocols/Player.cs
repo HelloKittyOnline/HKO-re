@@ -69,7 +69,7 @@ static class Player {
     }
 
     static async Task DelayInvestigate(Client client, int map, byte flag) {
-        if (client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) != QuestStatus.Running) {
+        if(client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) != QuestStatus.Running) {
             return;
         }
 
@@ -77,7 +77,11 @@ static class Player {
 
         // check again just to make sure
         if(client.InGame && client.Player.CurrentMap == map && client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) == QuestStatus.Running) {
-            client.SetQuestFlag(167, flag);
+            try {
+                client.SetQuestFlag(167, flag);
+            } catch { 
+                client.Close();
+            }
         }
     }
 
