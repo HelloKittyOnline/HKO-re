@@ -1,9 +1,10 @@
-using Extractor;
+﻿using Extractor;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Resource = Extractor.Resource;
 
 namespace Server;
 
@@ -58,25 +59,19 @@ class Farm : Instance, IWriteAble {
 
     public InventoryItem[] Inventory { get; set; }
 
+    public House House { get; set; }
+
     /// <summary>
     /// indices of plants which need to be processed
     /// </summary>
-    [JsonIgnore] 
+    [JsonIgnore]
     public List<int> ActivePlants = new();
 
-    [JsonIgnore]
-    public Client Owner {
-        get => _owner;
-        set {
-            _owner = value;
-            Id = 30000 + Owner.Id * 10; // any id > 30000 and id % 10 == 0 is a farm
-        }
-    }
-    [JsonIgnore] private Client _owner;
-
+    [JsonIgnore] public Client Owner { private set; get; }
     [JsonIgnore] public string OwnerName => Owner.Player.Name;
     [JsonIgnore] public short OwnerId => Owner.Id;
 
+    [JsonIgnore] public byte Size => 9; // TODO: look up
     [JsonIgnore] public byte Level => (byte)Program.farms[Type].Level;
 
     [JsonIgnore] public override IReadOnlyCollection<NpcData> Npcs => Array.Empty<NpcData>();
@@ -85,11 +80,17 @@ class Farm : Instance, IWriteAble {
     [JsonIgnore] public override IReadOnlyCollection<Resource> Resources => Array.Empty<Resource>();
     [JsonIgnore] public override IReadOnlyCollection<Checkpoint> Checkpoints => Array.Empty<Checkpoint>();
 
-    public void Init() {
+    public void Init(Client client) {
         Plants ??= new Plant[20 * 20];
         Fertilization ??= new byte[20 * 20];
         Watered ??= new byte[20 * 20];
         Inventory ??= new InventoryItem[200];
+
+        House ??= new House();
+        House.Init(client);
+
+        Owner = client;
+        Id = 30000 + Owner.Id * 10; // any id > 30000 and id % 10 == 0 is a farm
 
         for(int i = 0; i < Plants.Length; i++) {
             if(Plants[i].SeedId != 0) {
@@ -99,8 +100,6 @@ class Farm : Instance, IWriteAble {
     }
 
     public void Write(PacketBuilder b) {
-        var data = Program.farms[Type];
-
         // 12280 bytes
         b.WritePadWString(Name, 88 * 2);
         b.WriteByte(Type);
@@ -108,9 +107,9 @@ class Farm : Instance, IWriteAble {
         b.WriteByte(0);
         b.WriteByte(0); // paused
         b.Write0(8);
-        b.WriteByte(9); // size
+        b.WriteByte(Size);
         b.WriteByte(0);
-        b.WriteByte(0);
+        b.WriteByte((byte)(House.BuildingPermit == 0 ? 0 : House.Data.Level));
         b.WriteByte(0);
 
         for(int i = 0; i < 20 * 20; i++) {
@@ -120,7 +119,25 @@ class Farm : Instance, IWriteAble {
         b.Write(Fertilization);
         b.Write(Watered);
 
-        b.Write0(0x2ff8 - 0x2FA0);
+        b.Write0(8 + 4 + 4);
+
+        b.WritePadWString(House.Name, 40);
+        b.WriteUShort(House.HouseId);
+        b.WriteUShort(House.HouseState);
+        b.WriteInt(House.BuildProgress);
+        for(int i = 0; i < 6; i++) {
+            b.WriteInt(House.BuildingItems[i]);
+        }
+    }
+
+    public void ChangeType(byte type) {
+        Type = type;
+        Plants.AsSpan().Clear();
+        Fertilization.AsSpan().Clear();
+        Watered.AsSpan().Clear();
+        DayTime = TimeSpan.Zero;
+
+        House.Delete();
     }
 
     // TODO: change to one Task per farm

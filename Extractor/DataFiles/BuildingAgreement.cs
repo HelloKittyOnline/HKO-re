@@ -3,7 +3,7 @@
 [SeanItem(22)]
 public struct BuildingAgreement {
     [SeanField(0)] public int Id { get; set; }
-    [SeanField(1)] public int MinFarmLevel { get; set; }
+    [SeanField(1)] public int Level { get; set; }
 
     [SeanArray(2, 6)] public Requirement[] Requirements { get; set; }
 
@@ -20,4 +20,6 @@ public struct BuildingAgreement {
         [SeanField(0)] public int ItemId { get; set; }
         [SeanField(1)] public int Count { get; set; }
     }
+
+    public int RequiredFarmLevel => Level switch { 1 => 1, 2 => 4, 3 => 8, _ => 9999 };
 }

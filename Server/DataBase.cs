@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -46,39 +47,91 @@ class OrderItem {
     public ulong AccountId { get; set; }
 }
 
-public class DictionaryInt32Converter : JsonConverter<Dictionary<int, int>> {
-    public override Dictionary<int, int> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
-        if(reader.TokenType != JsonTokenType.StartObject)
-            throw new JsonException("Expected Object");
-
-        var value = new Dictionary<int, int>();
-
-        while(reader.Read()) {
-            if(reader.TokenType == JsonTokenType.EndObject) {
-                return value;
-            }
-
-            var keyString = reader.GetString();
-
-            if(!int.TryParse(keyString, out var keyAsInt32)) {
-                throw new JsonException($"Unable to convert \"{keyString}\" to System.Int32.");
-            }
-
-            reader.Read();
-            value.Add(keyAsInt32, reader.GetInt32());
+public class IntDictionaryConverter : JsonConverterFactory {
+    public override bool CanConvert(Type typeToConvert) {
+        if(!typeToConvert.IsGenericType) {
+            return false;
         }
 
-        throw new JsonException("Error Occurred");
+        if(typeToConvert.GetGenericTypeDefinition() != typeof(Dictionary<,>)) {
+            return false;
+        }
+
+        return typeToConvert.GetGenericArguments()[0] == typeof(int);
     }
 
-    public override void Write(Utf8JsonWriter writer, Dictionary<int, int> value, JsonSerializerOptions options) {
-        writer.WriteStartObject();
+    public override JsonConverter CreateConverter(Type type, JsonSerializerOptions options) {
+        var valueType = type.GetGenericArguments()[1];
 
-        foreach(var (key, val) in value) {
-            writer.WriteNumber(key.ToString(), val);
+        var converter = (JsonConverter)Activator.CreateInstance(
+            typeof(IntDictionaryConverterInner<>).MakeGenericType(valueType),
+            BindingFlags.Instance | BindingFlags.Public,
+            binder: null,
+            args: new object[] { options },
+            culture: null)!;
+
+        return converter;
+    }
+
+    class IntDictionaryConverterInner<TValue> : JsonConverter<Dictionary<int, TValue>> {
+        private readonly JsonConverter<TValue> _valueConverter;
+        private readonly Type _valueType;
+
+        public IntDictionaryConverterInner(JsonSerializerOptions options) {
+            // For performance, use the existing converter.
+            _valueConverter = (JsonConverter<TValue>)options.GetConverter(typeof(TValue));
+
+            // Cache the key and value types.
+            _valueType = typeof(TValue);
         }
 
-        writer.WriteEndObject();
+        public override Dictionary<int, TValue> Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options) {
+            if(reader.TokenType != JsonTokenType.StartObject) {
+                throw new JsonException();
+            }
+
+            var dictionary = new Dictionary<int, TValue>();
+
+            while(reader.Read()) {
+                if(reader.TokenType == JsonTokenType.EndObject) {
+                    return dictionary;
+                }
+
+                // Get the key.
+                if(reader.TokenType != JsonTokenType.PropertyName) {
+                    throw new JsonException();
+                }
+
+                var keyString = reader.GetString();
+
+                if(!int.TryParse(keyString, out var keyAsInt32)) {
+                    throw new JsonException($"Unable to convert \"{keyString}\" to System.Int32.");
+                }
+
+                // Get the value.
+                reader.Read();
+                var value = _valueConverter.Read(ref reader, _valueType, options);
+
+                // Add to dictionary.
+                dictionary.Add(keyAsInt32, value);
+            }
+
+            throw new JsonException();
+        }
+
+        public override void Write(Utf8JsonWriter writer, Dictionary<int, TValue> dictionary, JsonSerializerOptions options) {
+            writer.WriteStartObject();
+
+            foreach(var (key, value) in dictionary) {
+                writer.WritePropertyName(key.ToString());
+                _valueConverter.Write(writer, value, options);
+            }
+
+            writer.WriteEndObject();
+        }
     }
 }
 
@@ -93,7 +146,7 @@ static class Database {
     private static string _connectionString;
 
     private static JsonSerializerOptions jsonOptions = new() {
-        Converters = { new DictionaryInt32Converter() }
+        Converters = { new IntDictionaryConverter() }
     };
 
     public static void SetConnectionString(string str) {

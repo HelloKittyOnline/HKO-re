@@ -1,4 +1,4 @@
-using Extractor;
+﻿using Extractor;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -34,6 +34,8 @@ static class Farm {
 
         Player.SendChangeMap(client);
         SetDayTime(new[] { client }, (int)farm.DayTime.TotalMinutes / 10);
+        if(farm.House.BuildingPermit != 0)
+            SendHouseData(client, farm.House); // _bug in game does not initialize house on first load
     }
 
     [Request(0x0A, 0x02)] // 005813c4
@@ -169,13 +171,21 @@ static class Farm {
     [Request(0x0A, 0x0B)] // 00581810
     public static void OpenFarmManagement(Client client) {
         var idk = client.ReadInt32();
-        throw new NotImplementedException();
+        SendOpenFarmManagement(client);
     }
 
     [Request(0x0A, 0x0C)] // 00581884
     public static void ChangeFarmType(Client client) {
-        var idk = client.ReadByte();
-        throw new NotImplementedException();
+        var farmType = client.ReadByte();
+
+        var farm = client.Player.Farm;
+        if(farm.Type == farmType || !client.Player.OwnedFarms.Contains(farmType)) {
+            return;
+        }
+        // todo: changing farms costs money
+
+        farm.ChangeType(farmType);
+        SendFarmChanged(client, true, farm);
     }
 
     [Request(0x0A, 0x0E)] // 00581903
@@ -192,31 +202,108 @@ static class Farm {
     }
 
     [Request(0x0A, 0x16)] // 00581a0b
-    public static void Recv16(Client client) { // something to do with giveitem
-        var idk1 = client.ReadInt32();
-        var idk2 = client.ReadInt32();
+    public static void AddBuildingResource(Client client) {
+        var itemId = client.ReadInt32();
+        var count = client.ReadInt32();
 
-        throw new NotImplementedException();
+        var house = client.Player.Farm.House;
+        if(house.HouseId is 0 || house.HouseState != 1) {
+            return;
+        }
+
+        var data = house.Data;
+        var ind = Array.FindIndex(data.Requirements, x => x.ItemId == itemId);
+
+        if(ind == -1) {
+            return;
+        }
+
+        var left = data.Requirements[ind].Count - house.BuildingItems[ind];
+        if(count > left) {
+            return;
+        }
+
+        bool CheckRequirement() {
+            for(int i = 0; i < 6; i++) {
+                if(data.Requirements[i].ItemId != 0 && house.BuildingItems[i] < data.Requirements[i].Count)
+                    return false;
+            }
+            return true;
+        }
+
+        lock(client.Player) {
+            if(client.GetInv(InvType.Player).GetItemCount(itemId) < count) {
+                return;
+            }
+
+            client.RemoveItem(itemId, count);
+            house.BuildingItems[ind] += count;
+
+            if(CheckRequirement()) {
+                house.HouseState = 2;
+                house.MinigameStage = 0;
+            }
+        }
+
+        SendHouseData(client, house);
     }
 
-    [Request(0x0A, 0x18)] // 00581a6e // build house?
-    public static void Recv18(Client client) {
-        throw new NotImplementedException();
+    [Request(0x0A, 0x18)] // 00581a6e
+    public static void BuildHouse(Client client) {
+        var house = client.Player.Farm.House;
+
+        if(house.HouseId == 0 || house.HouseState != 3)
+            return;
+
+        const int buildSpeed = 6 * 5 * 10; // 5 per second - building takes 20 mins
+        int target = house.Data.Workload;
+
+        client.StartAction(async x => {
+            while(true) {
+                await Task.Delay(6 * 1000); // 6 seconds per action
+
+                if(x.IsCancellationRequested) {
+                    break;
+                }
+
+                house.BuildProgress += buildSpeed;
+
+                if(house.BuildProgress >= target) {
+                    house.BuildProgress = target;
+                    house.HouseState = 4;
+                    SendHouseData(client, house);
+                    break;
+                }
+
+                SendHouseData(client, house);
+
+                // TODO: deduct stamina
+            }
+        }, () => {
+        });
     }
 
-    [Request(0x0A, 0x19)] // 00581b48 // enter house?
-    public static void Recv19(Client client) {
-        throw new NotImplementedException();
+    [Request(0x0A, 0x19)] // 00581b48
+    public static void EnterHouse(Client client) {
+        if(client.Player.Farm.House.HouseId == 0)
+            return;
+
+        client.Player.CurrentMap = client.Player.Farm.House.Floor0.Id;
+        client.Player.PositionX = 108;
+        client.Player.PositionY = 404;
+        Player.ChangeMap(client);
     }
 
-    [Request(0x0A, 0x1A)] // 00581b84 // demolish house
-    public static void Recv1A(Client client) {
-        throw new NotImplementedException();
+    [Request(0x0A, 0x1A)] // 00581b84
+    public static void DemolishHouse(Client client) {
+        client.Player.Farm.House.Delete();
+        SendHouseData(client, client.Player.Farm.House); // _bug in game does not initialize house on first load
     }
 
-    [Request(0x0A, 0x1B)] // 00581be0 set house name?
-    public static void Recv1B(Client client) {
-        throw new NotImplementedException();
+    [Request(0x0A, 0x1B)] // 00581be0
+    public static void SetHouseName(Client client) {
+        var name = client.ReadWString();
+        client.Player.Farm.House.Name = name;
     }
 
     [Request(0x0A, 0x1C)] // 00581c68 // "enter_gHouse" / "leave_gHouse"
@@ -224,9 +311,26 @@ static class Farm {
         throw new NotImplementedException();
     }
 
-    [Request(0x0A, 0x24)] // 00581cdc // something building minigame
+    [Request(0x0A, 0x24)] // 00581cdc // complete building minigame
     public static void Recv24(Client client) {
-        throw new NotImplementedException();
+        var stage = client.ReadByte();
+
+        var house = client.Player.Farm.House;
+        if(house.BuildingPermit == 0)
+            return;
+
+        if(house.MinigameStage + 1 != stage)
+            return;
+
+        house.MinigameStage++;
+        var dat = house.Data;
+        if(house.MinigameStage == dat.Level) {
+            house.HouseState = 3;
+            house.BuildProgress = 0;
+            SendHouseData(client, house);
+        } else {
+            Send23(client);
+        }
     }
 
     [Request(0x0A, 0x25)] // 00581d58 delete all plants
@@ -305,6 +409,7 @@ static class Farm {
         b.Send(client);
     }
 
+    // 0A_05 - decay/grow crops?
     // 0A_06 - set all fertilizer
 
     // 0A_07
@@ -318,7 +423,7 @@ static class Farm {
         b.Send(client);
     }
 
-    // 0A_08 - set all watered
+    // 0A_08
     public static void UpdateWatered(IEnumerable<Client> client, Server.Farm farm) {
         var b = new PacketBuilder(0x0A, 0x08);
         b.EncodeCrazy(farm.Watered);
@@ -340,7 +445,60 @@ static class Farm {
 
     // 0A_0A - plant die notification
 
-    // 00_1F
+    // 0A_0B
+    public static void SendOpenFarmManagement(Client client) {
+        var b = new PacketBuilder(0x0A, 0x0B);
+
+        var farms = client.Player.OwnedFarms;
+
+        b.WriteInt(0); // idk
+        b.WriteShort((short)(farms.Count + 1));
+        foreach(var farm in farms) {
+            b.WriteInt(farm);
+            b.WriteInt(0);
+            b.WriteByte(farm != client.Player.Farm.Type);
+        }
+
+        b.Send(client);
+    }
+
+    // 0A_0C
+    public static void SendFarmChanged(Client client, bool haveMoney, Server.Farm farm) {
+        var b = new PacketBuilder(0x0A, 0x0C);
+
+        b.WriteByte(haveMoney);
+        if(haveMoney) {
+            b.WriteByte(farm.Type);
+            b.WriteByte(farm.Level);
+        }
+
+        b.Send(client);
+    }
+
+    // 0A_0F
+    // 0A_10
+    // 0A_11
+
+    // 0A_15
+    public static void SendHouseData(Client client, House house) {
+        var b = new PacketBuilder(0x0A, 0x15);
+
+        b.WriteWString(house.Name);
+        b.WriteUShort(house.HouseId);
+        b.WriteUShort(house.HouseState);
+        b.WriteInt(house.BuildProgress);
+        for(int i = 0; i < 6; i++) {
+            b.WriteInt(house.BuildingItems[i]);
+        }
+
+        b.Send(client);
+    }
+
+    // 0A_17
+    // 0A_18
+    // 0A_1B
+
+    // 0A_1F
     public static void SetDayTime(IEnumerable<Client> client, int timePeriod) {
         var b = new PacketBuilder(0x0A, 0x1F);
 
@@ -348,5 +506,34 @@ static class Farm {
 
         b.Send(client);
     }
+
+    // 0A_20
+    // 0A_21
+    // 0A_22
+
+    // 0A_23
+    public static void Send23(Client client) {
+        var b = new PacketBuilder(0x0A, 0x23);
+
+        var farm = client.Player.Farm;
+
+        b.WriteByte((byte)farm.House.Data.Level);
+        b.WriteInt(farm.House.BuildingPermit);
+        b.WriteByte(0);
+        b.WriteByte(0); // current floor?
+        b.WriteByte(farm.House.MinigameStage);
+
+        b.Send(client);
+    }
+
+
+    // following functions are mole army related
+    // 0A_3C
+    // 0A_3D
+    // 0A_3E
+    // 0A_3F
+    // 0A_40
+    // 0A_41
+    // 0A_42
     #endregion
 }

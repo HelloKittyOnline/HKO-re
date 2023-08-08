@@ -97,7 +97,7 @@ class PacketBuilder {
         writer.Write(Window1252.GetBytes(str));
     }
 
-    // writes length prefixed and padded utf-7 string
+    // writes length prefixed and padded Window1252 string
     public void WritePadString(string str, int length) {
         var bytes = Window1252.GetBytes(str);
 
@@ -141,7 +141,6 @@ class PacketBuilder {
         if(dataLength >= 2 && !(buf[5] == 0x00 && buf[6] == 0x63))
             client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
 #endif
-
         lock(client.Stream) {
             client.Stream.Write(buf, 0, (int)buffer.Position);
         }

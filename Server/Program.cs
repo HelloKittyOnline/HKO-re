@@ -36,6 +36,8 @@ class Program {
     internal static Dictionary<int, int> npcEncyclopedia;
     internal static Seed[] seeds;
     internal static FarmData[] farms;
+    internal static BuildingAgreement[] buildings;
+    internal static Furniture[] furniture;
 
     internal static HashSet<Client> clients = new();
     internal static Dictionary<int, Request.ReceiveFunction> handlers;
@@ -153,16 +155,20 @@ class Program {
                 try {
                     Player.SendDeletePlayer(client.Player.Map.Players, client);
 
-                    // TODO: kick other players from farm
+                    // TODO: kick other players from farm/house
                     /*foreach (var player in client.Player.Farm.Players) {
                         player.Player.ReturnFromFarm();
                         SendChangeMap(player);
                     }*/
-                    maps.Remove(client.Player.Farm.Id); // remove farm from map list
+                    // remove player associated maps
+                    maps.Remove(client.Player.Farm.Id); 
+                    maps.Remove(client.Player.Farm.House.Floor0.Id);
+                    maps.Remove(client.Player.Farm.House.Floor1.Id);
+                    maps.Remove(client.Player.Farm.House.Floor2.Id);
                 } catch { }
             }
 
-            if(client.Player.MapType == 3 || client.Player.MapType == 4) {
+            if(client.Player.MapType is 3 or 4) {
                 try {
                     client.Player.ReturnFromFarm();
                 } catch { }
@@ -212,26 +218,27 @@ class Program {
         questMap = (Lookup<int, ManualQuest.Sub>)quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Sections).ToLookup(x => x.Npc);
 
         var archive = SeanArchive.Extract($"{path}/client_table_eng.sdb");
-        byte[] GetItem(string name) => archive.First(x => x.Name == name).Contents;
+        T[] GetItem<T>(string name) where T : struct => SeanDatabase.Load<T>(archive.First(x => x.Name == name).Contents);
 
-        teleporters = SeanDatabase.Load<Teleport>(GetItem("teleport_list.txt"));
-        resources   = SeanDatabase.Load<Extractor.Resource>(GetItem("res_list.txt"));
-        lootTables  = SeanDatabase.Load<ResCounter>(GetItem("res_counter.txt"));
-        items       = SeanDatabase.Load<ItemAtt>(GetItem("item_att.txt"));
-        equipment   = SeanDatabase.Load<EquAtt>(GetItem("equ_att.txt"));
-        skills      = SeanDatabase.Load<SkillInfo>(GetItem("skill_exp.txt"));
-        checkpoints = SeanDatabase.Load<Checkpoint>(GetItem("check_point.txt"));
-        mobAtts     = SeanDatabase.Load<MobAtt>(GetItem("mob_att.txt"));
-        prodRules   = SeanDatabase.Load<ProdRule>(GetItem("prod_rule.txt"));
-        seeds       = SeanDatabase.Load<Seed>(GetItem("seed_att.txt"));
-        farms       = SeanDatabase.Load<FarmData>(GetItem("farm_list.txt"));
-        npcEncyclopedia = SeanDatabase.Load<NpcEncyclopedia>(GetItem("npc_encyclopedia.txt")).Where(x => x.NpcId != 0).ToDictionary(x => x.NpcId, x => x.Id);
+        teleporters = GetItem<Teleport>("teleport_list.txt");
+        resources   = GetItem<Extractor.Resource>("res_list.txt");
+        lootTables  = GetItem<ResCounter>("res_counter.txt");
+        items       = GetItem<ItemAtt>("item_att.txt");
+        equipment   = GetItem<EquAtt>("equ_att.txt");
+        skills      = GetItem<SkillInfo>("skill_exp.txt");
+        checkpoints = GetItem<Checkpoint>("check_point.txt");
+        mobAtts     = GetItem<MobAtt>("mob_att.txt");
+        prodRules   = GetItem<ProdRule>("prod_rule.txt");
+        seeds       = GetItem<Seed>("seed_att.txt");
+        farms       = GetItem<FarmData>("farm_list.txt");
+        buildings   = GetItem<BuildingAgreement>("building_agreement.txt");
+        furniture   = GetItem<Furniture>("furniture_list.txt");
+        var mapList = GetItem<MapList>("map_list.txt");
+        npcEncyclopedia = GetItem<NpcEncyclopedia>("npc_encyclopedia.txt").Where(x => x.NpcId != 0).ToDictionary(x => x.NpcId, x => x.Id);
 
         for(int i = 0; i < lootTables.Length; i++) {
             lootTables[i].Init();
         }
-
-        var mapList = SeanDatabase.Load<MapList>(GetItem("map_list.txt"));
 
         var npcs = NpcData.Load($"{path}/npcs.json");
         var shops = Shop.Load($"{path}/shops.json");

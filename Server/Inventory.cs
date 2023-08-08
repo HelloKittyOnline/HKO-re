@@ -48,11 +48,12 @@ readonly ref struct InvRef {
         var item = Program.lootTables[lootTable].GetRandom();
         return item != 0 && AddItem(item, 1, true);
     }
-    public bool AddItem(int id, int count, bool notification) {
+    public bool AddItem(int id, int count, bool notification, bool sendUpdate = true) {
         Debug.Assert(count >= 0 && count < 256 && count <= Program.items[id].StackLimit);
 
         if(!FindInsert(id, count, out var item)) {
-            Player.SendMessage(client, Player.MessageType.Inventory_full);
+            if(sendUpdate)
+                Player.SendMessage(client, Player.MessageType.Inventory_full);
             return false;
         }
 
@@ -66,7 +67,8 @@ readonly ref struct InvRef {
             item.Count += (byte)count;
         }
 
-        item.SendUpdate(notification);
+        if(sendUpdate)
+            item.SendUpdate(notification);
         return true;
 
     }

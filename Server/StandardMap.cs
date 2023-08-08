@@ -1,11 +1,9 @@
-using Extractor;
+﻿using Extractor;
 using Server.Protocols;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 using System.Threading.Tasks;
 using Resource = Extractor.Resource;
 
@@ -78,7 +76,9 @@ class MobData : IWriteAble {
     public byte State { get; set; }
 
     public byte Speed => 10;
-    public int MaxHp => Program.mobAtts[MobId].Hp;
+    public int MaxHp => Data.Hp;
+
+    public MobAtt Data => Program.mobAtts[MobId];
 
     private bool isRespawning = false;
 

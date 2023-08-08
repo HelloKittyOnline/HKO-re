@@ -79,7 +79,7 @@ static class Player {
         if(client.InGame && client.Player.CurrentMap == map && client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) == QuestStatus.Running) {
             try {
                 client.SetQuestFlag(167, flag);
-            } catch { 
+            } catch {
                 client.Close();
             }
         }
@@ -93,8 +93,11 @@ static class Player {
         SendPlayerData(client);
         SendPlayerHpSta(client);
 
-        // register farm
+        // register instance maps
         Program.maps[client.Player.Farm.Id] = client.Player.Farm;
+        Program.maps[client.Player.Farm.House.Floor0.Id] = client.Player.Farm.House.Floor0;
+        Program.maps[client.Player.Farm.House.Floor1.Id] = client.Player.Farm.House.Floor1;
+        Program.maps[client.Player.Farm.House.Floor2.Id] = client.Player.Farm.House.Floor2;
         client.InGame = true;
 
         ChangeMap(client);
@@ -180,6 +183,23 @@ static class Player {
 
         if(client.Player.MapType == 3) {
             player.ReturnFromFarm();
+        } else if(client.Player.MapType == 4) {
+            // tp from house
+
+            if(tpId == 352 + 10 - 1 && client.Player.CurrentMap % 10 > 0) { // to previous room
+                client.Player.CurrentMap--; // next room is id - 1
+                client.Player.PositionX = 570;
+                client.Player.PositionY = 205;
+            } else if(tpId == 352 + 10 && client.Player.CurrentMap % 10 < 3) { // to next room
+                client.Player.CurrentMap++; // next room is id + 1
+                client.Player.PositionX = 108 + 20;
+                client.Player.PositionY = 404 + 20;
+            } else { // back to farm
+                var ownerId = (client.Player.CurrentMap - 30000) / 10;
+                client.Player.CurrentMap = 30000 + ownerId * 10;
+                client.Player.PositionX = 832;
+                client.Player.PositionY = 432;
+            }
         } else {
             var tp = Program.teleporters[tpId];
             if(tp.FromMap != oldMap.Id || tp.ToMap == 0)
@@ -191,16 +211,7 @@ static class Player {
 
             player.PositionX = tp.ToX;
             player.PositionY = tp.ToY;
-
-            /* somehow breaks walking
-            if(player.CurrentMap == tp.ToMap) {
-                BroadcastTeleportPlayer(client);
-                return;
-            }
-            */
-
             player.CurrentMap = tp.ToMap;
-
         }
 
         // delete players from old map
@@ -495,11 +506,14 @@ static class Player {
         b.Write(player.ProductionFlags);
         b.Write(player.Farm);
 
+        b.WriteInt(player.Farm.House.BuildingPermit);
+        b.WriteByte(0);
+        b.WriteByte(player.Farm.House.MinigameStage);
         // TODO: finish figuring out the rest
 
-        // 0x700C
+        // 0x7010
 
-        b.Write0(0x82e0 - 0x700C);
+        b.Write0(0x82e0 - 0x7012);
 
         // 0x82e0
         b.WritePadString(player.FavoriteFood, 38);
@@ -666,11 +680,60 @@ static class Player {
             farm.WriteLocked(b);
             b.EndCompress();
 
-            b.WriteInt(0);
-        } /* else if(mapType == 4) {
-            b.EncodeCrazy(Array.Empty<byte>());
-            b.EncodeCrazy(Array.Empty<byte>());
-        }*/
+            b.WriteInt(farm.House.BuildingPermit);
+        } else if(player.MapType == 4) {
+            var house = ((HouseFloor)player.Map).House;
+
+            b.BeginCompress(); // buildingData_1
+            b.WriteInt(house.BuildingPermit);
+            b.Write0(16); // idk
+
+            for(int i = 0; i < 200; i++) {
+                if(house.Furniture.TryGetValue(i, out var value)) {
+                    b.Write(value);
+                } else {
+                    b.Write0(24);
+                }
+            }
+
+            b.EndCompress();
+
+            b.BeginCompress(); // buildingData_2
+            // 3 sets depending on mapId % 10
+
+            // 0, 1, 2 = outside
+            b.WriteInt(house.Floor0.ViewId);
+            b.WriteInt(house.Floor1.ViewId);
+            b.WriteInt(house.Floor2.ViewId);
+
+            // 3, 4, 5 = floor
+            b.WriteInt(house.Floor0.FloorId);
+            b.WriteInt(house.Floor1.FloorId);
+            b.WriteInt(house.Floor2.FloorId);
+
+            // 6, 7, 8 = wall
+            b.WriteInt(house.Floor0.WallId);
+            b.WriteInt(house.Floor1.WallId);
+            b.WriteInt(house.Floor2.WallId);
+
+            // 9,10,11 = window
+            b.WriteInt(house.Floor0.WindowId);
+            b.WriteInt(house.Floor1.WindowId);
+            b.WriteInt(house.Floor2.WindowId);
+
+            // byte current house floor
+
+            b.Write0(52); // rest of buildingData_2
+
+            b.WriteShort(0); // idk
+
+            // floor placeable
+            for(int i = 0; i < 16 * 20; i++) {
+                b.WriteByte(1);
+            }
+
+            b.EndCompress();
+        }
 
         b.WriteByte(0);
         /* if(byte == 99) {

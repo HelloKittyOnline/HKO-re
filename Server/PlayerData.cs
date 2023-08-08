@@ -44,19 +44,6 @@ class PlayerData {
     public int CurrentMap { get; set; } = 1; // Dream Room 1
     public int ReturnMap = 8;
 
-    [JsonIgnore]
-    public int AdjustedMapId {
-        get {
-            if(CurrentMap < 30000) {
-                return CurrentMap;
-            }
-            if(CurrentMap % 10 == 7) {
-                return 4; // Dream room 4
-            }
-            return CurrentMap % 10;
-        }
-    }
-
     [JsonIgnore] public Instance Map => Program.maps[CurrentMap];
 
     [JsonIgnore]
@@ -169,6 +156,7 @@ class PlayerData {
 
     public byte[] ProductionFlags { get; set; }
 
+    public List<int> OwnedFarms { get; set; }
     public Farm Farm { get; set; }
 
     [JsonIgnore]
@@ -208,10 +196,13 @@ class PlayerData {
         Keys ??= new HashSet<int>();
         Dreams ??= new HashSet<int>();
         Farm ??= new Farm();
-        Farm.Owner = client;
-        Farm.Init();
+        Farm.Init(client);
         Tools ??= new InventoryItem[3];
         QuestFlags1 ??= new Dictionary<int, uint>();
+        if(OwnedFarms == null) {
+            OwnedFarms = new List<int>();
+            OwnedFarms.Add(1); // base farm
+        }
 
         DisplayEntities = new int[18];
         UpdateEntities();

@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Diagnostics;
 using Extractor;
 
 namespace Server.Protocols;
@@ -100,6 +101,15 @@ static class Inventory {
                 case ItemType.Item_Guide:
                     UseItemGuide(client, item);
                     break;
+                case ItemType.Building_Permit:
+                    UseBuildingPermit(client, item);
+                    break;
+                case ItemType.Furniture:
+                    UseFurniture(client, item);
+                    break;
+                case ItemType.Farm_Certificate:
+                    UseFarmCertificate(client, item);
+                    break;
                 case ItemType.Watering_Can:
                     UseWateringCan(client, item, c, d);
                     break;
@@ -135,7 +145,7 @@ static class Inventory {
 
         var seed = Program.seeds[data.SubId];
 
-        if(farm.Level < seed.Level || client.Player.Levels[(int)Skill.Farming] < seed.Level) {
+        if(seed.Level > (farm.Level == 1 ? 0 : farm.Level) + 3 || client.Player.Levels[(int)Skill.Farming] < seed.Level) {
             Farm.Send03(client, 2, 0);
             return;
         }
@@ -175,6 +185,70 @@ static class Inventory {
         SendUsedSkillBook(client, SkillUsedFlag.Success, prodRule);
     }
 
+    static void UseBuildingPermit(Client client, ItemRef item) {
+        var farm = client.Player.Farm;
+        if(farm.House.HouseId != 0) {
+            return;
+        }
+
+        var _item = item.Item;
+        var dat = _item.Data;
+
+        var house = Program.buildings[item.Item.Data.SubId];
+
+        if(farm.Level < house.RequiredFarmLevel) {
+            return;
+        }
+
+        lock(client.Player) {
+            farm.House.Name = "";
+            farm.House.BuildingPermit = _item.Id;
+            farm.House.HouseState = 1;
+            farm.House.BuildingItems.AsSpan().Clear();
+
+            item.Remove(1);
+        }
+
+        Farm.SendHouseData(client, farm.House);
+        Farm.Send23(client);
+    }
+
+    static void UseFurniture(Client client, ItemRef item) {
+        var dat = Program.furniture[item.Item.Data.SubId];
+
+        if(client.Player.MapType != 4)
+            return;
+
+        var floor = (HouseFloor)client.Player.Map;
+
+        if(dat.Type == FurnitureType.Object) {
+            // handled in 0F_04
+            return;
+        }
+
+        if(dat.Type == FurnitureType.Room) {
+            switch(dat.Position) {
+                case FurniturePosition.Floor:
+                    floor.FloorId = dat.Id;
+                    break;
+                case FurniturePosition.Wall:
+                    floor.WallId = dat.Id;
+                    break;
+                case FurniturePosition.Window:
+                    floor.WindowId = dat.Id;
+                    break;
+                case FurniturePosition.Outside:
+                    floor.ViewId = dat.Id;
+                    break;
+                default:
+                    return;
+            }
+
+            item.Remove(1);
+            Hompy.SendHouseComponent(client, dat.Position, dat.Id, (byte)floor.Number);
+        }
+    }
+
     static void UseWateringCan(Client client, ItemRef item, int y, int x) {
         var farm = (Server.Farm)client.Player.Map;
 
@@ -185,6 +259,18 @@ static class Inventory {
         farm.Watered[x + y * 20] = 100;
 
         Farm.SendSetWatered(client, (byte)y, (byte)x, 1);
+    }
+
+    static void UseFarmCertificate(Client client, ItemRef item) {
+        var type = item.Item.Data.SubId;
+
+        if(client.Player.OwnedFarms.Contains(type)) {
+            return;
+        }
+
+        client.Player.OwnedFarms.Add(type);
+        client.Player.OwnedFarms.Sort();
+        item.Remove(1);
     }
 
     [Request(0x09, 0x10)] // 005872a6
