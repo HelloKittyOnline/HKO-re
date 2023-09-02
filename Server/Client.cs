@@ -1,11 +1,10 @@
 ﻿using System;
-using System.IO;
+using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Extractor;
-using Microsoft.Extensions.Logging;
+using Serilog.Events;
 using Server.Protocols;
 
 namespace Server;
@@ -16,7 +15,6 @@ class Client {
 
     public TcpClient TcpClient { get; }
     public NetworkStream Stream { get; }
-    public BinaryReader Reader { get; set; }
 
     public string Username { get; set; }
     public ulong DiscordId { get; set; }
@@ -26,9 +24,10 @@ class Client {
     public CancellationToken Token => ConnectionSource.Token;
     public Task RunTask;
 
-    public ILogger Logger { get; set; }
-
     private CancellationTokenSource actionToken;
+
+    private Queue<ArraySegment<byte>> sendBuffer = new();
+    private bool sending = false;
 
     public Client(TcpClient client) {
         Id = (short)IdManager.GetId();
@@ -38,7 +37,6 @@ class Client {
         Stream = TcpClient.GetStream();
 
         ConnectionSource = new CancellationTokenSource();
-        Logger = Program.loggerFactory.CreateLogger("Client");
     }
 
     public void Close() {
@@ -130,11 +128,12 @@ class Client {
 
         try {
             await action(actionToken.Token);
-        } catch (ObjectDisposedException e) when (e.ObjectName == "System.Net.Sockets.NetworkStream") {
-            Logger.LogInformation(e, "[{user}] Disconnected while performing action", DiscordId);
+        } catch(ObjectDisposedException e) when(e.ObjectName == "System.Net.Sockets.NetworkStream") {
+            Logging.Logger.Information("[{username}_{userID}] Disconnected while performing action", Username, DiscordId);
+
             Close();
         } catch(Exception e) {
-            Logger.LogError(e, "[{user}] Async error", DiscordId);
+            Logging.Logger.Write(LogEventLevel.Error, e, "[{username}_{userID}] Async error", Username, DiscordId);
             Close();
         }
 
@@ -148,19 +147,6 @@ class Client {
         actionToken?.Cancel();
     }
 
-    public byte ReadByte() { return Reader.ReadByte(); }
-    public short ReadInt16() { return Reader.ReadInt16(); }
-    public ushort ReadUInt16() { return Reader.ReadUInt16(); }
-    public int ReadInt32() { return Reader.ReadInt32(); }
-    public byte[] ReadBytes(int count) { return Reader.ReadBytes(count); }
-
-    public string ReadWString() {
-        return Encoding.Unicode.GetString(ReadBytes(ReadUInt16()));
-    }
-    public string ReadString() {
-        return PacketBuilder.Window1252.GetString(ReadBytes(ReadByte()));
-    }
-
     public void UpdateStats() {
         if(Player != null) {
             Player.UpdateStats();
@@ -168,7 +154,35 @@ class Client {
         }
     }
 
-    public void LogUnknown(int major, int minor) {
-        Logger.LogWarning("[{user}] Unknown Packet {major:X2}_{minor:X2}", DiscordId, major, minor);
+    public void Send(ArraySegment<byte> data) {
+        lock(sendBuffer) {
+            sendBuffer.Enqueue(data);
+            if(sending)
+                return;
+
+            sending = true;
+            Task.Run(SendTask);
+        }
     }
+
+    private async Task SendTask() {
+        while(true) {
+            ArraySegment<byte> buffer;
+            lock(sendBuffer) {
+                if(sendBuffer.Count == 0) {
+                    sending = false;
+                    return;
+                }
+
+                buffer = sendBuffer.Dequeue();
+            }
+
+            try {
+                await Stream.WriteAsync(buffer);
+            } catch {
+                Close();
+            }
+        }
+    }
+
 }

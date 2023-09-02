@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Resource = Extractor.Resource;
 
 namespace Server;
@@ -26,7 +25,7 @@ struct Plant : IWriteAble {
     public byte HarvestCount { get; set; } // max 15?
     public int DaysWithoutWater { get; set; }
 
-    public void Write(PacketBuilder b) {
+    public void Write(ref PacketBuilder b) {
         var data = Program.seeds[SeedId];
 
         b.WriteInt(SeedId);
@@ -99,7 +98,7 @@ class Farm : Instance, IWriteAble {
         }
     }
 
-    public void Write(PacketBuilder b) {
+    public void Write(ref PacketBuilder b) {
         // 12280 bytes
         b.WritePadWString(Name, 88 * 2);
         b.WriteByte(Type);
@@ -226,7 +225,8 @@ class Farm : Instance, IWriteAble {
 
                 ref var plant = ref farm.Plants[id];
                 if(plant.SeedId == 0) { // should never happen but just in case
-                    client.Logger.LogWarning("[{userID}] removed invalid plant index", client.DiscordId);
+                    Logging.Logger.Warning("[{username}_{userID}] removed invalid plant index", client.Username, client.DiscordId);
+
                     farm.ActivePlants.RemoveAt(i);
                     i--;
                     continue;

@@ -6,10 +6,10 @@ namespace Server.Protocols;
 static class CreateRole {
     #region Request
     [Request(0x01, 0x01)] // 00566b0d // sent after character creation
-    static void CreateCharacter(Client client) {
-        client.ReadByte(); // 0
+    static void CreateCharacter(ref Req req, Client client) {
+        req.ReadByte(); // 0
 
-        var data = PacketBuilder.DecodeCrazy(client.Reader);
+        var data = req.DecodeCrazy();
         // data.length == 124
 
         var name = Encoding.Unicode.GetString(data[..64]);
@@ -33,19 +33,19 @@ static class CreateRole {
     }
 
     [Request(0x01, 0x02)] // 00566b72
-    static void GetCharacter(Client client) {
+    static void GetCharacter(ref Req req, Client client) {
         SendCharacterData(client);
     }
 
     [Request(0x01, 0x03)] // 00566bce // Delete character
-    static void DeleteCharacter(Client client) {
+    static void DeleteCharacter(ref Req req, Client client) {
         client.Player = null;
         SendCharacterData(client);
     }
 
     [Request(0x01, 0x05)] // 00566c47 // check character name
-    static void CheckName(Client client) {
-        var name = client.ReadWString();
+    static void CheckName(ref Req req, Client client) {
+        var name = req.ReadWString();
 
         // TODO: check with database
         // if(Program.database.CharacterExists(name)) { }

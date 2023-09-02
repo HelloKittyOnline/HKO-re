@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using Microsoft.Extensions.Logging;
+using Serilog.Events;
 
 namespace Server;
 
 interface IWriteAble {
-    public void Write(PacketBuilder b);
+    public void Write(ref PacketBuilder b);
 }
 
-class PacketBuilder {
+struct PacketBuilder {
     public static readonly Encoding Window1252 = CodePagesEncodingProvider.Instance.GetEncoding(1252);
 
     private MemoryStream buffer;
@@ -40,7 +40,7 @@ class PacketBuilder {
     }
 
     public void Write<T>(T item) where T : IWriteAble {
-        item.Write(this);
+        item.Write(ref this);
     }
 
     public void WriteByte(byte v) {
@@ -128,63 +128,52 @@ class PacketBuilder {
         Write0(bytes - raw.Length);
     }
 
-    public void Send(Client client) {
+    private void UpdateLength() {
         Debug.Assert(!CompressMode);
-        var buf = buffer.GetBuffer();
+        buffer.TryGetBuffer(out var buf); // normal GetBuffer returns unused space
 
         // update data length
-        var dataLength = buffer.Position - 5;
+        var dataLength = buf.Count - 5;
         buf[3] = (byte)(dataLength & 0xFF);
         buf[4] = (byte)(dataLength >> 8);
+    }
 
-#if DEBUG
-        if(dataLength >= 2 && !(buf[5] == 0x00 && buf[6] == 0x63))
-            client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
-#endif
-        lock(client.Stream) {
-            client.Stream.Write(buf, 0, (int)buffer.Position);
+    public void Send(Client client) {
+        UpdateLength();
+        buffer.TryGetBuffer(out var buf); // normal GetBuffer returns unused space
+
+        if(Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63)) {
+            Logging.Logger.Verbose("[{username}_{userID}] S -> C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, buf[5], buf[6], buf.AsMemory());
         }
+
+        client.Send(buf);
     }
 
     public void Send(IEnumerable<Client> clients) {
-        Debug.Assert(!CompressMode);
-        var buf = buffer.GetBuffer();
+        UpdateLength();
+        buffer.TryGetBuffer(out var buf);
 
-        // update data length
-        var dataLength = buffer.Position - 5;
-        buf[3] = (byte)(dataLength & 0xFF);
-        buf[4] = (byte)(dataLength >> 8);
+        var doLog = Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63);
 
         foreach(var client in clients) {
-#if DEBUG
-            if(dataLength >= 2 && !(buf[5] == 0x00 && buf[6] == 0x63))
-                client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
-#endif
-
-            lock(client.Stream) {
-                client.Stream.Write(buf, 0, (int)buffer.Position);
+            if(doLog) {
+                Logging.Logger.Verbose("[{username}_{userID}] S -> C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, buf[5], buf[6], buf.AsMemory());
             }
+            client.Send(buf);
         }
     }
 
     public void Send(Span<Client> clients) {
-        Debug.Assert(!CompressMode);
-        var buf = buffer.GetBuffer();
+        UpdateLength();
+        buffer.TryGetBuffer(out var buf);
 
-        // update data length
-        var dataLength = buffer.Position - 5;
-        buf[3] = (byte)(dataLength & 0xFF);
-        buf[4] = (byte)(dataLength >> 8);
+        var doLog = Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63);
 
         foreach(var client in clients) {
-#if DEBUG
-            if(dataLength >= 2 && !(buf[5] == 0x00 && buf[6] == 0x63))
-                client.Logger.LogTrace("[{userID}] S -> C: {:X2}_{:X2}", client.DiscordId, buf[5], buf[6]);
-#endif
-
-            lock(client.Stream) {
-                client.Stream.Write(buf, 0, (int)buffer.Position);
+            if(doLog) {
+                Logging.Logger.Verbose("[{username}_{userID}] S -> C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, buf[5], buf[6], buf.AsMemory());
             }
+            client.Send(buf);
         }
     }
 
@@ -230,68 +219,5 @@ class PacketBuilder {
         WriteByte(0x82);
 
         writer.Write(data);
-    }
-
-    public static byte[] DecodeCrazy(BinaryReader req) {
-        var size = req.ReadUInt16();
-        var outSize = req.ReadUInt16();
-
-        int read = 0;
-
-        var type = req.ReadByte();
-        read += 1;
-
-        if(type == 0x82) {
-            return req.ReadBytes(size - 1);
-        }
-        if(type == 'B') {
-            // TODO: replace with array?
-            var output = new List<byte>(outSize);
-
-            var byteMask = (req.ReadByte() << 8) | req.ReadByte();
-            read += 2;
-
-            int loopCounter = 0x10;
-
-            while(read < size) {
-                if(loopCounter == 0) {
-                    byteMask = (req.ReadByte() << 8) | req.ReadByte();
-                    read += 2;
-                    loopCounter = 0x10;
-                }
-                if((byteMask & 0x8000) == 0) {
-                    output.Add(req.ReadByte());
-                    read += 1;
-                } else {
-                    var a = req.ReadByte();
-                    var b = req.ReadByte();
-                    read += 2;
-
-                    var copyCount = (ushort)((a << 4) | (b >> 4));
-
-                    if(copyCount == 0) {
-                        copyCount = (ushort)(((b << 8) | req.ReadByte()) + 0x10);
-                        var copy = req.ReadByte();
-                        read += 2;
-
-                        for(int i = 0; i < copyCount; i++) {
-                            output.Add(copy);
-                        }
-                    } else {
-                        int sVar3 = (b & 0xF) + 3;
-
-                        int off = output.Count;
-                        for(int i = 0; i < sVar3; i++) {
-                            output.Add(output[off - copyCount + i]);
-                        }
-                    }
-                }
-                byteMask <<= 1;
-                loopCounter--;
-            }
-            return output.ToArray();
-        }
-
-        throw new Exception("Invalid format");
     }
 }

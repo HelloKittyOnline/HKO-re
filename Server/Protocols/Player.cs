@@ -87,8 +87,8 @@ static class Player {
 
     #region Request
     [Request(0x02, 0x01)] // 005defa2
-    static void EnterGame(Client client) {
-        client.ReadByte(); // idk
+    static void EnterGame(ref Req req, Client client) {
+        req.ReadByte(); // idk
 
         SendPlayerData(client);
         SendPlayerHpSta(client);
@@ -104,16 +104,16 @@ static class Player {
     }
 
     [Request(0x02, 0x02)] // 005df036 // sent after map load
-    static void Recv02(Client client) {
+    static void Recv02(ref Req req, Client client) {
         // throw new NotImplementedException();
     }
 
     [Request(0x02, 0x04)] // 005df0cb
-    static void OnPlayerMove(Client client) {
+    static void OnPlayerMove(ref Req req, Client client) {
         // player walking
-        var mapId = client.ReadInt32(); // mapId
-        var x = client.ReadInt32(); // x
-        var y = client.ReadInt32(); // y
+        var mapId = req.ReadInt32(); // mapId
+        var x = req.ReadInt32(); // x
+        var y = req.ReadInt32(); // y
 
         var player = client.Player;
 
@@ -127,8 +127,8 @@ static class Player {
     }
 
     [Request(0x02, 0x05)] // 005df144
-    static void SetPlayerStatus(Client client) {
-        var data = client.ReadByte();
+    static void SetPlayerStatus(ref Req req, Client client) {
+        var data = req.ReadByte();
         // 0 = close
 
         client.Player.Status = data;
@@ -136,8 +136,8 @@ static class Player {
     }
 
     [Request(0x02, 0x06)] // 005df1ca
-    static void SetPlayerEmote(Client client) {
-        var emote = client.ReadInt32();
+    static void SetPlayerEmote(ref Req req, Client client) {
+        var emote = req.ReadInt32();
         // 1 = blink
         // 2 = yay
         // ...
@@ -147,8 +147,8 @@ static class Player {
     }
 
     [Request(0x02, 0x07)] // 005df240
-    static void SetPlayerRotation(Client client) {
-        var rotation = client.ReadInt16();
+    static void SetPlayerRotation(ref Req req, Client client) {
+        var rotation = req.ReadInt16();
         // 1 = north
         // 2 = north east
         // 3 = east
@@ -163,8 +163,8 @@ static class Player {
     }
 
     [Request(0x02, 0x08)] // 005df2b4
-    static void SetPlayerState(Client client) {
-        var state = client.ReadInt16();
+    static void SetPlayerState(ref Req req, Client client) {
+        var state = req.ReadInt16();
         // 1 = standing
         // 3 = sitting
         // 4 = gathering
@@ -174,9 +174,9 @@ static class Player {
     }
 
     [Request(0x02, 0x0A)] // 005df368
-    static void TakeTeleport(Client client) {
-        var tpId = client.ReadInt16();
-        var idk = client.ReadByte(); // always 1?
+    static void TakeTeleport(ref Req req, Client client) {
+        var tpId = req.ReadInt16();
+        var idk = req.ReadByte(); // always 1?
 
         var player = client.Player;
         var oldMap = player.Map;
@@ -221,14 +221,14 @@ static class Player {
     }
 
     [Request(0x02, 0x0B)] // 005df415
-    static void CheckMapHash(Client client) {
-        var mapId = client.ReadInt32();
-        var hashHex = client.ReadBytes(32);
+    static void CheckMapHash(ref Req req, Client client) {
+        var mapId = req.ReadInt32();
+        var hashHex = req.ReadBytes(32);
     }
 
     [Request(0x02, 0x0C)] // 005df48c
-    static void EquipItem(Client client) {
-        var inventorySlot = client.ReadByte();
+    static void EquipItem(ref Req req, Client client) {
+        var inventorySlot = req.ReadByte();
 
         lock(client.Player) {
             var item = client.GetItem(InvType.Player, inventorySlot - 1);
@@ -262,8 +262,8 @@ static class Player {
     }
 
     [Request(0x02, 0x0D)] // 005df50c
-    static void UnEquipItem(Client client) {
-        var slot = client.ReadByte() - 1;
+    static void UnEquipItem(ref Req req, Client client) {
+        var slot = req.ReadByte() - 1;
 
         lock(client.Player) {
             client.GetItem(InvType.Equipment, slot).MoveTo(InvType.Player);
@@ -271,8 +271,8 @@ static class Player {
     }
 
     [Request(0x02, 0x0E)] // 005df580
-    static void UnEquipTool(Client client) {
-        var slot = client.ReadByte() - 1;
+    static void UnEquipTool(ref Req req, Client client) {
+        var slot = req.ReadByte() - 1;
 
         lock(client.Player) {
             client.GetItem(InvType.Tool, slot).MoveTo(InvType.Player);
@@ -280,28 +280,28 @@ static class Player {
     }
 
     [Request(0x02, 0x13)] // 005df5e2
-    private static void Recieve_02_13(Client client) {
+    private static void Recieve_02_13(ref Req req, Client client) {
         // multiple sources?
         // cancel production
         client.CancelAction();
     }
 
     [Request(0x02, 0x1A)] // 005df655 // sent after 02_09
-    static void Recieve_02_1A(Client client) {
-        var winmTime = client.ReadInt32();
+    static void Recieve_02_1A(ref Req req, Client client) {
+        var winmTime = req.ReadInt32();
     }
 
     [Request(0x02, 0x1f)] // 005df6e3 // set quickbar item
-    static void SetQuickbar(Client client) {
-        var slot = client.ReadByte();
-        var itemId = client.ReadInt32();
+    static void SetQuickbar(ref Req req, Client client) {
+        var slot = req.ReadByte();
+        var itemId = req.ReadInt32();
 
         client.Player.Quickbar[slot - 1] = itemId;
     }
 
     [Request(0x02, 0x20)] // 005df763 // change player info
-    static void SetPlayerInfo(Client client) {
-        var data = PacketBuilder.DecodeCrazy(client.Reader); // 970 bytes
+    static void SetPlayerInfo(ref Req req, Client client) {
+        var data = req.DecodeCrazy(); // 970 bytes
 
         var favoriteFood = PacketBuilder.Window1252.GetString(data, 1, data[0]); // 0 - 37
         var favoriteMovie = PacketBuilder.Window1252.GetString(data, 39, data[38]); // 38 - 63
@@ -321,8 +321,8 @@ static class Player {
     }
 
     [Request(0x02, 0x21)] // 005df7d8
-    static void GetPlayerInfo(Client client) {
-        var playerId = client.ReadInt16();
+    static void GetPlayerInfo(ref Req req, Client client) {
+        var playerId = req.ReadInt16();
         var player = Program.clients.FirstOrDefault(x => x.Id == playerId);
 
         if(player != null)
@@ -337,13 +337,13 @@ static class Player {
     [Request(0x02, 0x2D)] // 005dfab4
     */
     [Request(0x02, 0x2A)] // 005df946 // sent from the same function as 0x0A why?
-    static void Recv2A(Client client) {
+    static void Recv2A(ref Req req, Client client) {
         // todo: what to do with this?
     }
 
     [Request(0x02, 0x32)] // 005dfb8c //  client version information
-    static void CheckPackageVersions(Client client) {
-        int count = client.ReadInt32();
+    static void CheckPackageVersions(ref Req req, Client client) {
+        int count = req.ReadInt32();
 
         /*var result = new List<string>();
         for(int i = 0; i < count; i++) {

@@ -35,8 +35,8 @@ static class Npc {
 
     #region Request
     [Request(0x05, 0x01)] // 00573de8
-    static void GetNpcDialog(Client client) {
-        var npcId = client.ReadInt32();
+    static void GetNpcDialog(ref Req req, Client client) {
+        var npcId = req.ReadInt32();
         int dialog = GetNextDialog(client, npcId);
 
         lock(client.Player) {
@@ -49,14 +49,14 @@ static class Npc {
     }
 
     [Request(0x05, 0x02)] // 00573e4a // npc data ack?
-    static void Recv02(Client client) { }
+    static void Recv02(ref Req req, Client client) { }
 
     [Request(0x05, 0x03)] // 00573ef2
-    static void TakeQuest(Client client) {
-        var npcId = client.ReadInt32();
-        var questId = client.ReadInt32();
-        var dialogId = client.ReadInt32();
-        var rewardSelect = client.ReadInt32();
+    static void TakeQuest(ref Req req, Client client) {
+        var npcId = req.ReadInt32();
+        var questId = req.ReadInt32();
+        var dialogId = req.ReadInt32();
+        var rewardSelect = req.ReadInt32();
 
         // todo: use questID instead of dialogID?
         var sub = Program.questMap[npcId].FirstOrDefault(x => x.Dialog == dialogId);
@@ -80,8 +80,8 @@ static class Npc {
                 return; // quest limit reached
             }
 
-            foreach(var req in sub.Requirements) {
-                if(req is Requirement.GiveItem item) {
+            foreach(var requ in sub.Requirements) {
+                if(requ is Requirement.GiveItem item) {
                     client.RemoveItem(item.Id, item.Count);
                 }
             }
@@ -96,8 +96,8 @@ static class Npc {
     }
 
     [Request(0x05, 0x04)] // 00573f74 // quest requirement completed
-    static void UpdateQuest(Client client) {
-        var npcId = client.ReadInt32();
+    static void UpdateQuest(ref Req req, Client client) {
+        var npcId = req.ReadInt32();
         var dialog = GetNextDialog(client, npcId);
         SetQuestMarker(client, npcId, dialog);
     }
@@ -105,8 +105,8 @@ static class Npc {
     // [Request(0x05, 0x05)] // 00573fe8
 
     [Request(0x05, 0x06)] // 0057405f
-    static void CancelQuest(Client client) {
-        var questId = client.ReadInt32();
+    static void CancelQuest(ref Req req, Client client) {
+        var questId = req.ReadInt32();
 
         // TODO: gracefully handle canceling quests
         if(client.Player.QuestFlags[questId] == QuestStatus.Running)
@@ -119,13 +119,13 @@ static class Npc {
     // [Request(0x05, 0x09)] // 005741fe
 
     [Request(0x05, 0x0A)] // 005742b7
-    static void FinishMinigame(Client client) {
-        var gameId = client.ReadInt32();
-        var score = client.ReadInt32();
+    static void FinishMinigame(ref Req req, Client client) {
+        var gameId = req.ReadInt32();
+        var score = req.ReadInt32();
 
         // could be used to store quest id
-        var param1 = client.ReadInt32(); // arbitrary param 1
-        var param2 = client.ReadInt32(); // arbitrary param 2
+        var param1 = req.ReadInt32(); // arbitrary param 1
+        var param2 = req.ReadInt32(); // arbitrary param 2
 
         if(!Program.minigameQuests.TryGetValue(gameId, out var quest))
             return; // quest not found?
@@ -154,8 +154,8 @@ static class Npc {
     // [Request(0x05, 0x0B)] // 0057431e
 
     [Request(0x05, 0x0C)] // 0057438c
-    static void CollectCheckpoint(Client client) {
-        var id = client.ReadInt32();
+    static void CollectCheckpoint(ref Req req, Client client) {
+        var id = req.ReadInt32();
 
         lock(client.Player) {
             client.Player.CheckpointFlags.TryGetValue(id, out var val);

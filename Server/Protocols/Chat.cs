@@ -22,71 +22,71 @@ enum ChatFlags {
 static class Chat {
     #region Request
     [Request(0x03, 0x01)] // 005d2eec // map channel message
-    static void ReceiveMapChannel(Client client) {
-        var msg = client.ReadWString();
-        Program.ChatLogger.Write(LogEventLevel.Information, "[Map] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+    static void ReceiveMapChannel(ref Req req, Client client) {
+        var msg = req.ReadWString();
+        Logging.LogChat(client, ChatFlags.Map, msg);
         if(Commands.HandleChat(client, msg))
             return;
         SendMapChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Map) != 0), client, msg);
     }
 
     [Request(0x03, 0x02)] // 005d2fa6 // private message
-    static void ReceivePrivateMessage(Client client) {
-        var username = client.ReadWString();
-        var message = client.ReadWString();
+    static void ReceivePrivateMessage(ref Req req, Client client) {
+        var username = req.ReadWString();
+        var message = req.ReadWString();
 
         var other = Program.clients.FirstOrDefault(x => x.Player.Name == username);
         if(other == null || !other.InGame)
             return;
 
-        Program.ChatLogger.Write(LogEventLevel.Information, "[Prv] {user}:{username}->{other}->{otherUsername}: {message}", client.DiscordId, client.Username, other.DiscordId, other.Username, message);
+        Logging.LogChat(client, other, message);
         SendPrivateMessage(client, other, client.Player.Name, message);
         if((other.Player.ChatFlags & ChatFlags.Private) != 0)
             SendPrivateMessage(other, client, client.Player.Name, message);
     }
 
     [Request(0x03, 0x05)] // 005d3044 // normal channel message
-    static void ReceiveNormalChannel(Client client) {
-        var msg = client.ReadWString();
-        Program.ChatLogger.Write(LogEventLevel.Information, "[Nrm] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+    static void ReceiveNormalChannel(ref Req req, Client client) {
+        var msg = req.ReadWString();
+        Logging.LogChat(client, ChatFlags.Local, msg);
         if(Commands.HandleChat(client, msg))
             return;
         SendNormalChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Local) != 0), client, msg);
     }
 
     [Request(0x03, 0x06)] // 005d30dc // trade channel message
-    static void ReceiveTradeChannel(Client client) {
-        var msg = client.ReadWString();
-        Program.ChatLogger.Write(LogEventLevel.Information, "[Trd] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+    static void ReceiveTradeChannel(ref Req req, Client client) {
+        var msg = req.ReadWString();
+        Logging.LogChat(client, ChatFlags.Trade, msg);
         if(Commands.HandleChat(client, msg))
             return;
         SendTradeChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Trade) != 0), client, msg);
     }
 
     [Request(0x03, 0x07)] // 005d3174
-    static void Receive07(Client client) {
-        var msg = client.ReadWString();
+    static void Receive07(ref Req req, Client client) {
+        var msg = req.ReadWString();
         throw new NotImplementedException();
     }
 
     [Request(0x03, 0x08)] // 005d320c // advice channel message
-    static void ReceiveAdviceChannel(Client client) {
-        var msg = client.ReadWString();
-        Program.ChatLogger.Write(LogEventLevel.Information, "[Adv] {mapId} {userID}:{username}: {message}", client.Player.CurrentMap, client.DiscordId, client.Username, msg);
+    static void ReceiveAdviceChannel(ref Req req, Client client) {
+        var msg = req.ReadWString();
+        Logging.LogChat(client, ChatFlags.Advice, msg);
         if(Commands.HandleChat(client, msg))
             return;
         SendAdviceChannel(client.Player.Map.Players.Where(x => (x.Player.ChatFlags & ChatFlags.Advice) != 0), client, msg);
     }
 
     [Request(0x03, 0x0B)] // 005d3288 change chat filter
-    static void SetChatFilter(Client client) {
-        client.Player.ChatFlags = (ChatFlags)client.ReadInt32();
+    static void SetChatFilter(ref Req req, Client client) {
+        client.Player.ChatFlags = (ChatFlags)req.ReadInt32();
     }
 
     [Request(0x03, 0x0C)] // 005d331e
-    static void ReceivePrivateChatStatus(Client client) {
-        var open = client.ReadByte() != 0;
-        var username = client.ReadWString();
+    static void ReceivePrivateChatStatus(ref Req req, Client client) {
+        var open = req.ReadByte() != 0;
+        var username = req.ReadWString();
 
         // what am i supposed to do with this?
 
@@ -94,8 +94,8 @@ static class Chat {
     }
 
     [Request(0x03, 0x0D)] // 005d33a7 open private message
-    static void ReceiveOpenPrivateMessage(Client client) {
-        var playerName = client.ReadWString();
+    static void ReceiveOpenPrivateMessage(ref Req req, Client client) {
+        var playerName = req.ReadWString();
 
         var other = Program.clients.FirstOrDefault(x => x.InGame && x.Player.Name == playerName);
 

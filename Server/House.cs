@@ -13,7 +13,7 @@ struct FurnitureItem : IWriteAble {
     public byte State { get; set; }
     public byte Floor { get; set; }
 
-    public void Write(PacketBuilder b) {
+    public void Write(ref PacketBuilder b) {
         if(State == 0)
             State = 1;
 

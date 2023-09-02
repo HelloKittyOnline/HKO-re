@@ -33,8 +33,8 @@ class Shop {
 static class Store {
     #region Request
     [Request(0x0B, 0x01)] // 0054d96c
-    static void OpenStore(Client client) {
-        var npcId = client.ReadInt32();
+    static void OpenStore(ref Req req, Client client) {
+        var npcId = req.ReadInt32();
 
         if(!Program.Shops.TryGetValue(npcId, out var store)) {
             return;
@@ -44,9 +44,9 @@ static class Store {
     }
 
     [Request(0x0B, 0x02)] // 0054d9a4
-    static void BuyItem(Client client) {
-        var npcId = client.ReadInt32();
-        var itemNum = client.ReadByte();
+    static void BuyItem(ref Req req, Client client) {
+        var npcId = req.ReadInt32();
+        var itemNum = req.ReadByte();
 
         if(!Program.Shops.TryGetValue(npcId, out var store))
             return;
@@ -95,9 +95,9 @@ static class Store {
     }
 
     [Request(0x0B, 0x03)] // 0054da30
-    static void SellItem(Client client) {
-        var npcId = client.ReadInt32();
-        var itemSlot = client.ReadInt32() - 1;
+    static void SellItem(ref Req req, Client client) {
+        var npcId = req.ReadInt32();
+        var itemSlot = req.ReadInt32() - 1;
 
         lock(client.Player) {
             var item = client.GetItem(InvType.Player, itemSlot);

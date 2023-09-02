@@ -5,11 +5,11 @@ namespace Server.Protocols;
 static class Resource {
     #region Request
     [Request(0x06, 0x01)] // 005a2513
-    static void HarvestResource(Client client) {
+    static void HarvestResource(ref Req req, Client client) {
         // gathering
 
-        var resId = client.ReadInt32();
-        var action = client.ReadByte(); // 1 or 2
+        var resId = req.ReadInt32();
+        var action = req.ReadByte(); // 1 or 2
         if(action is not (1 or 2)) {
             return;
         }

@@ -16,7 +16,7 @@ struct InventoryItem : IWriteAble {
     [JsonIgnore]
     public ItemAtt Data => Program.items[Id];
 
-    public void Write(PacketBuilder w) {
+    public void Write(ref PacketBuilder w) {
         w.WriteInt(Id); // id
 
         w.WriteByte(Count); // count

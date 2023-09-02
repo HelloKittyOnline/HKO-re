@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+using Serilog.Events;
 using Server.Protocols;
 
 namespace Server;
@@ -123,7 +123,7 @@ static class Commands {
                 // TODO: send error chat message to client
             }
         } catch(Exception e) {
-            client.Logger.LogError(e, "Error handling chat command {message}", message);
+            Logging.Logger.Error(e, "Error handling chat command {message}", message);
         }
 
         return true;
@@ -185,10 +185,10 @@ static class Commands {
     public static void Kick(string[] args) {
         if(args.Length <= 1) {
             Console.WriteLine("Please set a valid player");
-            return;     
+            return;
         }
         Client client = null;
-        if(IPEndPoint.TryParse(args[1], out var ip)) { 
+        if(IPEndPoint.TryParse(args[1], out var ip)) {
             client = Program.clients.FirstOrDefault(x => x.TcpClient.Client.RemoteEndPoint.Equals(ip));
         } else {
             client = FindPlayer(args[1]);
@@ -197,7 +197,7 @@ static class Commands {
             Console.WriteLine("Could not find player");
             return;
         }
-        client.Close();         
+        client.Close();
     }
 
     [ChatCommand("stuck", "Teleports you back to sanrio harbour", false)]
@@ -212,5 +212,14 @@ static class Commands {
         player.CurrentMap = 8;
 
         Player.ChangeMap(client);
+    }
+
+    [Command("setLogLevel [level]", "set log level to Verbose|Debug|Information|Warning|Error|Fatal")]
+    public static void SetLogLevel(string[] args) {
+        if(Enum.TryParse(args[1], true, out LogEventLevel level)) {
+            Logging.LevelSwitch.MinimumLevel = level;
+        } else {
+            Console.WriteLine($"Unknown log level {args[1]}");
+        }
     }
 }

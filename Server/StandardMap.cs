@@ -101,7 +101,7 @@ class MobData : IWriteAble {
         // 7 = normal
     }
 
-    public void Write(PacketBuilder b) {
+    public void Write(ref PacketBuilder b) {
         b.WriteInt(Id);
         b.WriteInt(X);
         b.WriteInt(Y);

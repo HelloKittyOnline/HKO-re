@@ -1,14 +1,13 @@
-﻿using System;
+using System;
 using System.Text;
-using Microsoft.Extensions.Logging;
 
 namespace Server.Protocols;
 
 static class Login {
     #region Request
     [Request(0x00, 0x01)] // 0059af3e
-    static void AcceptClient(Client client) {
-        var data = PacketBuilder.DecodeCrazy(client.Reader);
+    static void AcceptClient(ref Req req, Client client) {
+        var data = req.DecodeCrazy();
 
         var username = PacketBuilder.Window1252.GetString(data, 1, data[0]);
         var password = Encoding.UTF8.GetString(data, 0x42, data[0x41]);
@@ -17,7 +16,7 @@ static class Login {
 
         switch(res) {
             case LoginResponse.Ok:
-                client.Logger.LogInformation("[{userID}] Player {username} logged in", discordId, username);
+                Logging.Logger.Information("[{username}_{userID}] Player logged in", username, discordId);
                 client.Player = player;
                 client.Username = username;
                 client.DiscordId = discordId;
@@ -42,29 +41,29 @@ static class Login {
     }
 
     [Request(0x00, 0x03)] // 0059afd7 // after user selected world
-    static void SelectServer(Client client) {
-        int serverNum = client.ReadInt16();
-        int worldNum = client.ReadInt16();
+    static void SelectServer(ref Req req, Client client) {
+        int serverNum = req.ReadInt16();
+        int worldNum = req.ReadInt16();
 
         // SendChangeServer(res);
         SendLobby(client, false);
     }
 
     [Request(0x00, 0x04)] // 0059b08f // list of languages? sent after lobbyServer
-    static void ServerList(Client client) {
-        var count = client.ReadInt32();
+    static void ServerList(ref Req req, Client client) {
+        var count = req.ReadInt32();
 
         for(int i = 0; i < count; i++) {
-            var name = client.ReadString();
+            var name = req.ReadString();
         }
 
         SendServerList(client);
     }
 
     [Request(0x00, 0x0B)] // 0059b14a // sent after realmServer
-    static void Recieve_00_0B(Client client) {
-        var idk1 = client.ReadString(); // "@"
-        var idk2 = client.ReadInt32(); // = 0
+    static void Recieve_00_0B(ref Req req, Client client) {
+        var idk1 = req.ReadString(); // "@"
+        var idk2 = req.ReadInt32(); // = 0
 
         Send00_0C(client, 1);
         SendTimoutVal(client);
@@ -72,13 +71,13 @@ static class Login {
     }
 
     [Request(0x00, 0x10)] // 0059b1ae finished loading?
-    static void Recv10(Client client) {
+    static void Recv10(ref Req req, Client client) {
         // TODO: what to do with this?
     }
 
     [Request(0x00, 0x63)] // 0059b253
-    static void Ping(Client client) {
-        int number = client.ReadInt32();
+    static void Ping(ref Req req, Client client) {
+        int number = req.ReadInt32();
         SendPong(client, number);
     }
     #endregion

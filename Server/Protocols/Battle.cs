@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,8 +8,8 @@ namespace Server.Protocols;
 static class Battle {
     #region Request
     [Request(0x0C, 0x03)] // 00537da8
-    private static void AttackMob(Client client) {
-        var mobEntId = client.ReadInt32();
+    private static void AttackMob(ref Req req, Client client) {
+        var mobEntId = req.ReadInt32();
 
         var map = client.Player.Map;
         var mob = map.Mobs.FirstOrDefault(x => x.Id == mobEntId);
@@ -68,21 +68,21 @@ static class Battle {
     }
 
     [Request(0x0C, 0x07)] // 00537e23
-    private static void TakeBreak(Client client) {
+    private static void TakeBreak(ref Req req, Client client) {
         // after defeat message box ok
         throw new NotImplementedException();
     }
 
     [Request(0x0C, 0x08)] // pet mob? 00537e98
-    private static void Recieve08(Client client) {
-        var petEntId = client.ReadInt32();
+    private static void Recieve08(ref Req req, Client client) {
+        var petEntId = req.ReadInt32();
         throw new NotImplementedException();
     }
 
     [Request(0x0C, 0x09)] // feed mob? 00537f23
-    private static void Recieve09(Client client) {
-        var petEntId = client.ReadInt32();
-        var invSlot = client.ReadByte();
+    private static void Recieve09(ref Req req, Client client) {
+        var petEntId = req.ReadInt32();
+        var invSlot = req.ReadByte();
         throw new NotImplementedException();
     }
     #endregion

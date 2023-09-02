@@ -21,5 +21,5 @@ internal class BitVector : IWriteAble {
         }
     }
 
-    public void Write(PacketBuilder b) => b.Write(Bytes);
+    public void Write(ref PacketBuilder b) => b.Write(Bytes);
 }

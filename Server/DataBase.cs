@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
 using MySqlConnector;
 
 namespace Server;
@@ -290,8 +289,7 @@ static class Database {
     }
 
     private static void LogRequest(string query) {
-        var logger = Program.loggerFactory.CreateLogger("Database");
-        logger.LogTrace($"Executing Query \"{query}\"");
+        Logging.Logger.Debug("Executing Query {query}", query);
     }
 
     private static byte[] HashPassword(byte[] salt, string password) {

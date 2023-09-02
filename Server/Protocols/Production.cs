@@ -6,9 +6,9 @@ namespace Server.Protocols;
 
 static class Production {
     [Request(0x07, 0x01)] // 00529917
-    static void ProduceItem(Client client) {
-        var prod = client.ReadInt32();
-        var produce1 = client.ReadByte() == 1;
+    static void ProduceItem(ref Req req, Client client) {
+        var prod = req.ReadInt32();
+        var produce1 = req.ReadByte() == 1;
         // 1 = produce 1
         // 2 = produce all
 
@@ -34,7 +34,6 @@ static class Production {
             Send01(client, 1, 0);
             return;
         }
-
 
         const int productionTime = 5 * 1000;
 
@@ -74,9 +73,9 @@ static class Production {
     }
 
     [Request(0x07, 0x04)] // 005299a6
-    static void Recv04(Client client) {
-        var a = client.ReadByte();
-        var b = client.ReadByte();
+    static void Recv04(ref Req req, Client client) {
+        var a = req.ReadByte();
+        var b = req.ReadByte();
 
         throw new NotImplementedException();
     }

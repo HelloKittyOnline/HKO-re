@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+using System;
 using Extractor;
 
 namespace Server.Protocols;
@@ -7,12 +6,12 @@ namespace Server.Protocols;
 static class Inventory {
     #region Request
     [Request(0x09, 0x01)] // 00586fd2
-    static void MoveItem(Client client) {
-        var fromInv = client.ReadByte();
-        var fromPos = client.ReadByte() - 1;
+    static void MoveItem(ref Req req, Client client) {
+        var fromInv = req.ReadByte();
+        var fromPos = req.ReadByte() - 1;
 
-        var toInv = client.ReadByte();
-        var toPos = client.ReadByte() - 1;
+        var toInv = req.ReadByte();
+        var toPos = req.ReadByte() - 1;
 
         lock(client.Player) {
             var from = client.GetItem(fromInv, fromPos);
@@ -22,8 +21,8 @@ static class Inventory {
     }
 
     [Request(0x09, 0x02)] // 00587048
-    static void MoveToInv(Client client) {
-        var a = client.ReadByte() - 1;
+    static void MoveToInv(ref Req req, Client client) {
+        var a = req.ReadByte() - 1;
 
         lock(client.Player) {
             client.GetItem(InvType.Farm, a).MoveTo(InvType.Player);
@@ -31,17 +30,17 @@ static class Inventory {
     }
 
     [Request(0x09, 0x03)] // 005870bc
-    static void MoveToFarm(Client client) {
-        var a = client.ReadByte() - 1;
+    static void MoveToFarm(ref Req req, Client client) {
+        var a = req.ReadByte() - 1;
         lock(client.Player) {
             client.GetItem(InvType.Player, a).MoveTo(InvType.Farm);
         }
     }
 
     [Request(0x09, 0x06)] // 0058714a
-    static void SplitItem(Client client) {
-        var pos = client.ReadByte() - 1;
-        var count = client.ReadByte(); // min: 1 - max: entire stack
+    static void SplitItem(ref Req req, Client client) {
+        var pos = req.ReadByte() - 1;
+        var count = req.ReadByte(); // min: 1 - max: entire stack
         if(count == 0)
             return;
 
@@ -73,13 +72,13 @@ static class Inventory {
     }
 
     [Request(0x09, 0x0F)] // 00587207
-    static void UseItem(Client client) {
-        var slot = client.ReadByte();
-        var b = client.ReadInt16();
+    static void UseItem(ref Req req, Client client) {
+        var slot = req.ReadByte();
+        var b = req.ReadInt16();
 
-        var c = client.ReadInt32();
-        var d = client.ReadInt32();
-        var e = client.ReadInt32();
+        var c = req.ReadInt32();
+        var d = req.ReadInt32();
+        var e = req.ReadInt32();
 
         if(slot - 1 >= client.Player.InventorySize)
             return;
@@ -274,9 +273,9 @@ static class Inventory {
     }
 
     [Request(0x09, 0x10)] // 005872a6
-    static void DeleteItem(Client client) {
-        var slot = client.ReadByte() - 1;
-        var inventory = client.ReadByte();
+    static void DeleteItem(ref Req req, Client client) {
+        var slot = req.ReadByte() - 1;
+        var inventory = req.ReadByte();
 
         lock(client.Player) {
             var item = client.GetItem(inventory, slot);
@@ -289,21 +288,21 @@ static class Inventory {
     }
 
     [Request(0x09, 0x11)] // 0058731c
-    private static void Recv11(Client client) {
+    private static void Recv11(ref Req req, Client client) {
         throw new NotImplementedException();
     }
 
     [Request(0x09, 0x20)] // 005873ea
-    static void GetItemDelivery(Client client) {
+    static void GetItemDelivery(ref Req req, Client client) {
         var items = Database.GetOrders(client.DiscordId);
         SendDeliveryItems(client, items);
     }
 
     [Request(0x09, 0x21)] // 00587492
-    static void GetItemDeliveryItem(Client client) {
-        var orderStr = client.ReadString();
-        var itemId = client.ReadInt32();
-        var orderId = client.ReadInt32();
+    static void GetItemDeliveryItem(ref Req req, Client client) {
+        var orderStr = req.ReadString();
+        var itemId = req.ReadInt32();
+        var orderId = req.ReadInt32();
 
         var order = Database.GetOrder(client.DiscordId, orderId);
         if(order == null)
@@ -318,9 +317,9 @@ static class Inventory {
     }
 
     [Request(0x09, 0x22)] // 0058751f // merge items?
-    private static void Recv22(Client client) {
-        var a = client.ReadInt32();
-        var b = client.ReadByte();
+    private static void Recv22(ref Req req, Client client) {
+        var a = req.ReadInt32();
+        var b = req.ReadByte();
 
         throw new NotImplementedException();
     }

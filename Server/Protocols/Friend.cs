@@ -5,8 +5,8 @@ namespace Server.Protocols;
 static class Friend {
     #region Request
     [Request(0x04, 0x01)] // 0051afb7 // add friend
-    static void AddFriend(Client client) {
-        var name = client.ReadWString();
+    static void AddFriend(ref Req req, Client client) {
+        var name = req.ReadWString();
 
         throw new NotImplementedException();
     }
@@ -16,8 +16,8 @@ static class Friend {
 
     // 04_04
     [Request(0x04, 0x04)] // 0051b1d4
-    static void SetStatus(Client client) {
-        var status = client.ReadByte();
+    static void SetStatus(ref Req req, Client client) {
+        var status = req.ReadByte();
         // 0 = online
         // 1 = busy
         // 2 = afk
@@ -26,8 +26,8 @@ static class Friend {
     }
 
     [Request(0x04, 0x05)] // 0051b253 // add player to blacklist
-    static void AddBlacklist(Client client) {
-        var name = client.ReadWString();
+    static void AddBlacklist(ref Req req, Client client) {
+        var name = req.ReadWString();
 
         throw new NotImplementedException();
     }

@@ -4,13 +4,13 @@ namespace Server.Protocols;
 
 static class Tutorial {
     [Request(0x16, 0x01)] // 0054c11c
-    static void Step(Client client) {
+    static void Step(ref Req req, Client client) {
         // 01-00-00-00
-        var action = client.ReadByte();
+        var action = req.ReadByte();
         // 0 = prev
         // 1 = next
 
-        var step = client.ReadInt32();
+        var step = req.ReadInt32();
 
         if(action == 0) {
             // TODO: back button
@@ -133,7 +133,7 @@ static class Tutorial {
     }
 
     [Request(0x16, 0x02)] // 0054c1a8 // start tutorial?
-    public static void Recv02(Client client) {
+    public static void Recv02(ref Req req, Client client) {
         throw new NotImplementedException();
     }
 

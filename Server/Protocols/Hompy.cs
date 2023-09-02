@@ -6,27 +6,27 @@ namespace Server.Protocols;
 static class Hompy {
     #region Request
     [Request(0x0F, 0x02)] // 00511e18
-    public static void EnterDecorationMode(Client client) {
-        var idk = client.ReadByte();
+    public static void EnterDecorationMode(ref Req req, Client client) {
+        var idk = req.ReadByte();
         SetDecorationMode(client, 1);
     }
 
     [Request(0x0F, 0x03)] // 00511e8c
-    public static void ExitDecorationMode(Client client) {
-        var idk = client.ReadByte();
+    public static void ExitDecorationMode(ref Req req, Client client) {
+        var idk = req.ReadByte();
         SetDecorationMode(client, 0);
     }
 
     [Request(0x0F, 0x04)] // 00511f75
-    public static void PlaceFurniture(Client client) {
-        var floor_ = client.ReadByte();
-        var invSlot = client.ReadByte();
-        var x = client.ReadInt32();
-        var y = client.ReadInt32();
-        var rotation = client.ReadByte();
-        var idk6 = client.ReadByte(); // furniture slot ?
-        var idk7 = client.ReadInt32();
-        var idk8 = client.ReadInt32();
+    public static void PlaceFurniture(ref Req req, Client client) {
+        var floor_ = req.ReadByte();
+        var invSlot = req.ReadByte();
+        var x = req.ReadInt32();
+        var y = req.ReadInt32();
+        var rotation = req.ReadByte();
+        var idk6 = req.ReadByte(); // furniture slot ?
+        var idk7 = req.ReadInt32();
+        var idk8 = req.ReadInt32();
 
         // Console.WriteLine($"{floor_} {invSlot} {x} {y} {rotation} {idk6} {idk7} {idk8}");
 
@@ -66,14 +66,14 @@ static class Hompy {
     }
 
     [Request(0x0F, 0x05)] // 00512053
-    public static void MoveFurniture(Client client) {
-        var floor = client.ReadByte();
-        var id = client.ReadByte();
-        var x = client.ReadInt32();
-        var y = client.ReadInt32();
-        var rotation = client.ReadByte();
-        var idk6 = client.ReadInt32();
-        var idk7 = client.ReadInt32();
+    public static void MoveFurniture(ref Req req, Client client) {
+        var floor = req.ReadByte();
+        var id = req.ReadByte();
+        var x = req.ReadInt32();
+        var y = req.ReadInt32();
+        var rotation = req.ReadByte();
+        var idk6 = req.ReadInt32();
+        var idk7 = req.ReadInt32();
 
         if(client.Player.MapType != 4)
             return;
@@ -95,9 +95,9 @@ static class Hompy {
     }
 
     [Request(0x0F, 0x06)] // 005120e6
-    public static void RemoveFurniture(Client client) {
-        var floor = client.ReadByte();
-        var id = client.ReadByte();
+    public static void RemoveFurniture(ref Req req, Client client) {
+        var floor = req.ReadByte();
+        var id = req.ReadByte();
 
         var house = client.Player.Farm.House;
 
@@ -112,9 +112,9 @@ static class Hompy {
     }
 
     [Request(0x0F, 0x07)] // 00512176
-    public static void ChangeFurnitureState(Client client) {
-        var id = client.ReadByte();
-        var b = client.ReadByte();
+    public static void ChangeFurnitureState(ref Req req, Client client) {
+        var id = req.ReadByte();
+        var b = req.ReadByte();
 
         var house = client.Player.Farm.House;
         if(!house.Furniture.TryGetValue(id - 1, out var item))
@@ -128,22 +128,22 @@ static class Hompy {
     }
 
     [Request(0x0F, 0x09)] // 005121da
-    public static void ToggleLockDoor(Client client) {
+    public static void ToggleLockDoor(ref Req req, Client client) {
         // throw new NotImplementedException();
     }
 
     [Request(0x0F, 0x0A)] // 00512236
-    public static void Recv0A(Client client) {
+    public static void Recv0A(ref Req req, Client client) {
         // throw new NotImplementedException();
     }
 
     [Request(0x0F, 0x0B)] // 005122a4
-    public static void Recv0B(Client client) {
+    public static void Recv0B(ref Req req, Client client) {
         // throw new NotImplementedException();
     }
 
     [Request(0x0F, 0x0C)] // 0051239d
-    public static void RemoveAllFurniture(Client client) {
+    public static void RemoveAllFurniture(ref Req req, Client client) {
         var house = client.Player.Farm.House;
 
         lock(house) {

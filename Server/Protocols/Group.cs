@@ -5,11 +5,11 @@ namespace Server.Protocols;
 static class Group {
     #region Request
     [Request(0x13, 0x01)] // 00578950 // add player to group
-    static void AddToGroup(Client client) {
-        var name = client.ReadWString();
+    static void AddToGroup(ref Req req, Client client) {
+        var name = req.ReadWString();
 
-        var group = client.ReadInt32(); // group id
-        var playerId = client.ReadInt32(); // player id?
+        var group = req.ReadInt32(); // group id
+        var playerId = req.ReadInt32(); // player id?
         // playerId = 0 -> unknown
 
         throw new NotImplementedException();

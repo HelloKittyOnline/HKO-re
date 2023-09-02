@@ -9,10 +9,8 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Extractor;
-using Microsoft.Extensions.Logging;
 using MySqlConnector;
-using Serilog;
-using Serilog.Extensions.Logging;
+using Serilog.Events;
 using Server.Protocols;
 
 namespace Server;
@@ -42,25 +40,6 @@ class Program {
     internal static HashSet<Client> clients = new();
     internal static Dictionary<int, Request.ReceiveFunction> handlers;
 
-    public static ILoggerFactory loggerFactory = LoggerFactory.Create(builder => {
-#if DEBUG
-        builder.SetMinimumLevel(LogLevel.Trace);
-#else
-        builder.SetMinimumLevel(LogLevel.Information);
-#endif
-
-        builder.AddConsole();
-
-        var fileLogger = new LoggerConfiguration()
-            .WriteTo.File("logs/server.log", rollingInterval: RollingInterval.Day)
-            .CreateLogger();
-
-        builder.AddProvider(new SerilogLoggerProvider(fileLogger));
-    });
-
-    public static Serilog.Core.Logger ChatLogger = new LoggerConfiguration()
-        .WriteTo.File("logs/chat.log", rollingInterval: RollingInterval.Day, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Message:lj}{NewLine}")
-        .CreateLogger();
 
     static async Task ListenClient(Client client, bool lobby) {
         try {
@@ -95,6 +74,16 @@ class Program {
                     break;
                 }
 
+                if(Logging.Logger.IsEnabled(LogEventLevel.Verbose)) { // extra check to prevent boxing
+#if DEBUG
+                    if(data.Length != 1 && !(data[0] == 0 && data[1] == 0x63)) // skip ping messages when in debug mode
+#endif
+                    if(data.Length == 1)
+                        Logging.Logger.Verbose("[{username}_{userID}] S <- C: {data}", client.Username, client.DiscordId, data[0]);
+                    else
+                        Logging.Logger.Verbose("[{username}_{userID}] S <- C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, data[0], data[1], data[2..]);
+                }
+
                 if(data.Length == 1) {
                     if(data[0] == 0x7E) { // 005551be
                     } else if(data[0] == 0x7F) { // 005bb8a9
@@ -110,38 +99,32 @@ class Program {
                 if(client.Username == null && id != 1) {
                     break; // first package has to be login attempt
                 }
-#if DEBUG
-                if(id != 0x0063) { // skip ping
-                    client.Logger.LogTrace("[{userID}] S <- C: {:X2}_{:X2} {data}", client.DiscordId, id >> 8, id & 0xFF, data);
-                }
-#endif
-
-                var ms = new MemoryStream(data);
-                client.Reader = new BinaryReader(ms);
-
-                // skip id bytes
-                client.ReadByte();
-                client.ReadByte();
-
-                // case 0x10_01: // Bingo
-                // case 0x12_01: // 0052807b
-                // case 0x12_02: // 005280f6
 
                 if(handlers.TryGetValue(id, out var f)) {
                     try {
-                        f(client);
+                        var r = new Req(data);
+
+                        // skip id bytes
+                        r.ReadByte();
+                        r.ReadByte();
+
+                        // case 0x10_01: // Bingo
+                        // case 0x12_01: // 0052807b
+                        // case 0x12_02: // 005280f6
+
+                        f(ref r, client);
                     } catch(NotImplementedException e) {
-                        client.Logger.LogWarning("[{user}] Packet {major:X2}_{minor:X2} not implemented", client.DiscordId, data[0], data[1]);
+                        Logging.Logger.Debug("[{username}_{userID}] Packet {major:X2}_{minor:X2} not implemented", client.Username, client.DiscordId, data[0], data[1]);
                     } catch(Exception e) {
-                        client.Logger.LogError(e, "[{userID}] Error handling packet {data}", client.DiscordId, data);
+                        Logging.Logger.Error(e, "[{username}_{userID}] Error handling packet {data}", client.Username, client.DiscordId, data);
                         break;
                     }
                 } else {
-                    client.LogUnknown(data[0], data[1]);
+                    Logging.Logger.Warning("[{username}_{userID}] Unknown Packet {major:X2}_{minor:X2}", client.Username, client.DiscordId, data[0], data[1]);
                 }
             }
         } catch(Exception e) {
-            client.Logger.LogError(e, "[{userID}] Error: ", client.DiscordId);
+            Logging.Logger.Error(e, "[{username}_{userID}] Error:", client.Username, client.DiscordId);
         }
 
         lock(clients)
@@ -161,7 +144,7 @@ class Program {
                         SendChangeMap(player);
                     }*/
                     // remove player associated maps
-                    maps.Remove(client.Player.Farm.Id); 
+                    maps.Remove(client.Player.Farm.Id);
                     maps.Remove(client.Player.Farm.House.Floor0.Id);
                     maps.Remove(client.Player.Farm.House.Floor1.Id);
                     maps.Remove(client.Player.Farm.House.Floor2.Id);
@@ -175,7 +158,7 @@ class Program {
             }
 
             Database.LogOut(client.DiscordId, client.Player);
-            client.Logger.LogInformation("[{userID}] Player {username} disconnected", client.DiscordId, client.Username);
+            Logging.Logger.Information("[{username}_{userID}] Player disconnected", client.Username, client.DiscordId);
         }
     }
 
@@ -183,8 +166,7 @@ class Program {
         var server = new TcpListener(IPAddress.Any, port);
         server.Start();
 
-        var logger = loggerFactory.CreateLogger("Server");
-        logger.LogInformation($"Listening at :{port}");
+        Logging.Logger.Information("Listening at :{port}", port);
 
         while(true) {
             TcpClient tcpClient;
@@ -192,13 +174,13 @@ class Program {
             try {
                 // throws if cancellation token is triggered
                 tcpClient = await server.AcceptTcpClientAsync(token);
-                tcpClient.ReceiveTimeout = 30 * 1000;
-                tcpClient.SendTimeout = 30 * 1000;
+                tcpClient.ReceiveTimeout = 20 * 1000;
+                tcpClient.SendTimeout = 20 * 1000;
             } catch when(token.IsCancellationRequested) {
                 break;
             }
 
-            logger.LogInformation($"Client {tcpClient.Client.RemoteEndPoint}");
+            Logging.Logger.Information("Connection from {ip}", tcpClient.Client.RemoteEndPoint);
 
             var client = new Client(tcpClient);
             lock(clients)
@@ -315,8 +297,7 @@ class Program {
     static async Task Main(string[] args) {
         handlers = Request.GetEndpoints();
 
-        var serverLogger = loggerFactory.CreateLogger("Server");
-        serverLogger.LogInformation("Starting server...");
+        Logging.Logger.Information("Starting server...");
 
         var serverTokenSource = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => {
@@ -324,7 +305,7 @@ class Program {
             serverTokenSource.Cancel();
         };
 
-        loggerFactory.CreateLogger("Server").LogInformation("Loading data...");
+        Logging.Logger.Information("Loading data...");
 
         LoadData("./");
 
@@ -343,7 +324,7 @@ class Program {
         Task.Run(Farm.FarmThread);
         await Server(25000, true, serverTokenSource.Token);
 
-        serverLogger.LogInformation("Stopping server...");
+        Logging.Logger.Information("Stopping server...");
 
         // start logging out all users
         foreach(var client in clients) {

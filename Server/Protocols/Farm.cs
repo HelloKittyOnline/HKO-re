@@ -1,4 +1,4 @@
-﻿using Extractor;
+using Extractor;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,8 +10,8 @@ static class Farm {
     #region Request
 
     [Request(0x0A, 0x01)] // 00581350
-    private static void RequestEnterFarm(Client client) {
-        var ownerId = client.ReadInt16();
+    private static void RequestEnterFarm(ref Req req, Client client) {
+        var ownerId = req.ReadInt16();
 
         var farm = Program.clients.FirstOrDefault(x => x.Id == ownerId && x.InGame)?.Player.Farm;
         if(farm == null)
@@ -39,16 +39,16 @@ static class Farm {
     }
 
     [Request(0x0A, 0x02)] // 005813c4
-    private static void CancelEnterRequest(Client client) {
-        var ownerId = client.ReadInt16();
+    private static void CancelEnterRequest(ref Req req, Client client) {
+        var ownerId = req.ReadInt16();
         throw new NotImplementedException();
     }
 
     [Request(0x0A, 0x03)] // 0058148c
-    private static void GatherPlant(Client client) {
-        var y = client.ReadByte();
-        var x = client.ReadByte();
-        var action = client.ReadByte(); // 1 gather - 2 chop
+    private static void GatherPlant(ref Req req, Client client) {
+        var y = req.ReadByte();
+        var x = req.ReadByte();
+        var action = req.ReadByte(); // 1 gather - 2 chop
 
         if(client.Player.Map is not Server.Farm farm)
             return;
@@ -124,40 +124,40 @@ static class Farm {
     }
 
     [Request(0x0A, 0x04)] // 00581504
-    private static void GetFarmList(Client client) {
-        var page = client.ReadInt16();
+    private static void GetFarmList(ref Req req, Client client) {
+        var page = req.ReadInt16();
 
         SendFarmList(client, page, Program.clients.Where(x => x.InGame).Select(x => x.Player.Farm).ToArray());
     }
 
     [Request(0x0A, 0x05)] // 0058153c
-    public static void GetFriendFarmList(Client client) {
-        var page = client.ReadInt16();
+    public static void GetFriendFarmList(ref Req req, Client client) {
+        var page = req.ReadInt16();
         throw new NotImplementedException();
     }
 
     [Request(0x0A, 0x06)] // 005815b0
-    public static void GetGuildFarmList(Client client) {
-        var page = client.ReadInt16();
+    public static void GetGuildFarmList(ref Req req, Client client) {
+        var page = req.ReadInt16();
         throw new NotImplementedException();
     }
 
     [Request(0x0A, 0x07)] // 00581624
-    public static void SearchFarms(Client client) {
-        var note = client.ReadWString();
+    public static void SearchFarms(ref Req req, Client client) {
+        var note = req.ReadWString();
         throw new NotImplementedException();
     }
 
     [Request(0x0A, 0x08)] // 005816ac
-    public static void KickPlayer(Client client) {
-        var playerId = client.ReadInt32();
+    public static void KickPlayer(ref Req req, Client client) {
+        var playerId = req.ReadInt32();
         throw new NotImplementedException();
     }
 
     [Request(0x0A, 0x09)] // 005817d4
-    public static void AcknowledgeRequest(Client client) {
-        var playerName = client.ReadWString();
-        var allowed = client.ReadByte() != 0;
+    public static void AcknowledgeRequest(ref Req req, Client client) {
+        var playerName = req.ReadWString();
+        var allowed = req.ReadByte() != 0;
 
         throw new NotImplementedException();
 
@@ -169,14 +169,14 @@ static class Farm {
     }
 
     [Request(0x0A, 0x0B)] // 00581810
-    public static void OpenFarmManagement(Client client) {
-        var idk = client.ReadInt32();
+    public static void OpenFarmManagement(ref Req req, Client client) {
+        var idk = req.ReadInt32();
         SendOpenFarmManagement(client);
     }
 
     [Request(0x0A, 0x0C)] // 00581884
-    public static void ChangeFarmType(Client client) {
-        var farmType = client.ReadByte();
+    public static void ChangeFarmType(ref Req req, Client client) {
+        var farmType = req.ReadByte();
 
         var farm = client.Player.Farm;
         if(farm.Type == farmType || !client.Player.OwnedFarms.Contains(farmType)) {
@@ -189,22 +189,22 @@ static class Farm {
     }
 
     [Request(0x0A, 0x0E)] // 00581903
-    private static void SetFarmName(Client client) {
-        var name = client.ReadWString();
+    private static void SetFarmName(ref Req req, Client client) {
+        var name = req.ReadWString();
         client.Player.Farm.Name = name;
     }
 
     [Request(0x0A, 0x0F)] // 00581980
-    public static void PauseFarm(Client client) {
-        var pause = client.ReadByte() != 0; // true = pause, false = resume
+    public static void PauseFarm(ref Req req, Client client) {
+        var pause = req.ReadByte() != 0; // true = pause, false = resume
         // never implemented?
         throw new NotImplementedException();
     }
 
     [Request(0x0A, 0x16)] // 00581a0b
-    public static void AddBuildingResource(Client client) {
-        var itemId = client.ReadInt32();
-        var count = client.ReadInt32();
+    public static void AddBuildingResource(ref Req req, Client client) {
+        var itemId = req.ReadInt32();
+        var count = req.ReadInt32();
 
         var house = client.Player.Farm.House;
         if(house.HouseId is 0 || house.HouseState != 1) {
@@ -249,7 +249,7 @@ static class Farm {
     }
 
     [Request(0x0A, 0x18)] // 00581a6e
-    public static void BuildHouse(Client client) {
+    public static void BuildHouse(ref Req req, Client client) {
         var house = client.Player.Farm.House;
 
         if(house.HouseId == 0 || house.HouseState != 3)
@@ -284,7 +284,7 @@ static class Farm {
     }
 
     [Request(0x0A, 0x19)] // 00581b48
-    public static void EnterHouse(Client client) {
+    public static void EnterHouse(ref Req req, Client client) {
         if(client.Player.Farm.House.HouseId == 0)
             return;
 
@@ -295,25 +295,25 @@ static class Farm {
     }
 
     [Request(0x0A, 0x1A)] // 00581b84
-    public static void DemolishHouse(Client client) {
+    public static void DemolishHouse(ref Req req, Client client) {
         client.Player.Farm.House.Delete();
         SendHouseData(client, client.Player.Farm.House); // _bug in game does not initialize house on first load
     }
 
     [Request(0x0A, 0x1B)] // 00581be0
-    public static void SetHouseName(Client client) {
-        var name = client.ReadWString();
+    public static void SetHouseName(ref Req req, Client client) {
+        var name = req.ReadWString();
         client.Player.Farm.House.Name = name;
     }
 
     [Request(0x0A, 0x1C)] // 00581c68 // "enter_gHouse" / "leave_gHouse"
-    public static void Recv1C(Client client) {
+    public static void Recv1C(ref Req req, Client client) {
         throw new NotImplementedException();
     }
 
     [Request(0x0A, 0x24)] // 00581cdc // complete building minigame
-    public static void Recv24(Client client) {
-        var stage = client.ReadByte();
+    public static void Recv24(ref Req req, Client client) {
+        var stage = req.ReadByte();
 
         var house = client.Player.Farm.House;
         if(house.BuildingPermit == 0)
@@ -334,7 +334,7 @@ static class Farm {
     }
 
     [Request(0x0A, 0x25)] // 00581d58 delete all plants
-    public static void Recv25(Client client) {
+    public static void Recv25(ref Req req, Client client) {
         throw new NotImplementedException();
     }
     #endregion
