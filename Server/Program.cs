@@ -40,89 +40,102 @@ class Program {
     internal static HashSet<Client> clients = new();
     internal static Dictionary<int, Request.ReceiveFunction> handlers;
 
-
-    static async Task ListenClient(Client client, bool lobby) {
+    static async Task<byte[]> ReadPackage(Client client, byte[] head) {
         try {
-            Login.SendLobby(client, lobby);
-
-            var head = new byte[5];
-
-            while(true) {
-                byte[] data; // todo: reuse buffer
-
-                try {
-                    if(await client.Stream.ReadAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
-                        break; // if count == 0 connection has been closed properly
-                    }
-
-                    var length = head[3] | head[4] << 8;
-                    if(length > 16 * 1024 * 1024) {
-                        break; // limit maximum package size to prevent oom attack
-                    }
-
-                    data = new byte[length];
-                    if(await client.Stream.ReadAsync(data, client.Token) != length) {
-                        break;
-                    }
-                } catch {
-                    if(client.Token.IsCancellationRequested) {
-                        // TODO: send disconnect reason?
-                        // intentionally disconnected
-                    } else {
-                        // likely connection reset by peer or read timeout
-                    }
-                    break;
-                }
-
-                if(Logging.Logger.IsEnabled(LogEventLevel.Verbose)) { // extra check to prevent boxing
-#if DEBUG
-                    if(data.Length != 1 && !(data[0] == 0 && data[1] == 0x63)) // skip ping messages when in debug mode
-#endif
-                    if(data.Length == 1)
-                        Logging.Logger.Verbose("[{username}_{userID}] S <- C: {data}", client.Username, client.DiscordId, data[0]);
-                    else
-                        Logging.Logger.Verbose("[{username}_{userID}] S <- C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, data[0], data[1], data[2..]);
-                }
-
-                if(data.Length == 1) {
-                    if(data[0] == 0x7E) { // 005551be
-                    } else if(data[0] == 0x7F) { // 005bb8a9
-                        var b = new PacketBuilder(); // reset timeout
-                        b.WriteByte(0x7F);
-                        b.Send(client);
-                    }
-                    continue;
-                }
-
-                var id = (data[0] << 8) | data[1];
-
-                if(client.Username == null && id != 1) {
-                    break; // first package has to be login attempt
-                }
-
-                if(handlers.TryGetValue(id, out var f)) {
-                    try {
-                        var r = new Req(data);
-
-                        // skip id bytes
-                        r.ReadByte();
-                        r.ReadByte();
-
-                        // case 0x10_01: // Bingo
-                        // case 0x12_01: // 0052807b
-                        // case 0x12_02: // 005280f6
-
-                        f(ref r, client);
-                    } catch(NotImplementedException e) {
-                        Logging.Logger.Debug("[{username}_{userID}] Packet {major:X2}_{minor:X2} not implemented", client.Username, client.DiscordId, data[0], data[1]);
-                    } catch(Exception e) {
-                        Logging.Logger.Error(e, "[{username}_{userID}] Error handling packet {data}", client.Username, client.DiscordId, data);
-                        break;
-                    }
-                } else {
-                    Logging.Logger.Warning("[{username}_{userID}] Unknown Packet {major:X2}_{minor:X2}", client.Username, client.DiscordId, data[0], data[1]);
-                }
+            if(await client.Stream.ReadAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
+                return null; // if count == 0 connection has been closed properly
             }
+
+            var length = head[3] | head[4] << 8;
+            if(length > 16 * 1024 * 1024) {
+                return null; // limit maximum package size to prevent oom attack
+            }
+
+            var data = new byte[length];
+            if(await client.Stream.ReadAsync(data, client.Token) != length) {
+                return null;
+            }
+            return data;
+        } catch {
+            if(client.Token.IsCancellationRequested) {
+                // TODO: send disconnect reason?
+                // intentionally disconnected
+            } else {
+                // likely connection reset by peer or read timeout
+            }
+            return null;
+        }
+    }
+
+    static bool HandleRequest(Client client, Req r) {
+        var major = r.ReadByte();
+        var minor = r.ReadByte();
+
+        var id = (major << 8) | minor;
+
+        if(handlers.TryGetValue(id, out var f)) {
+            try {
+                // case 0x10_01: // Bingo
+                // case 0x12_01: // 0052807b
+                // case 0x12_02: // 005280f6
+
+                f(ref r, client);
+            } catch(NotImplementedException e) {
+                Logging.Logger.Debug("[{username}_{userID}] Packet not implemented {data}", client.Username, client.DiscordId, r.Buffer);
+            } catch(Exception e) {
+                Logging.Logger.Error(e, "[{username}_{userID}] Error handling packet {data}", client.Username, client.DiscordId, r.Buffer);
+                return false;
+            }
+        } else {
+            Logging.Logger.Error("[{username}_{userID}] Unknown Packet {data}", client.Username, client.DiscordId, r.Buffer);
+        }
+
+        return true;
+    }
+
+    static async Task RecieveLoop(Client client) {
+        var head = new byte[5];
+
+        while(true) {
+            var data = await ReadPackage(client, head);
+            if(data == null)
+                break;
+
+            if(Logging.Logger.IsEnabled(LogEventLevel.Verbose)) { // extra check to prevent boxing
+#if DEBUG
+                if(data.Length != 1 && !(data[0] == 0 && data[1] == 0x63)) // skip ping messages when in debug mode
+#endif
+                Logging.Logger.Verbose("[{username}_{userID}] S <- C: {data}", client.Username, client.DiscordId, data);
+            }
+
+            if(data.Length == 1) {
+                if(data[0] == 0x7E) { // 005551be
+                } else if(data[0] == 0x7F) { // 005bb8a9
+                    var b = new PacketBuilder(); // reset timeout
+                    b.WriteByte(0x7F);
+                    b.Send(client);
+                }
+                continue;
+            }
+
+            var id = (data[0] << 8) | data[1];
+            if(client.Username == null && id != 1) {
+                break; // first package has to be login attempt
+            }
+
+            var r = new Req(data);
+            if(!HandleRequest(client, r))
+                break;
+        }
+    }
+
+    static async Task ListenClient(Client client) {
+        lock(clients)
+            clients.Add(client);
+
+        try {
+            Login.SendLobby(client);
+            await RecieveLoop(client);
         } catch(Exception e) {
             Logging.Logger.Error(e, "[{username}_{userID}] Error:", client.Username, client.DiscordId);
         }
@@ -135,9 +148,9 @@ class Program {
 
         if(client.Username != null) {
             if(client.InGame) { // remove player from maps
-                try {
-                    Player.SendDeletePlayer(client.Player.Map.Players, client);
+                Player.SendDeletePlayer(client.Player.Map.Players, client);
 
+                try {
                     // TODO: kick other players from farm/house
                     /*foreach (var player in client.Player.Farm.Players) {
                         player.Player.ReturnFromFarm();
@@ -162,7 +175,7 @@ class Program {
         }
     }
 
-    private static async Task Server(int port, bool lobby, CancellationToken token) {
+    private static async Task Server(int port, CancellationToken token) {
         var server = new TcpListener(IPAddress.Any, port);
         server.Start();
 
@@ -183,12 +196,7 @@ class Program {
             Logging.Logger.Information("Connection from {ip}", tcpClient.Client.RemoteEndPoint);
 
             var client = new Client(tcpClient);
-            lock(clients)
-                clients.Add(client);
-
-            client.RunTask = Task.Run(async () => {
-                await ListenClient(client, lobby);
-            });
+            client.RunTask = Task.Run(() => ListenClient(client));
         }
         server.Stop();
     }
@@ -322,7 +330,7 @@ class Program {
         Commands.RunConsole();
 
         Task.Run(Farm.FarmThread);
-        await Server(25000, true, serverTokenSource.Token);
+        await Server(25000, serverTokenSource.Token);
 
         Logging.Logger.Information("Stopping server...");
 
@@ -332,6 +340,14 @@ class Program {
         }
 
         // wait for all users to finish logging out
-        Task.WaitAll(clients.Select(x => x.RunTask).ToArray());
+        var tasks = clients.ToArray();
+        for (int i = 0; i < tasks.Length; i++) {
+            var client = tasks[i];
+            try {
+                client.RunTask.Wait();
+            } catch (Exception e) {
+                Logging.Logger.Error(e, "[{username}_{userID}] Error while waiting for clients to disconnect", client.Username, client.DiscordId);
+            }
+        }
     }
 }

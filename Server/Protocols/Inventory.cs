@@ -339,10 +339,7 @@ static class Inventory {
     public static void SendSetPlayerItem(Client client, InventoryItem item, byte index) {
         var b = new PacketBuilder(0x09, 0x02);
 
-        b.BeginCompress();
-        b.Write(item);
-        b.EndCompress();
-
+        b.WriteCompressed(item);
         b.WriteByte(index); // inventory index
 
         b.Send(client);
@@ -352,10 +349,7 @@ static class Inventory {
     public static void SendGetItem(Client client, InventoryItem item, byte index, bool displayMessage) {
         var b = new PacketBuilder(0x09, 0x03); // second switch
 
-        b.BeginCompress();
-        b.Write(item);
-        b.EndCompress();
-
+        b.WriteCompressed(item);
         b.WriteByte(index); // inventory index
         b.WriteByte(Convert.ToByte(displayMessage)); // display special message
         b.WriteInt(0); // if(item->id == 0) {lost item id} else {unused}
@@ -367,10 +361,7 @@ static class Inventory {
     public static void SendSetFarmItem(Client client, InventoryItem item, byte index) {
         var b = new PacketBuilder(0x09, 0x05); // second switch
 
-        b.BeginCompress();
-        b.Write(item);
-        b.EndCompress();
-
+        b.WriteCompressed(item);
         b.WriteByte(index); // inventory index
 
         b.Send(client);

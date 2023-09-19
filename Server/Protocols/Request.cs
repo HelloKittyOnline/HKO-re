@@ -42,6 +42,8 @@ struct Req {
     private byte[] buffer;
     private int position;
 
+    public byte[] Buffer => buffer;
+
     public Req(byte[] data) {
         buffer = data;
     }

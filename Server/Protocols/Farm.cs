@@ -359,9 +359,7 @@ static class Farm {
         b.WriteByte((byte)y);
         b.WriteByte((byte)x);
 
-        b.BeginCompress();
-        b.Write(plant);
-        b.EndCompress();
+        b.WriteCompressed(plant);
 
         b.Send(client);
     }

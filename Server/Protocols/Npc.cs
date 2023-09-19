@@ -102,7 +102,8 @@ static class Npc {
         SetQuestMarker(client, npcId, dialog);
     }
 
-    // [Request(0x05, 0x05)] // 00573fe8
+    [Request(0x05, 0x05)] // // 00573fe8
+    public static void Recv05(ref Req req, Client client) { throw new NotImplementedException(); }
 
     [Request(0x05, 0x06)] // 0057405f
     static void CancelQuest(ref Req req, Client client) {
@@ -114,9 +115,12 @@ static class Npc {
         SendDeleteQuest(client, questId);
     }
 
-    // [Request(0x05, 0x07)] // 005740ca
-    // [Request(0x05, 0x08)] // 0057414f
-    // [Request(0x05, 0x09)] // 005741fe
+    [Request(0x05, 0x07)] // // 005740ca
+    public static void Recv07(ref Req req, Client client) { throw new NotImplementedException(); }
+    [Request(0x05, 0x08)] // // 0057414f
+    public static void Recv08(ref Req req, Client client) { throw new NotImplementedException(); }
+    [Request(0x05, 0x09)] // // 005741fe
+    public static void Recv09(ref Req req, Client client) { throw new NotImplementedException(); }
 
     [Request(0x05, 0x0A)] // 005742b7
     static void FinishMinigame(ref Req req, Client client) {
@@ -151,7 +155,8 @@ static class Npc {
         UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
     }
 
-    // [Request(0x05, 0x0B)] // 0057431e
+    [Request(0x05, 0x0B)] // // 0057431e
+    public static void Recv0B(ref Req req, Client client) { throw new NotImplementedException(); }
 
     [Request(0x05, 0x0C)] // 0057438c
     static void CollectCheckpoint(ref Req req, Client client) {
@@ -183,10 +188,14 @@ static class Npc {
         }
     }
 
-    // [Request(0x05, 0x11)] // 00574400
-    // [Request(0x05, 0x14)] // 0057448b
-    // [Request(0x05, 0x15)] // 00574503
-    // [Request(0x05, 0x16)] // 00574580 // restart tutorial?
+    [Request(0x05, 0x11)] // // 00574400
+    public static void Recv11(ref Req req, Client client) { throw new NotImplementedException(); }
+    [Request(0x05, 0x14)] // // 0057448b
+    public static void Recv14(ref Req req, Client client) { throw new NotImplementedException(); }
+    [Request(0x05, 0x15)] // // 00574503
+    public static void Recv15(ref Req req, Client client) { throw new NotImplementedException(); }
+    [Request(0x05, 0x16)] // // 00574580 // restart tutorial?
+    public static void Recv16(ref Req req, Client client) { throw new NotImplementedException(); }
     #endregion
 
     #region Response

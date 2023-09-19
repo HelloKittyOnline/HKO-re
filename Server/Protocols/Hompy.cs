@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Extractor;
 
 namespace Server.Protocols;
@@ -166,8 +167,10 @@ static class Hompy {
         }
     }
 
-    // 0x0F, 0x0D: // 0051242c
-    // 0x0F, 0x0E: // 005124f7
+    [Request(0x0F, 0x0D)] // 0051242c
+    public static void Recv0D(ref Req req, Client client) { throw new NotImplementedException(); }
+    [Request(0x0F, 0x0E)] // 005124f7
+    public static void Recv0E(ref Req req, Client client) { throw new NotImplementedException(); }
     #endregion
 
     #region Response
@@ -213,11 +216,7 @@ static class Hompy {
         var b = new PacketBuilder(0x0F, 0x04);
 
         b.WriteByte(index); // 1 based
-
-        b.BeginCompress();
-        b.Write(item);
-        b.EndCompress();
-
+        b.WriteCompressed(item);
         b.WriteByte(0); // unused
         writeCollision(b);
 
@@ -229,11 +228,7 @@ static class Hompy {
         var b = new PacketBuilder(0x0F, 0x05);
 
         b.WriteByte(index); // 1 based
-
-        b.BeginCompress();
-        b.Write(item);
-        b.EndCompress();
-
+        b.WriteCompressed(item);
         b.WriteByte(0); // unused
         writeCollision(b);
 

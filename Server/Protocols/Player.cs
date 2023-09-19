@@ -667,9 +667,7 @@ static class Player {
         if(player.MapType == 3) {
             var farm = (Server.Farm)player.Map;
 
-            b.BeginCompress();
-            b.Write(farm);
-            b.EndCompress();
+            b.WriteCompressed(farm);
 
             b.WriteInt(farm.OwnerId);
             b.WriteString(farm.OwnerName, 1);
@@ -792,10 +790,7 @@ static class Player {
     public static void SendSetEquItem(Client client, InventoryItem item, byte position, bool tool) {
         var b = new PacketBuilder(0x02, 0x11);
 
-        b.BeginCompress();
-        b.Write(item);
-        b.EndCompress();
-
+        b.WriteCompressed(item);
         b.WriteByte(position); // position
         b.WriteByte((byte)(tool ? 2 : 1)); // action
         b.WriteByte(0); // play sound

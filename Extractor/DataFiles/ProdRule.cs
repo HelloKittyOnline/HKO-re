@@ -9,11 +9,23 @@ public struct ProdRule {
     [SeanField(2)] public int ItemId { get; set; }
     [SeanField(3)] public int Count { get; set; }
     [SeanArray(4, 5)] public Item[] Ingredients { get; set; }
-
+    
     public struct Item {
         [SeanField(0)] public int ItemId { get; set; }
         [SeanField(1)] public int Count { get; set; }
     }
+    
+    [SeanField(14)] public int Unused14 => 0;
+    [SeanField(15)] public int Unused15 => 0;
+    [SeanField(16)] public int Unused16 => 0;
+    [SeanField(17)] public int Unused17 => 0;
+    [SeanField(18)] public int Unused18 => 0;
+    [SeanField(19)] public int Unused19 => 0;
+    [SeanField(20)] public int Unused20 => 0;
+    [SeanField(21)] public int Unused21 => 0;
+    [SeanField(22)] public int Unused22 => 0;
+    [SeanField(23)] public int Unused23 => 0;
+    [SeanField(24)] public int Unused24 => 0;
 
     public Skill GetSkill() {
         return (Id / 512) switch {

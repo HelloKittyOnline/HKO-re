@@ -17,12 +17,11 @@ static class Production {
         }
 
         var data = Program.prodRules[prod];
-        var resItem = Program.items[data.ItemId];
 
         var skill = data.GetSkill();
         var level = client.Player.Levels[(int)skill];
 
-        if(level < resItem.Level) {
+        if(level < data.RequiredLevel) {
             return;
         }
 
@@ -59,7 +58,7 @@ static class Production {
                     }
 
                     client.AddItem(data.ItemId, data.Count, true);
-                    client.AddExpAction(skill, resItem.Level);
+                    client.AddExpAction(skill, data.RequiredLevel);
 
                     if(produce1 || !CheckRequired()) {
                         Send01(client, 7, 0);

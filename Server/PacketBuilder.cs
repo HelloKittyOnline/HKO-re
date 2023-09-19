@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Serilog.Events;
 
@@ -39,8 +40,16 @@ struct PacketBuilder {
         writer.Write(buffer);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Write<T>(T item) where T : IWriteAble {
         item.Write(ref this);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteCompressed<T>(T item) where T : IWriteAble {
+        BeginCompress();
+        item.Write(ref this);
+        EndCompress();
     }
 
     public void WriteByte(byte v) {
@@ -143,7 +152,7 @@ struct PacketBuilder {
         buffer.TryGetBuffer(out var buf); // normal GetBuffer returns unused space
 
         if(Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63)) {
-            Logging.Logger.Verbose("[{username}_{userID}] S -> C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, buf[5], buf[6], buf.AsMemory());
+            Logging.Logger.Verbose("[{username}_{userID}] S -> C: {data}", client.Username, client.DiscordId, buf.AsMemory(5));
         }
 
         client.Send(buf);
@@ -157,21 +166,7 @@ struct PacketBuilder {
 
         foreach(var client in clients) {
             if(doLog) {
-                Logging.Logger.Verbose("[{username}_{userID}] S -> C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, buf[5], buf[6], buf.AsMemory());
-            }
-            client.Send(buf);
-        }
-    }
-
-    public void Send(Span<Client> clients) {
-        UpdateLength();
-        buffer.TryGetBuffer(out var buf);
-
-        var doLog = Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63);
-
-        foreach(var client in clients) {
-            if(doLog) {
-                Logging.Logger.Verbose("[{username}_{userID}] S -> C: {major:X2}_{minor:X2} {data}", client.Username, client.DiscordId, buf[5], buf[6], buf.AsMemory());
+                Logging.Logger.Verbose("[{username}_{userID}] S -> C: {data}", client.Username, client.DiscordId, buf.AsMemory(5));
             }
             client.Send(buf);
         }
