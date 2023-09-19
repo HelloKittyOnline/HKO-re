@@ -84,7 +84,7 @@ static class Login {
 
     #region Response
     // 00_01
-    public static void SendLobby(Client client, bool lobby) {
+    public static void SendLobby(Client client, bool lobby = true) {
         var b = new PacketBuilder(0x00, 0x01);
 
         b.WriteString(lobby ? "LobbyServer" : "RealmServer", 1);

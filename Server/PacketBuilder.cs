@@ -172,6 +172,20 @@ struct PacketBuilder {
         }
     }
 
+    public void Send(Span<Client> clients) {
+        UpdateLength();
+        buffer.TryGetBuffer(out var buf);
+
+        var doLog = Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63);
+
+        foreach(var client in clients) {
+            if(doLog) {
+                Logging.Logger.Verbose("[{username}_{userID}] S -> C: {data}", client.Username, client.DiscordId, buf.AsMemory(5));
+            }
+            client.Send(buf);
+        }
+    }
+
     public void BeginCompress() {
         Debug.Assert(!CompressMode, "Already in compression mode");
         CompressMode = true;
