@@ -8,7 +8,7 @@ This is the main repo for the Hello Kitty Online Server Project. It includes the
 ***
 
 ## Joining the Public Server
-If you want to join the public server, look no further! The instructions below will help you get set up. If you want to set up a local server for testing/development, jump to [Setting up dev enviroment](#setting-up-a-local-serverdev-enviroment)
+If you want to join the public server, look no further! The instructions below will help you get set up. If you want to set up a local server for testing/development, jump to [Dev Environment Setup](https://github.com/HelloKittyOnline/HKO-re/wiki/Dev-Environment-setup)
 
 ### Install using the launcher (Recommended)
 Download and run the latest [launcher](https://github.com/HelloKittyOnline/HKO-re/releases/latest) application. Continue with [Logging in](#logging-in)
