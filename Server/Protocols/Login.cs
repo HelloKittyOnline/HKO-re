@@ -77,6 +77,8 @@ static class Login {
 
     [Request(0x00, 0x63)] // 0059b253
     static void Ping(ref Req req, Client client) {
+        client.ResetTimeout();
+
         int number = req.ReadInt32();
         SendPong(client, number);
     }

@@ -37,8 +37,13 @@ class Client {
         Stream = TcpClient.GetStream();
 
         ConnectionSource = new CancellationTokenSource();
+        ResetTimeout();
     }
 
+    // called from 00_63. will time out if ping does not arrive in 20 seconds
+    public void ResetTimeout() {
+        ConnectionSource.CancelAfter(20 * 1000);
+    }
     public void Close() {
         ConnectionSource.Cancel();
     }
