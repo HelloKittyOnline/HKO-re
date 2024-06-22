@@ -202,16 +202,27 @@ static class Commands {
 
     [ChatCommand("stuck", "Teleports you back to sanrio harbour", false)]
     public static void Stuck(Client client, string[] args) {
-        var player = client.Player;
+        Player.ChangeMap(client, 8, 7705, 6007);
+    }
 
-        // delete players from old map
-        Player.SendDeletePlayer(player.Map.Players, client);
+    [Command("teleport [username] [map] [x] [y]", "")]
+    public static void Teleport(string[] args) {
+        if(args.Length != 5) {
+            Console.WriteLine("Missing parameters");
+            return;
+        }
 
-        player.PositionX = 7705;
-        player.PositionY = 6007;
-        player.CurrentMap = 8;
+        var client = FindPlayer(args[1]);
+        if(client == null) {
+            Console.WriteLine($"Unknown player {args[1]}");
+            return;
+        }
+        
+        var map = int.Parse(args[2]);
+        var x = int.Parse(args[3]);
+        var y = int.Parse(args[4]);
 
-        Player.ChangeMap(client);
+        Player.ChangeMap(client, map, x, y);
     }
 
     [Command("setLogLevel [level]", "set log level to Verbose|Debug|Information|Warning|Error|Fatal")]

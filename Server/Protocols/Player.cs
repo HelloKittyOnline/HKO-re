@@ -9,7 +9,19 @@ using Extractor;
 namespace Server.Protocols;
 
 static class Player {
-    public static void ChangeMap(Client client) {
+    public static void ReturnFromFarm(Client client) {
+        var map = Program.maps[client.Player.ReturnMap];
+
+        if(map is StandardMap s) {
+            ChangeMap(client, map.Id, s.MapData.FarmX, s.MapData.FarmY);
+        } else {
+            Logging.Logger.Error("[{username}_{userID}] Failed to return from farm {mapId}", client.Username, client.DiscordId, client.Player.CurrentMap);
+            // put player back to sanrio harbour
+            ChangeMap(client, 8, 7705, 6007);
+        }
+}
+
+    private static void EnterMap(Client client) {
         var map = client.Player.Map;
 
         SendChangeMap(client);
@@ -59,13 +71,29 @@ static class Player {
         Battle.SendMobs(client, map.Mobs);
 
         var others = map.Players.Where(other => other != client).ToArray();
+        if(others.Length != 0) {
+            var temp = new Span<Client>(ref client);
+            SendAddPlayers(others, temp); // send other players to client
+            SendAddPlayers(temp, others); // send client to other players
+        }
+    }
 
-        if(others.Length <= 0)
-            return;
+    public static void LeaveMap(Client client) {
+        var oldMap = client.Player.Map;
+        
+            // delete player from old map
+            SendDeletePlayer(oldMap.Players, client);
+            if(client.Player.ActivePet != -1)
+                Pet.SendRemovePet(oldMap.Players, client.Id);
+        }
 
-        var temp = new Span<Client>(ref client);
-        SendAddPlayers(others, temp); // send other players to client
-        SendAddPlayers(temp, others); // send client to other players
+    public static void ChangeMap(Client client, int map, int x, int y) {
+        LeaveMap(client);
+
+        client.Player.CurrentMap = map;
+        client.Player.PositionX = x;
+        client.Player.PositionY = y;
+        EnterMap(client);        
     }
 
     static async Task DelayInvestigate(Client client, int map, byte flag) {
@@ -100,7 +128,7 @@ static class Player {
         Program.maps[client.Player.Farm.House.Floor2.Id] = client.Player.Farm.House.Floor2;
         client.InGame = true;
 
-        ChangeMap(client);
+        EnterMap(client);
     }
 
     [Request(0x02, 0x02)] // 005df036 // sent after map load
@@ -179,45 +207,31 @@ static class Player {
         var idk = req.ReadByte(); // always 1?
 
         var player = client.Player;
-        var oldMap = player.Map;
-
-        if(client.Player.MapType == 3) {
-            player.ReturnFromFarm();
+        
+        if(player.MapType == 3) {
+            ReturnFromFarm(client);
         } else if(client.Player.MapType == 4) {
             // tp from house
 
-            if(tpId == 352 + 10 - 1 && client.Player.CurrentMap % 10 > 0) { // to previous room
-                client.Player.CurrentMap--; // next room is id - 1
-                client.Player.PositionX = 570;
-                client.Player.PositionY = 205;
-            } else if(tpId == 352 + 10 && client.Player.CurrentMap % 10 < 3) { // to next room
-                client.Player.CurrentMap++; // next room is id + 1
-                client.Player.PositionX = 108 + 20;
-                client.Player.PositionY = 404 + 20;
+            if(tpId == 352 + 10 - 1 && player.CurrentMap % 10 > 0) { // to previous room
+                ChangeMap(client, player.CurrentMap - 1, 570, 205);
+            } else if(tpId == 352 + 10 && player.CurrentMap % 10 < 3) { // to next room
+                ChangeMap(client, player.CurrentMap + 1, 128, 424);
             } else { // back to farm
-                var ownerId = (client.Player.CurrentMap - 30000) / 10;
-                client.Player.CurrentMap = 30000 + ownerId * 10;
-                client.Player.PositionX = 832;
-                client.Player.PositionY = 432;
+                var ownerId = (player.CurrentMap - 30000) / 10;
+                ChangeMap(client, 30000 + ownerId * 10, 832, 432);
             }
         } else {
             var tp = Program.teleporters[tpId];
-            if(tp.FromMap != oldMap.Id || tp.ToMap == 0)
+            if(tp.FromMap != player.CurrentMap || tp.ToMap == 0)
                 return;
 
             if(tp.KeyItem != 0 && client.GetInv(InvType.Player).GetItemCount(tp.KeyItem) < tp.KeyItemCount) {
                 return; // missing key item
             }
 
-            player.PositionX = tp.ToX;
-            player.PositionY = tp.ToY;
-            player.CurrentMap = tp.ToMap;
+            ChangeMap(client, tp.ToMap, tp.ToX, tp.ToY);
         }
-
-        // delete players from old map
-        SendDeletePlayer(oldMap.Players, client);
-
-        ChangeMap(client);
     }
 
     [Request(0x02, 0x0B)] // 005df415

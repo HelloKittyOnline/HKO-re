@@ -28,11 +28,7 @@ static class Farm {
 
         // todo: check if player on valid map and near manager
         client.Player.ReturnMap = client.Player.CurrentMap;
-        client.Player.CurrentMap = farm.Id;
-        client.Player.PositionX = 576;
-        client.Player.PositionY = 656;
-
-        Player.SendChangeMap(client);
+        Player.ChangeMap(client, farm.Id, 576, 656);
         SetDayTime(new[] { client }, (int)farm.DayTime.TotalMinutes / 10);
         if(farm.House.BuildingPermit != 0)
             SendHouseData(client, farm.House); // _bug in game does not initialize house on first load
@@ -288,10 +284,7 @@ static class Farm {
         if(client.Player.Farm.House.HouseId == 0)
             return;
 
-        client.Player.CurrentMap = client.Player.Farm.House.Floor0.Id;
-        client.Player.PositionX = 108;
-        client.Player.PositionY = 404;
-        Player.ChangeMap(client);
+        Player.ChangeMap(client, client.Player.Farm.House.Floor0.Id, 108, 404);
     }
 
     [Request(0x0A, 0x1A)] // 00581b84

@@ -148,13 +148,12 @@ class Program {
 
         if(client.Username != null) {
             if(client.InGame) { // remove player from maps
-                Player.SendDeletePlayer(client.Player.Map.Players, client);
+                Player.LeaveMap(client);
 
                 try {
                     // TODO: kick other players from farm/house
                     /*foreach (var player in client.Player.Farm.Players) {
-                        player.Player.ReturnFromFarm();
-                        SendChangeMap(player);
+                        Player.ReturnFromFarm(player);
                     }*/
                     // remove player associated maps
                     maps.Remove(client.Player.Farm.Id);
@@ -165,9 +164,18 @@ class Program {
             }
 
             if(client.Player.MapType is 3 or 4) {
-                try {
-                    client.Player.ReturnFromFarm();
-                } catch { }
+                var map = maps[client.Player.ReturnMap];
+                if(map is StandardMap s) {
+                    client.Player.CurrentMap = s.Id;
+                    client.Player.PositionX = s.MapData.FarmX;
+                    client.Player.PositionY = s.MapData.FarmY;
+                } else {
+                    // put player back to sanrio harbour
+                    Logging.Logger.Error("[{username}_{userID}] Failed to return from farm {mapId}", client.Username, client.DiscordId, client.Player.CurrentMap);
+                    client.Player.CurrentMap = 8;
+                    client.Player.PositionX = 7705;
+                    client.Player.PositionY = 6007;
+                }
             }
 
             Database.LogOut(client.DiscordId, client.Player);

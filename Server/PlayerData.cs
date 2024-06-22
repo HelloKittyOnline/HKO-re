@@ -42,7 +42,7 @@ enum QuestStatus {
 
 class PlayerData {
     public int CurrentMap { get; set; } = 1; // Dream Room 1
-    public int ReturnMap = 8;
+    public int ReturnMap = 8; // map to return to when entering special maps for example farms
 
     [JsonIgnore] public Instance Map => Program.maps[CurrentMap];
 
