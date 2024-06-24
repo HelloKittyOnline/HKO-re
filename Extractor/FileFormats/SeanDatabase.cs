@@ -11,19 +11,11 @@ namespace Extractor;
 [AttributeUsage(AttributeTargets.Property)]
 class SeanField : Attribute {
     public int Id { get; }
+    public int Size { get; }
 
-    public SeanField(int id) {
+    public SeanField(int id, int size = 1) {
         Id = id;
-    }
-}
-
-[AttributeUsage(AttributeTargets.Property)]
-class SeanArray : Attribute {
-    public int Start, Count;
-
-    public SeanArray(int start, int count) {
-        Start = start;
-        Count = count;
+        Size = size;
     }
 }
 
@@ -40,7 +32,7 @@ public class SeanDatabase {
     public int ItemSize;
     public int ItemCount;
     public int[,] Items;
-    public Dictionary<int, string> Strings = new Dictionary<int, string>();
+    public Dictionary<int, string> Strings = new();
 
     public SeanDatabase(byte[] data) : this(new MemoryStream(data)) { }
 
@@ -67,6 +59,8 @@ public class SeanDatabase {
         if(stream.Position == stream.Length)
             return; // no text?
 
+        Debug.Assert(stringByteSize == (stream.Length - stream.Position - 4));
+
         var root = stream.Position;
         var stringCount = reader.ReadInt32();
         for(int i = 0; i < stringCount; i++) {
@@ -76,6 +70,38 @@ public class SeanDatabase {
     }
 
     public static byte[] Save<T>(T[] items) {
+        var itemAtt = typeof(T).GetCustomAttribute<SeanItem>();
+
+        var ItemCount = items.Length;
+        var props = new (Type type, Func<T, object> getter)[itemAtt.Size];
+
+        int BuildPropArray(Type type, int offset, Func<T, object> pGetter) {
+            int size = 0;
+
+            foreach(var prop in type.GetProperties()) {
+                var att = prop.GetCustomAttribute<SeanField>();
+                if(att == null)
+                    continue;
+
+                if(!prop.PropertyType.IsArray) {
+                    props[offset + att.Id] = (prop.PropertyType, x => prop.GetValue(pGetter(x)));
+                    size++;
+                } else {
+                    var subType = prop.PropertyType.GetElementType()!;
+
+                    var start = offset + att.Id;
+                    for(int i = 0; i < att.Size; i++) {
+                        var i1 = i;
+                        start += BuildPropArray(subType, start, x => ((Array)prop.GetValue(pGetter(x))).GetValue(i1));
+                    }
+                }
+            }
+
+            return size;
+        }
+        BuildPropArray(typeof(T), 0, x => x);
+        Debug.Assert(props.Count(x => x.getter != null) == itemAtt.Size);
+
         var ms = new MemoryStream();
         var w = new BinaryWriter(ms);
 
@@ -84,22 +110,7 @@ public class SeanDatabase {
         w.Write((byte)'0');
         w.Write((byte)'1');
 
-        var itemAtt = typeof(T).GetCustomAttribute<SeanItem>();
-
-        var ItemCount = items.Length;
-        var ItemSize = itemAtt.Size;
-
-        var props = new PropertyInfo[ItemSize];
-
-        foreach(var prop in typeof(T).GetProperties()) {
-            var att = prop.GetCustomAttribute<SeanField>();
-            if(att == null)
-                continue;
-
-            props[att.Id] = prop;
-        }
-
-        w.Write(ItemSize);
+        w.Write(itemAtt.Size);
         w.Write(ItemCount);
 
         int stringPos = 0;
@@ -107,11 +118,9 @@ public class SeanDatabase {
 
         // pre calculate string positions
         for(int i = 0; i < ItemCount; i++) {
-            for(int j = 0; j < ItemSize; j++) {
-                var prop = props[j];
-
-                if(prop != null && prop.PropertyType == typeof(string)) {
-                    var s = (string)prop.GetValue(items[i]);
+            foreach(var prop in props) {
+                if(prop.type == typeof(string)) {
+                    var s = (string)prop.getter(items[i]);
 
                     if(s == null || dict.ContainsKey(s))
                         continue;
@@ -127,19 +136,12 @@ public class SeanDatabase {
 
         // write integers and replace strings with their calculated positions
         for(int i = 0; i < ItemCount; i++) {
-            for(int j = 0; j < ItemSize; j++) {
-                var prop = props[j];
+            foreach(var prop in props) {
+                var val = prop.getter(items[i]);
 
-                if(prop == null) {
-                    w.Write(0);
-                    continue;
-                }
-
-                var val = prop.GetValue(items[i]);
-
-                if(prop.PropertyType == typeof(string)) {
+                if(prop.type == typeof(string)) {
                     w.Write(val == null ? 0 : dict[(string)val]);
-                } else if(prop.PropertyType.IsEnum || prop.PropertyType == typeof(int)) {
+                } else if(prop.type.IsEnum || prop.type == typeof(int)) {
                     w.Write((int)val);
                 } else {
                     w.Write((int)Convert.ChangeType(val, TypeCode.Int32));
@@ -155,11 +157,9 @@ public class SeanDatabase {
 
         // write actual strings
         for(int i = 0; i < ItemCount; i++) {
-            for(int j = 0; j < ItemSize; j++) {
-                var prop = props[j];
-
-                if(prop != null && prop.PropertyType == typeof(string)) {
-                    var val = (string)prop.GetValue(items[i]);
+            foreach(var prop in props) {
+                if(prop.type == typeof(string)) {
+                    var val = (string)prop.getter(items[i]);
 
                     if(val != null && dict.ContainsKey(val)) {
                         w.WriteCString(val);
@@ -181,76 +181,67 @@ public class SeanDatabase {
 
         var ret = new T[db.ItemCount];
 
-        (PropertyInfo, SeanField)[] GetFields(Type t) {
-            return t.GetProperties().Select(x => (x, x.GetCustomAttribute<SeanField>())).Where(x => x.Item2 != null).ToArray();
-        }
-
-        var fields = GetFields(typeof(T));
-        var arrays = new List<(PropertyInfo, SeanArray, Type, (PropertyInfo, SeanField)[])>();
-        foreach(var prop in typeof(T).GetProperties()) {
-            var att = prop.GetCustomAttribute<SeanArray>();
-            if(att == null)
-                continue;
-
-            var type = prop.PropertyType.GetElementType();
-            var f = GetFields(type);
-
-            arrays.Add((prop, att, type, f));
-        }
-
 #if DEBUG
-        var itemAtt = typeof(T).GetCustomAttribute<SeanItem>();
-        if(itemAtt == null || itemAtt.Size != db.ItemSize) {
-            Console.WriteLine($"{typeof(T).Name}: invalid Item size");
-            Debugger.Break();
-        }
-        var arrCount = arrays.Sum(x => x.Item2.Count * x.Item4.Length);
-        if(fields.Length + arrCount != db.ItemSize) {
-            Console.WriteLine($"{typeof(T).Name}: missing some elements");
-        }
-
         // used to detect unused strings. Helpful for reversing file format
         var usedStrings = new HashSet<int>();
 #endif
 
-        for(int i = 0; i < db.ItemCount; i++) {
-            object item = new T(); // cast to object for struct support
+        (object, int) WriteValues(Type type, int i, int offset) {
+            var el = Activator.CreateInstance(type);
 
-            foreach(var (prop, att) in fields) {
-                if(!prop.CanWrite) { // assume constant value
-                    Debug.Assert((int)prop.GetValue(item) == db.Items[i, att.Id]);
-                } else if(prop.PropertyType == typeof(string)) {
-#if DEBUG
-                    usedStrings.Add(db.Items[i, att.Id]);
-#endif
-                    prop.SetValue(item, db.GetString(i, att.Id));
-                } else if(prop.PropertyType.IsEnum || prop.PropertyType == typeof(int)) {
-                    prop.SetValue(item, db.Items[i, att.Id]);
-                } else {
-                    prop.SetValue(item, Convert.ChangeType(db.Items[i, att.Id], prop.PropertyType));
-                }
-            }
+            int size = 0;
+            foreach(var prop in type.GetProperties()) {
+                var att = prop.GetCustomAttribute<SeanField>();
+                if(att == null)
+                    continue;
 
-            foreach(var (prop, att, type, f) in arrays) {
-                var arr = Array.CreateInstance(type, att.Count);
+                int j = offset + att.Id;
 
-                for(int j = 0; j < att.Count; j++) {
-                    var el = Activator.CreateInstance(type);
-                    var s = f.Length;
+                if(!prop.CanWrite) {
+                    Debug.Assert(prop.GetValue(el).Equals(db.Items[i, j]));
+                    size++;
+                } else if(prop.PropertyType.IsArray) {
+                    var subType = prop.PropertyType.GetElementType()!;
+                    var arr = Array.CreateInstance(subType, att.Size);
 
-                    foreach(var (prop1, att1) in f) {
-                        var pos = att.Start + s * j + att1.Id;
-                        prop1.SetValue(el, Convert.ChangeType(db.Items[i, pos], prop1.PropertyType));
+                    for(int k = 0; k < att.Size; k++) {
+                        var (v, s) = WriteValues(subType, i, j);
+                        arr.SetValue(v, k);
+                        j += s;
+                        size += s;
                     }
 
-                    arr.SetValue(el, j);
-                }
+                    prop.SetValue(el, arr);
+                } else {
+                    if(prop.PropertyType == typeof(string)) {
+#if DEBUG
+                        usedStrings.Add(db.Items[i, j]);
+#endif
+                        prop.SetValue(el, db.GetString(i, j));
+                    } else if(prop.PropertyType.IsEnum || prop.PropertyType == typeof(int)) {
+                        prop.SetValue(el, db.Items[i, j]);
+                    } else {
+                        prop.SetValue(el, Convert.ChangeType(db.Items[i, j], prop.PropertyType));
+                    }
 
-                prop.SetValue(item, arr);
+                    size++;
+                }
             }
 
-            ret[i] = (T)item;
+            return (el, size);
         }
+
+        int size = 0;
+        for(int i = 0; i < db.ItemCount; i++) {
+            var (v, s) = WriteValues(typeof(T), i, 0);
+            ret[i] = (T)v;
+            size = s;
+        }
+
+        var itemAtt = typeof(T).GetCustomAttribute<SeanItem>();
+        Debug.Assert(itemAtt != null && itemAtt.Size == db.ItemSize);
+        Debug.Assert(size == db.ItemSize);
+
 #if DEBUG
         foreach(var dbString in db.Strings) {
             if(!usedStrings.Contains(dbString.Key)) {

@@ -1,11 +1,11 @@
-﻿namespace Extractor;
+namespace Extractor;
 
 [SeanItem(22)]
 public struct BuildingAgreement {
     [SeanField(0)] public int Id { get; set; }
     [SeanField(1)] public int Level { get; set; }
 
-    [SeanArray(2, 6)] public Requirement[] Requirements { get; set; }
+    [SeanField(2, 6)] public Requirement[] Requirements { get; set; }
 
     [SeanField(14)] public int Workload { get; set; }
     [SeanField(15)] public int Unknown15 { get; set; }

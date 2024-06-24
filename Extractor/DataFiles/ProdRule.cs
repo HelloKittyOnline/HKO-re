@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Extractor;
 
@@ -8,7 +8,7 @@ public struct ProdRule {
     [SeanField(1)] public int RequiredLevel { get; set; }
     [SeanField(2)] public int ItemId { get; set; }
     [SeanField(3)] public int Count { get; set; }
-    [SeanArray(4, 5)] public Item[] Ingredients { get; set; }
+    [SeanField(4, 5)] public Item[] Ingredients { get; set; }
     
     public struct Item {
         [SeanField(0)] public int ItemId { get; set; }

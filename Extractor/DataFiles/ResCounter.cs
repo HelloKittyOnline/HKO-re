@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 
 namespace Extractor;
@@ -8,7 +8,7 @@ public struct ResCounter {
     private static readonly Random rng = new();
 
     [SeanField(0)] public int Id { get; set; }
-    [SeanArray(1, 25)] public Item[] Items { get; set; }
+    [SeanField(1, 25)] public Item[] Items { get; set; }
     private int _max;
 
     public struct Item {

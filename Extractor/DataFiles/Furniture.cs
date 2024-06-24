@@ -1,4 +1,4 @@
-﻿namespace Extractor;
+namespace Extractor;
 
 public enum FurnitureType {
     Object = 1,
@@ -52,10 +52,10 @@ public struct Furniture {
     [SeanField(8)] public int Unknown8 { get; set; }
     [SeanField(9)] public int Unknown9 { get; set; }
 
-    [SeanArray(10, 4)] 
+    [SeanField(10, 4)] 
     public Idk[] What { get; set; }
 
-    [SeanArray(78, 4)]
+    [SeanField(78, 4)]
     public OffsetInfo[] Offsets { get; set; }
 
     public void AdjustValues() {
