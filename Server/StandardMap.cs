@@ -100,6 +100,17 @@ class MobData : IWriteAble {
     public const int MaxIdleTime = 8000;      // Max ms between moves
     public const int MoveSpeed = 10;          // Movement speed
 
+    // Aggro configuration
+    public const int AggroRadius = 200;       // Detection radius for aggressive mobs
+    public const int ChaseRadius = 400;       // Max chase distance from spawn before returning
+    public const int AttackRange = 50;        // Range at which mob can attack
+    public const int AttackCooldown = 2000;   // Ms between mob attacks
+
+    // Aggro state
+    public Client AggroTarget { get; set; }   // Currently aggro'd player
+    public long LastAttackTime { get; set; }  // Last time mob attacked
+    public bool IsAggressive => Data.Aggressive;
+
     public MobAtt Data => Program.mobAtts[MobId];
 
     private bool isRespawning = false;
@@ -164,18 +175,138 @@ class MobData : IWriteAble {
                 Y = TargetY;
                 IsMoving = false;
 
-                // Schedule next move
-                NextMoveTime = now + _random.Next(MinIdleTime, MaxIdleTime);
+                // Schedule next move (shorter if chasing)
+                if (AggroTarget != null) {
+                    NextMoveTime = now + 100; // Quick repositioning during chase
+                } else {
+                    NextMoveTime = now + _random.Next(MinIdleTime, MaxIdleTime);
+                }
             }
             return false;
         }
 
         // Check if it's time to start a new move
         if (now >= NextMoveTime) {
+            // If we have an aggro target, chase them
+            if (AggroTarget != null) {
+                return StartChase();
+            }
             return StartWander();
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Update aggro state for this mob. Called from aggro thread with player list.
+    /// Returns (shouldAttack, target) if mob should attack a player.
+    /// </summary>
+    public (bool shouldAttack, Client target) UpdateAggro(IEnumerable<Client> players) {
+        if (Hp <= 0 || State == 4) {
+            AggroTarget = null;
+            return (false, null);
+        }
+
+        if (!IsAggressive) {
+            return (false, null);
+        }
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // Check if current target is still valid
+        if (AggroTarget != null) {
+            if (!AggroTarget.InGame || AggroTarget.Player.CurrentMap != GetMapId(players)) {
+                // Target left, clear aggro
+                AggroTarget = null;
+                State = 1; // Back to normal state
+            } else {
+                // Check if target is too far from spawn (mob gives up)
+                var distFromSpawn = GetDistance(X, Y, SpawnX, SpawnY);
+                if (distFromSpawn > ChaseRadius) {
+                    AggroTarget = null;
+                    State = 1;
+                    // Return to spawn
+                    TargetX = SpawnX;
+                    TargetY = SpawnY;
+                    IsMoving = true;
+                    MoveEndTime = now + (int)(distFromSpawn / Speed * 100);
+                }
+            }
+        }
+
+        // Look for new target if we don't have one
+        if (AggroTarget == null) {
+            foreach (var player in players) {
+                if (!player.InGame || player.Player.Hp <= 0) continue;
+
+                var dist = GetDistance(X, Y, player.Player.PositionX, player.Player.PositionY);
+                if (dist <= AggroRadius) {
+                    AggroTarget = player;
+                    State = 2; // Alert state
+                    break;
+                }
+            }
+        }
+
+        // Check if we should attack
+        if (AggroTarget != null && now >= LastAttackTime + AttackCooldown) {
+            var dist = GetDistance(X, Y, AggroTarget.Player.PositionX, AggroTarget.Player.PositionY);
+            if (dist <= AttackRange) {
+                LastAttackTime = now;
+                return (true, AggroTarget);
+            }
+        }
+
+        return (false, null);
+    }
+
+    private int GetMapId(IEnumerable<Client> players) {
+        var first = players.FirstOrDefault();
+        return first?.Player?.CurrentMap ?? 0;
+    }
+
+    private static double GetDistance(int x1, int y1, int x2, int y2) {
+        var dx = x2 - x1;
+        var dy = y2 - y1;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    /// <summary>
+    /// Start chasing the aggro target.
+    /// </summary>
+    private bool StartChase() {
+        if (AggroTarget == null || !AggroTarget.InGame) {
+            AggroTarget = null;
+            return false;
+        }
+
+        // Move toward target
+        var targetX = AggroTarget.Player.PositionX;
+        var targetY = AggroTarget.Player.PositionY;
+
+        // Don't move if already in attack range
+        var dist = GetDistance(X, Y, targetX, targetY);
+        if (dist <= AttackRange) {
+            return false;
+        }
+
+        // Move closer but not on top of target
+        var dx = targetX - X;
+        var dy = targetY - Y;
+        var moveRatio = Math.Min(1.0, (dist - AttackRange / 2) / dist);
+
+        TargetX = X + (int)(dx * moveRatio);
+        TargetY = Y + (int)(dy * moveRatio);
+
+        Direction = CalculateDirection(dx, dy);
+
+        var moveDist = GetDistance(X, Y, TargetX, TargetY);
+        var moveDuration = (int)(moveDist / Speed * 100);
+
+        IsMoving = true;
+        MoveEndTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + moveDuration;
+
+        return true;
     }
 
     /// <summary>
@@ -231,6 +362,9 @@ class MobData : IWriteAble {
 
         isRespawning = true;
 
+        // Clear aggro immediately
+        AggroTarget = null;
+
         // Respawn after 10 seconds
         await Task.Delay(10 * 1000);
 
@@ -242,6 +376,8 @@ class MobData : IWriteAble {
         Hp = MaxHp;
         State = 1;
         IsMoving = false;
+        AggroTarget = null;
+        LastAttackTime = 0;
         NextMoveTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + _random.Next(MinIdleTime, MaxIdleTime);
         isRespawning = false;
 

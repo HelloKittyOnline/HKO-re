@@ -311,8 +311,9 @@ class Program {
     }
 
     /// <summary>
-    /// Background thread that updates mob movement and broadcasts position changes.
+    /// Background thread that updates mob movement, aggro, and broadcasts position changes.
     /// Mobs wander randomly within their spawn radius.
+    /// Aggressive mobs will chase and attack nearby players.
     /// </summary>
     static async Task MobMovementThread() {
         Logging.Logger.Information("Mob movement thread started");
@@ -326,11 +327,26 @@ class Program {
                     if (players.Length == 0) continue; // No players, skip this map
 
                     foreach (var mob in map.Mobs) {
+                        bool shouldMove;
+                        bool shouldAttack;
+                        Client attackTarget;
+
                         lock (mob) {
-                            if (mob.UpdateMovement()) {
-                                // Mob started moving, broadcast to all players on map
-                                Battle.SendMobMove(players, mob);
-                            }
+                            // Update aggro state and check for attacks
+                            (shouldAttack, attackTarget) = mob.UpdateAggro(players);
+
+                            // Update movement (wandering or chasing)
+                            shouldMove = mob.UpdateMovement();
+                        }
+
+                        // Broadcast movement (outside lock to avoid deadlock)
+                        if (shouldMove) {
+                            Battle.SendMobMove(players, mob);
+                        }
+
+                        // Handle mob attacking player (outside lock)
+                        if (shouldAttack && attackTarget != null) {
+                            Battle.MobAttacksPlayer(mob, attackTarget);
                         }
                     }
                 }

@@ -10,8 +10,8 @@ public struct MobAtt {
     [SeanField(5)] public int Defense { get; set; }
     [SeanField(6)] public bool Aggressive { get; set; }
 
-    [SeanField(7)] public int Unknown7 { get; set; }
-    [SeanField(8)] public int Unknown8 { get; set; }
+    [SeanField(7)] public int Dodge { get; set; }     // Mob dodge chance (speculative - may be 0 for most mobs)
+    [SeanField(8)] public int Unknown8 { get; set; }  // Could be crit chance?
 
     [SeanField(9)] public int LootTable { get; set; }
     [SeanField(10)] public int Type { get; set; }
