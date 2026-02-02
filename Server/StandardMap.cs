@@ -1,4 +1,5 @@
-﻿using Extractor;
+﻿using System;
+using Extractor;
 using Server.Protocols;
 using System.Collections.Generic;
 using System.Linq;
@@ -64,6 +65,8 @@ struct NpcData {
 }
 
 class MobData : IWriteAble {
+    private static readonly Random _random = new();
+
     public int Id { get; set; }
 
     // data
@@ -75,8 +78,27 @@ class MobData : IWriteAble {
     public int IsPet { get; set; }
     public byte State { get; set; }
 
-    public byte Speed => 10;
+    // Spawn position (for wandering bounds)
+    public int SpawnX { get; set; }
+    public int SpawnY { get; set; }
+
+    // Movement target
+    public int TargetX { get; set; }
+    public int TargetY { get; set; }
+    public bool IsMoving { get; set; }
+
+    // Timing
+    public long NextMoveTime { get; set; }
+    public long MoveEndTime { get; set; }
+
+    public short Speed => 10;
     public int MaxHp => Data.Hp;
+
+    // Wandering configuration
+    public const int WanderRadius = 150;      // Max distance from spawn
+    public const int MinIdleTime = 3000;      // Min ms between moves
+    public const int MaxIdleTime = 8000;      // Max ms between moves
+    public const int MoveSpeed = 10;          // Movement speed
 
     public MobAtt Data => Program.mobAtts[MobId];
 
@@ -87,18 +109,26 @@ class MobData : IWriteAble {
         MobId = mobId;
         X = x;
         Y = y;
+        SpawnX = x;
+        SpawnY = y;
+        TargetX = x;
+        TargetY = y;
         Direction = 5;
         Hp = MaxHp;
         IsPet = 0;
+        IsMoving = false;
 
         State = 1;
         // 1 = normal
         // 2 = alert
         // 3 = squigly
-        // 4 = sleeping
+        // 4 = sleeping/dead
         // 5 = gone?
         // 6 = squigly also gone
         // 7 = normal
+
+        // Set initial next move time
+        NextMoveTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + _random.Next(MinIdleTime, MaxIdleTime);
     }
 
     public void Write(ref PacketBuilder b) {
@@ -114,8 +144,85 @@ class MobData : IWriteAble {
         b.WriteInt(Hp);
         b.WriteInt(MaxHp);
         b.WriteInt(IsPet);
-        b.WriteInt(X); // moving?
-        b.WriteInt(Y); // moving?
+        b.WriteInt(TargetX); // target X for movement interpolation
+        b.WriteInt(TargetY); // target Y for movement interpolation
+    }
+
+    /// <summary>
+    /// Update mob movement. Returns true if mob started moving and needs to broadcast.
+    /// </summary>
+    public bool UpdateMovement() {
+        if (Hp <= 0 || State == 4) return false; // Dead mobs don't move
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // If currently moving, check if arrived at destination
+        if (IsMoving) {
+            if (now >= MoveEndTime) {
+                // Arrived at destination
+                X = TargetX;
+                Y = TargetY;
+                IsMoving = false;
+
+                // Schedule next move
+                NextMoveTime = now + _random.Next(MinIdleTime, MaxIdleTime);
+            }
+            return false;
+        }
+
+        // Check if it's time to start a new move
+        if (now >= NextMoveTime) {
+            return StartWander();
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Start wandering to a random position within radius of spawn point.
+    /// </summary>
+    private bool StartWander() {
+        // Pick a random angle and distance
+        var angle = _random.NextDouble() * 2 * Math.PI;
+        var distance = _random.Next(30, WanderRadius);
+
+        // Calculate target position
+        var newX = SpawnX + (int)(Math.Cos(angle) * distance);
+        var newY = SpawnY + (int)(Math.Sin(angle) * distance);
+
+        // Clamp to reasonable bounds (prevent going negative)
+        newX = Math.Max(50, newX);
+        newY = Math.Max(50, newY);
+
+        TargetX = newX;
+        TargetY = newY;
+
+        // Calculate direction (8 directions: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
+        var dx = TargetX - X;
+        var dy = TargetY - Y;
+        Direction = CalculateDirection(dx, dy);
+
+        // Calculate move duration based on distance and speed
+        var moveDistance = Math.Sqrt(dx * dx + dy * dy);
+        var moveDuration = (int)(moveDistance / Speed * 100); // ms
+
+        IsMoving = true;
+        MoveEndTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + moveDuration;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Calculate direction byte from delta X/Y (8 directions)
+    /// </summary>
+    private static byte CalculateDirection(int dx, int dy) {
+        // Normalize to angle
+        var angle = Math.Atan2(dy, dx);
+        // Convert to 0-7 direction (0=E, going counter-clockwise)
+        // HKO uses: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
+        var dir = (int)Math.Round((angle + Math.PI) / (Math.PI / 4)) % 8;
+        // Remap from math angle to game direction
+        return (byte)((6 - dir + 8) % 8);
     }
 
     public async void QueueRespawn(Instance map) {
@@ -124,10 +231,18 @@ class MobData : IWriteAble {
 
         isRespawning = true;
 
-        // TODO: actual respawn time?
+        // Respawn after 10 seconds
         await Task.Delay(10 * 1000);
+
+        // Reset to spawn position
+        X = SpawnX;
+        Y = SpawnY;
+        TargetX = SpawnX;
+        TargetY = SpawnY;
         Hp = MaxHp;
         State = 1;
+        IsMoving = false;
+        NextMoveTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + _random.Next(MinIdleTime, MaxIdleTime);
         isRespawning = false;
 
         try {

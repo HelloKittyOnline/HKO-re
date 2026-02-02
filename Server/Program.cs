@@ -241,7 +241,9 @@ class Program {
         }
 
         var mob_data = JsonNode.Parse(File.ReadAllText($"{path}/maps.json")).AsArray();
-        var cutMobs = mobAtts.Where(x => x.Name != null).ToArray();
+
+        // Log mob data stats for debugging
+        Logging.Logger.Information("Loaded {count} mob types from mob_att.txt", mobAtts.Length);
 
         // bundle all entities together to make lookup easier
         maps = new();
@@ -255,16 +257,22 @@ class Program {
             if(_mobs != null) {
                 for(var j = 0; j < _mobs.Count; j++) {
                     var mob = _mobs[(Index)j];
-                    var id = (int)mob["MobId"];
-                    if(id == 0)
+                    var mobId = (int)mob["MobId"];
+                    if(mobId == 0)
                         throw new InvalidDataException("Missing mob id");
 
+                    // Validate mob ID exists in mob attributes
+                    if(mobId >= mobAtts.Length || mobAtts[mobId].Id == 0) {
+                        Logging.Logger.Warning("Invalid mob ID {mobId} on map {mapId}, skipping", mobId, i);
+                        continue;
+                    }
+
                     if((bool)mob["Cheer"]) {
-                        // todo
+                        // todo: cheer mobs
                     } else {
                         mobs.Add(new MobData(
                             j + 1,
-                            cutMobs[id - 1].Id,
+                            mobId,  // Use the actual mob ID directly
                             (int)mob["X"],
                             (int)mob["Y"])
                         );
@@ -302,6 +310,36 @@ class Program {
         Debug.Assert(resources.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all resources registered
     }
 
+    /// <summary>
+    /// Background thread that updates mob movement and broadcasts position changes.
+    /// Mobs wander randomly within their spawn radius.
+    /// </summary>
+    static async Task MobMovementThread() {
+        Logging.Logger.Information("Mob movement thread started");
+
+        while (true) {
+            try {
+                await Task.Delay(200); // Tick every 200ms
+
+                foreach (var map in maps.Values) {
+                    var players = map.Players.ToArray();
+                    if (players.Length == 0) continue; // No players, skip this map
+
+                    foreach (var mob in map.Mobs) {
+                        lock (mob) {
+                            if (mob.UpdateMovement()) {
+                                // Mob started moving, broadcast to all players on map
+                                Battle.SendMobMove(players, mob);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                Logging.Logger.Error(ex, "Error in mob movement thread");
+            }
+        }
+    }
+
     static async Task Main(string[] args) {
         handlers = Request.GetEndpoints();
 
@@ -330,6 +368,7 @@ class Program {
         Commands.RunConsole();
 
         Task.Run(Farm.FarmThread);
+        Task.Run(MobMovementThread);
         await Server(25000, serverTokenSource.Token);
 
         Logging.Logger.Information("Stopping server...");

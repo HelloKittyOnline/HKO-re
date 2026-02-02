@@ -103,19 +103,20 @@ static class Battle {
         b.Send(client);
     }
 
-    // 0C_02
+    // 0C_02 - Mob Movement Packet
+    // Client interpolates from current position to target position
     public static void SendMobMove(IEnumerable<Client> clients, MobData mob) {
-        // if (mob.Hp == 0) return;
+        if (mob.Hp <= 0) return; // Dead mobs don't move
 
         var b = new PacketBuilder(0x0C, 0x02);
 
-        b.WriteInt(mob.Id); // count
-        b.WriteShort((short)mob.X);
-        b.WriteShort((short)mob.Y);
-        b.WriteShort(mob.Speed);
+        b.WriteInt(mob.Id);              // Mob entity ID
+        b.WriteShort((short)mob.TargetX); // Target X position
+        b.WriteShort((short)mob.TargetY); // Target Y position
+        b.WriteShort(mob.Speed);          // Movement speed
 
-        b.WriteByte(0); // unused
-        b.WriteByte(0); // if == 2 play sound
+        b.WriteByte(0);                   // Unused
+        b.WriteByte(0);                   // Sound flag (2 = play sound)
 
         b.Send(clients);
     }
