@@ -1,6 +1,5 @@
 using System.Diagnostics;
-using System.Text;
-using ICSharpCode.SharpZipLib.Tar;
+using System.Formats.Tar;
 using Microsoft.Win32;
 
 namespace Launcher;
@@ -180,6 +179,10 @@ public partial class Form1 : Form {
                 return;
             }
             HKOPath = FindInstallation();
+            if(HKOPath == null) {
+                MessageBox.Show("Failed to find HKO path after installation.");
+                return;
+            }
         }
 
         await CheckFlash();
@@ -237,10 +240,11 @@ public partial class Form1 : Form {
             }
 
             stream.Seek(0, SeekOrigin.Begin);
-            using var tarArchive = TarArchive.CreateInputTarArchive(stream, Encoding.UTF8);
 
             progressBar2.ManualText = "Extracting...";
-            await Task.Run(() => { tarArchive.ExtractContents(HKOPath); });
+            await Task.Run(() => {
+                TarFile.ExtractToDirectory(stream, HKOPath, true);
+            });
 
             stream.Close();
             File.Delete(tempFile);

@@ -9,8 +9,4 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="SharpZipLib" Version="1.3.3" />
-  </ItemGroup>
-
 </Project>

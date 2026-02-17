@@ -1,8 +1,7 @@
-using System;
+﻿using System;
+using System.Formats.Tar;
 using System.IO;
 using System.Linq;
-using System.Text;
-using ICSharpCode.SharpZipLib.Tar;
 
 namespace Extractor;
 
@@ -32,16 +31,15 @@ class Program {
             int pos = 0;
             for(int i = 0; pos < files.Length; i++) {
                 using var stream = File.OpenWrite($"{outP}\\data_{i}.tar");
-                using var tar = TarArchive.CreateOutputTarArchive(stream);
-                tar.RootPath = root;
+                using var tar = new TarWriter(stream, TarEntryFormat.Ustar);
 
                 long size = 0;
                 while(size < (1 << 30) && pos < files.Length) {
                     var item = files[pos++];
 
                     Console.WriteLine($"Adding {item.FullName}");
-                    var tarEntry = TarEntry.CreateEntryFromFile(item.FullName);
-                    tar.WriteEntry(tarEntry, false);
+                    var str = Path.GetRelativePath(root, item.FullName).Replace('\\', '/');
+                    tar.WriteEntry(item.FullName, str);
 
                     size += item.Length;
                 }
@@ -52,7 +50,7 @@ class Program {
             var tables = new DirectoryInfo($"{root}\\tables").GetFiles("*.*", SearchOption.AllDirectories);
 
             using var stream = File.OpenWrite($"{outP}\\tables.tar");
-            using var tar = new TarOutputStream(stream, Encoding.UTF8);
+            using var tar = new TarWriter(stream, TarEntryFormat.Ustar);
 
             foreach(var item in tables) {
                 if(item.FullName.EndsWith(".old"))
@@ -60,23 +58,17 @@ class Program {
 
                 Console.WriteLine($"Adding {item.FullName}");
 
-                var tarEntry = TarEntry.CreateTarEntry(Path.GetRelativePath(root, item.FullName));
+                var str = Path.GetRelativePath(root, item.FullName).Replace('\\', '/');
+                var entry = new UstarTarEntry(TarEntryType.RegularFile, str);
 
                 if(item.Extension == ".sdb") {
                     var data = PatchSdb(item.FullName);
-                    tarEntry.Size = data.Length;
-
-                    tar.PutNextEntry(tarEntry);
-                    tar.Write(data);
+                    entry.DataStream = new MemoryStream(data);
                 } else {
-                    tarEntry.Size = item.Length;
-
-                    tar.PutNextEntry(tarEntry);
-                    using var inFile = item.OpenRead();
-                    inFile.CopyTo(tar);
+                    entry.DataStream = item.OpenRead();
                 }
 
-                tar.CloseEntry();
+                tar.WriteEntry(entry);
             }
         }
     }
