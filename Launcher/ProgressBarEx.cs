@@ -33,6 +33,7 @@ public class ProgressBarEx : ProgressBar {
     /// <summary>What text to display</summary>
     [Category("Appearance")]
     [Description("What type of text to display on the progress bar.")]
+    [DefaultValue(TextDisplayType.Percent)]
     public TextDisplayType DisplayType {
         get => _style;
         set {
@@ -44,6 +45,7 @@ public class ProgressBarEx : ProgressBar {
     /// <summary>If the TextStyle is set to Manual, the text to display</summary>
     [Category("Appearance")]
     [Description("If DisplayType is Manual, the text to display.")]
+    [DefaultValue("")]
     public string ManualText {
         get => _manualText;
         set {
@@ -56,6 +58,7 @@ public class ProgressBarEx : ProgressBar {
     /// <remarks>Can't use the ForeColor because it <i>technically</i> is the bar color, although this is ignored when VisualStyles are enabled</remarks>
     [Category("Appearance")]
     [Description("Color of text on bar.")]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
     public Color TextColor { get; set; } = SystemColors.ControlText;
 
     /// <summary>The font for the text</summary>
