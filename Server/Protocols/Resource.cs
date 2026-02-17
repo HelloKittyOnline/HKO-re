@@ -36,6 +36,9 @@ static class Resource {
             lock(client.Player) {
                 client.AddFromLootTable(action == 1 ? resource.LootTable1 : resource.LootTable2);
                 client.AddExpAction(skill, resource.Level);
+                if(client.Player.ActivePet != -1) {
+                    client.Player.Pet.AddExp(1, client);
+                }
             }
 
             SendMessage(client, 7);

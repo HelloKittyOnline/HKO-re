@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using Extractor;
 using Server.Protocols;
 
 namespace Server;
@@ -7,6 +8,7 @@ namespace Server;
 enum InvType {
     Player = 1,
     Farm = 2,
+    Pet = 3,
 
     Equipment = 256,
     Tool = 257
@@ -26,9 +28,10 @@ readonly ref struct InvRef {
         inv = this.type switch {
             InvType.Player => client.Player.Inventory.AsSpan(0, this.client.Player.InventorySize),
             InvType.Farm => client.Player.Farm.Inventory.AsSpan(),
+            InvType.Pet => client.Player.Pet.Inventory.AsSpan(),
             InvType.Equipment => client.Player.Equipment.AsSpan(),
             InvType.Tool => client.Player.Tools.AsSpan(),
-            _ => Span<InventoryItem>.Empty
+            _ => []
         };
     }
 
@@ -49,22 +52,33 @@ readonly ref struct InvRef {
         return item != 0 && AddItem(item, 1, true);
     }
     public bool AddItem(int id, int count, bool notification, bool sendUpdate = true) {
-        Debug.Assert(count >= 0 && count < 256 && count <= Program.items[id].StackLimit);
+        Debug.Assert(count >= 0 && count < 256);
+        return AddItem(new InventoryItem { Id = id, Count = (byte)count, Charges = 0 }, notification, sendUpdate);
+    }
 
-        if(!FindInsert(id, count, out var item)) {
+    public bool AddItem(InventoryItem item_, bool notification, bool sendUpdate = true) {
+        Debug.Assert(item_.Count <= item_.Data.StackLimit);
+        Debug.Assert(item_.Charges == 0 || item_.Data.StackLimit == 1);
+
+        if(!FindInsert(item_.Id, item_.Count, out var item)) {
             if(sendUpdate)
                 Player.SendMessage(client, Player.MessageType.Inventory_full);
             return false;
         }
 
+        if(item_.Data.Type == ItemType.Card) {
+            // remember: if items are added in other ways this has to be replicated
+            item.Item.Charges = Math.Max(item.Item.Charges, (byte)1); // set min level to 1
+            client.Player.Cards.Add(item_.Data.SubId);
+        }
+
         if(item.Id == 0) {
-            item.Item = new InventoryItem {
-                Id = id,
-                Count = (byte)count
-            };
+            item.Item = item_;
         } else {
-            Debug.Assert(item.Id == id);
-            item.Count += (byte)count;
+            Debug.Assert(item.Id == item_.Id);
+            Debug.Assert(item_.Charges == 0);
+            Debug.Assert(item.Count + item_.Count < item_.Data.StackLimit);
+            item.Count += item_.Count;
         }
 
         if(sendUpdate)
@@ -76,12 +90,14 @@ readonly ref struct InvRef {
     public bool FindInsert(int itemId, int count, out ItemRef item) {
         var limit = Program.items[itemId].StackLimit;
 
-        // find existing stack
-        for(int i = 0; i < inv.Length; i++) {
-            var _item = inv[i];
-            if(_item.Id == itemId && _item.Count + count <= limit) {
-                item = this[i];
-                return true;
+        if(limit > 1) {
+            // find existing stack
+            for(int i = 0; i < inv.Length; i++) {
+                var _item = inv[i];
+                if(_item.Id == itemId && _item.Count + count <= limit) {
+                    item = this[i];
+                    return true;
+                }
             }
         }
 
@@ -126,13 +142,6 @@ readonly ref struct InvRef {
         return false;
     }
 
-    public bool HasItem(int itemId) {
-        foreach(var item in inv) {
-            if(item.Id == itemId)
-                return true;
-        }
-        return false;
-    }
     public int GetItemCount(int itemId) {
         if(itemId == 0)
             return 0;
@@ -156,8 +165,8 @@ readonly ref struct InvRef {
 
 ref struct ItemRef {
     private readonly Client client;
-    private readonly InvType type;
-    private readonly int Index;
+    public readonly InvType type;
+    public readonly int Index;
     public ref InventoryItem Item;
 
     public int Id => Item.Id;
@@ -248,6 +257,10 @@ ref struct ItemRef {
                 break;
             case InvType.Player:
                 Inventory.SendSetPlayerItem(client, Item, (byte)(Index + 1));
+                break;
+            case InvType.Pet:
+                Debug.Assert(client.Player.ActivePet != -1);
+                Inventory.SendSetPetItem(client, Item, (byte)(client.Player.ActivePet + 1), (byte)(Index + 1));
                 break;
             case InvType.Farm:
                 Inventory.SendSetFarmItem(client, Item, (byte)(Index + 1));

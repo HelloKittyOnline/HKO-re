@@ -19,7 +19,7 @@ static class Player {
             // put player back to sanrio harbour
             ChangeMap(client, 8, 7705, 6007);
         }
-}
+    }
 
     private static void EnterMap(Client client) {
         var map = client.Player.Map;
@@ -75,17 +75,22 @@ static class Player {
             var temp = new Span<Client>(ref client);
             SendAddPlayers(others, temp); // send other players to client
             SendAddPlayers(temp, others); // send client to other players
+
+            Pet.SendAllPet(client, others);
         }
+
+        if(client.Player.ActivePet != -1)
+            Pet.SendAddPetEnt(map.Players, client.Player.Pets[client.Player.ActivePet].EntData(client));
     }
 
     public static void LeaveMap(Client client) {
         var oldMap = client.Player.Map;
-        
-            // delete player from old map
-            SendDeletePlayer(oldMap.Players, client);
-            if(client.Player.ActivePet != -1)
-                Pet.SendRemovePet(oldMap.Players, client.Id);
-        }
+
+        // delete player from old map
+        SendDeletePlayer(oldMap.Players, client);
+        if(client.Player.ActivePet != -1)
+            Pet.SendRemovePet(oldMap.Players, client.Id);
+    }
 
     public static void ChangeMap(Client client, int map, int x, int y) {
         LeaveMap(client);
@@ -128,6 +133,7 @@ static class Player {
         Program.maps[client.Player.Farm.House.Floor2.Id] = client.Player.Farm.House.Floor2;
         client.InGame = true;
 
+        PetData.PetTask(client); // start pet process
         EnterMap(client);
     }
 
@@ -207,7 +213,7 @@ static class Player {
         var idk = req.ReadByte(); // always 1?
 
         var player = client.Player;
-        
+
         if(player.MapType == 3) {
             ReturnFromFarm(client);
         } else if(client.Player.MapType == 4) {
@@ -389,10 +395,6 @@ static class Player {
             w.WriteShort(0);
         w.WriteInt(0); // length
     }
-    static void writePetData(PacketBuilder w) {
-        for(int i = 0; i < 0xd8; i++)
-            w.WriteByte(0);
-    }
 
     #region Response
     // 02_01
@@ -423,7 +425,7 @@ static class Player {
         b.WriteInt(player.Money); // money
 
         b.WriteByte(0); // status (0 = online, 1 = busy, 2 = away)
-        b.WriteByte(0); // active petId
+        b.WriteByte((byte)(player.ActivePet + 1));
         b.WriteByte(0); // emotionSomething
         b.WriteByte(0); // unused
         b.WriteByte(player.BloodType); // blood type
@@ -468,8 +470,13 @@ static class Player {
         b.WriteByte(0); // ban count
         b.Write0(3); // unused
 
-        for(int i = 0; i < 3; i++)
-            writePetData(b); // pet data
+        for(int i = 0; i < 3; i++) {
+            if(player.Pets[i] == null) {
+                PetData.WriteEmpty(b);
+            } else {
+                b.Write(player.Pets[i]); // pet data
+            }
+        }
 
         var questBytes = new BitVector(1000);
         foreach(var (key, val) in player.QuestFlags) {
@@ -513,7 +520,12 @@ static class Player {
         }
         b.Write0(2 * (40 - player.Friendship.Length));
 
-        b.Write0(128); // byte array
+        // which cards have been collected
+        var cardFlags = new BitVector(128);
+        foreach (var item in player.Cards) {
+            cardFlags[item] = true;
+        }
+        b.Write(cardFlags);
 
         player.WriteLevels(b);
 
@@ -555,9 +567,9 @@ static class Player {
         // 0x932c
         b.Write0(0x93b4 - 0x932c);
 
-        b.Write0(64); // npc locations - do not matter cause they are disabled in the tables
-        b.Write0(64); // pet cards
-        b.Write0(64); // resources
+        b.Write0(64); // npc locations - do not matter because they are disabled in the tables
+        b.Write0(64); // card loot flags - used to control if loot should be shown for pet collection. however it appears this was never fully implemented in game
+        b.Write0(64); // resource falgs
 
         b.Write0(0x96d0 - 0x93f4 - 0x80);
         // 0x96d0

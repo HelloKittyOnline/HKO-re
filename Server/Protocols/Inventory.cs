@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Extractor;
 
 namespace Server.Protocols;
@@ -80,10 +81,10 @@ static class Inventory {
         var d = req.ReadInt32();
         var e = req.ReadInt32();
 
-        if(slot - 1 >= client.Player.InventorySize)
-            return;
-
         lock(client.Player) {
+            if(slot - 1 >= client.Player.InventorySize)
+                return;
+
             var item = client.GetItem(InvType.Player, slot - 1);
             if(item.Id == 0)
                 return;
@@ -100,6 +101,13 @@ static class Inventory {
                 case ItemType.Item_Guide:
                     UseItemGuide(client, item);
                     break;
+                case ItemType.Pet_Food:
+                    UsePetFood(client, item);
+                    break;
+                case ItemType.Card:
+                    // the games code contains hints at other kinds of cards but they were not fully implemented so there's no need to check the card type
+                    UsePetCard(client, item);
+                    break;
                 case ItemType.Building_Permit:
                     UseBuildingPermit(client, item);
                     break;
@@ -111,6 +119,9 @@ static class Inventory {
                     break;
                 case ItemType.Watering_Can:
                     UseWateringCan(client, item, c, d);
+                    break;
+                case ItemType.Pet_Bag:
+                    UsePetBag(client, item);
                     break;
             }
         }
@@ -199,14 +210,12 @@ static class Inventory {
             return;
         }
 
-        lock(client.Player) {
-            farm.House.Name = "";
-            farm.House.BuildingPermit = _item.Id;
-            farm.House.HouseState = 1;
-            farm.House.BuildingItems.AsSpan().Clear();
+        farm.House.Name = "";
+        farm.House.BuildingPermit = _item.Id;
+        farm.House.HouseState = 1;
+        farm.House.BuildingItems.AsSpan().Clear();
 
-            item.Remove(1);
-        }
+        item.Remove(1);
 
         Farm.SendHouseData(client, farm.House);
         Farm.Send23(client);
@@ -258,6 +267,80 @@ static class Inventory {
         farm.Watered[x + y * 20] = 100;
 
         Farm.SendSetWatered(client, (byte)y, (byte)x, 1);
+    }
+
+    static void UsePetCard(Client client, ItemRef item) {
+        var pets = client.Player.Pets;
+        var lvl = client.Player.Levels[(int)Skill.General];
+        if(lvl < item.Item.Data.Level) {
+            Player.SendMessage(client, Player.MessageType.You_cannot_use_this_item_level_requirement_not_met);
+            return;
+        }
+        if(lvl < 10) {
+            Player.SendMessage(client, Player.MessageType.You_cannot_use_pets_until_you_reach_level_10);
+            return;
+        }
+        if(pets[0] != null && lvl < 20) { // 1 slot
+            Player.SendMessage(client, Player.MessageType.You_can_equip_only_one_pet_at_your_current_level_An_extra_pet_slot_will_open_when_you_reach_level_20);
+            return;
+        }
+        if(pets[0] != null && pets[1] != null && lvl < 30) { // 2 slots
+            Player.SendMessage(client, Player.MessageType.You_can_equip_only_two_pets_at_your_current_level__An_extra_pet_slot_will_open_when_you_reach_level_30);
+            return;
+        }
+        if(pets[0] != null && pets[1] != null && pets[2] != null) { // 3 slots
+            Player.SendMessage(client, Player.MessageType.Pet_quota_is_full); // is this the right message?
+            return;
+        }
+
+        // find first empty pet slot
+        int slot = 0;
+        while(slot < 3) {
+            if(client.Player.Pets[slot] == null)
+                break;
+            slot++;
+        }
+        Debug.Assert(slot < 3);
+
+        // use charges to store pet level
+        var pet = new PetData(item.Id, item.Item.Charges);
+        client.Player.Pets[slot] = pet;
+        item.Remove(1);
+
+        Pet.SendPetData(client, slot, pet);
+    }
+
+    static void UsePetFood(Client client, ItemRef item) {
+        Pet.DoFeed(client, client, item);
+    }
+
+    static void UsePetBag(Client client, ItemRef item) {
+        int gain;
+        switch(item.Id) {
+            case 86:
+                gain = 2;
+                break; // small bag
+            case 87:
+                gain = 4;
+                break; // large bag
+            default:
+                return; // unreachable
+        }
+
+        var pet = client.Player.Pet;
+        if(pet == null)
+            return;
+
+        var size = pet.Inventory.Length;
+        var capacity = pet.Data.InvSize;
+        if(size < capacity) {
+            // the wiki says the item is wasted if the inventory is already maxed out but we'll just fix that
+            item.Remove(1);
+            var old = pet.Inventory;
+            pet.Inventory = new InventoryItem[Math.Min(capacity, size + gain)];
+            old.CopyTo(pet.Inventory, 0);
+            SendSetPetInventoryUnlockedSlots(client, (byte)pet.Inventory.Length);
+        }
     }
 
     static void UseFarmCertificate(Client client, ItemRef item) {
@@ -367,11 +450,33 @@ static class Inventory {
         b.Send(client);
     }
 
+    // 09_06
+    public static void SendSetPetItem(Client client, InventoryItem item, byte pet_slot, byte index) {
+        var b = new PacketBuilder(0x09, 0x06); // second switch
+
+        b.WriteByte(pet_slot);
+        b.WriteCompressed(item);
+        b.WriteByte(index); // inventory index
+
+        b.Send(client);
+    }
+
+    // 09_07
+
     // 09_0B
     public static void SendSetInventorySize(Client client) {
         var b = new PacketBuilder(0x09, 0x0B); // second switch
 
         b.WriteByte((byte)client.Player.InventorySize);
+
+        b.Send(client);
+    }
+
+    // 09_0C
+    public static void SendSetPetInventoryUnlockedSlots(Client client, byte slots) {
+        var b = new PacketBuilder(0x09, 0x0C); // second switch
+
+        b.WriteByte(slots);
 
         b.Send(client);
     }

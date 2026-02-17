@@ -85,10 +85,20 @@ class Client {
 
     /// <summary>Adds an item to the players inventory and sends chat notification for it</summary>
     public bool AddItem(int itemId, int count, bool notification) {
+        Debug.Assert(itemId != 0 && count != 0);
         if(itemId == 0)
             return true;
         var inv = GetInv(InvType.Player);
         return inv.AddItem(itemId, count, notification);
+    }
+
+    /// <summary>Adds an item to the players inventory and sends chat notification for it</summary>
+    public bool AddItem(InventoryItem item, bool notification) {
+        Debug.Assert(item.Id != 0 && item.Count != 0);
+        if(item.Id == 0)
+            return true;
+        var inv = GetInv(InvType.Player);
+        return inv.AddItem(item, notification);
     }
 
     public bool RemoveItem(int itemId, int count) {

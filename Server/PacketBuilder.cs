@@ -94,7 +94,7 @@ struct PacketBuilder {
                 WriteShort((short)str.Length);
                 break;
             case 4:
-                if(str.Length > 65535) {
+                if(str.Length > int.MaxValue) {
                     throw new ArgumentOutOfRangeException(nameof(str), "string too long");
                 }
                 WriteInt(str.Length);

@@ -37,6 +37,12 @@ class Program {
     internal static BuildingAgreement[] buildings;
     internal static Furniture[] furniture;
 
+    internal static PetInitData[] petInitData;
+    internal static PetFood[] petFood;
+    // internal static PetLevelup[] petLevelup;
+    internal static PetExp[] petExp;
+
+
     internal static HashSet<Client> clients = new();
     internal static Dictionary<int, Request.ReceiveFunction> handlers;
 
@@ -148,6 +154,8 @@ class Program {
 
         if(client.Username != null) {
             if(client.InGame) { // remove player from maps
+                client.InGame = false;
+
                 Player.LeaveMap(client);
 
                 try {
@@ -233,6 +241,11 @@ class Program {
         furniture   = GetItem<Furniture>("furniture_list.txt");
         var mapList = GetItem<MapList>("map_list.txt");
         npcEncyclopedia = GetItem<NpcEncyclopedia>("npc_encyclopedia.txt").Where(x => x.NpcId != 0).ToDictionary(x => x.NpcId, x => x.Id);
+
+        petInitData = GetItem<PetInitData>("pet_init_data.txt");
+        // petLevelup = GetItem<PetLevelup>("pet_levelup.txt");
+        petFood = GetItem<PetFood>("pet_food.txt");
+        petExp = GetItem<PetExp>("pet_exp.txt");
 
         for(int i = 0; i < lootTables.Length; i++) {
             lootTables[i].Init();

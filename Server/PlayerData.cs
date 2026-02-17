@@ -13,8 +13,7 @@ struct InventoryItem : IWriteAble {
     // public byte Durability { get; set; }
     public byte Charges { get; set; }
 
-    [JsonIgnore]
-    public ItemAtt Data => Program.items[Id];
+    [JsonIgnore] public ItemAtt Data => Program.items[Id];
 
     public void Write(ref PacketBuilder w) {
         w.WriteInt(Id); // id
@@ -134,6 +133,7 @@ class PlayerData {
     public HashSet<int> Npcs { get; set; }
     public HashSet<int> Keys { get; set; }
     public HashSet<int> Dreams { get; set; }
+    public HashSet<int> Cards { get; set; }
 
     [JsonIgnore]
     public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
@@ -158,6 +158,11 @@ class PlayerData {
 
     public List<int> OwnedFarms { get; set; }
     public Farm Farm { get; set; }
+
+    public PetData[] Pets { get; set; }
+    public int ActivePet { get; set; } = -1;
+    [JsonIgnore]
+    public PetData Pet => ActivePet == -1 ? null : Pets[ActivePet];
 
     [JsonIgnore]
     public int TutorialState = 0;
@@ -187,23 +192,45 @@ class PlayerData {
     }
 
     internal void Init(Client client) {
-        // Dynamically load Display Entities
-
         // todo: remove down the line
         ProductionFlags ??= new byte[576];
-        CheckpointFlags ??= new Dictionary<int, int>();
-        Npcs ??= new HashSet<int>();
-        Keys ??= new HashSet<int>();
-        Dreams ??= new HashSet<int>();
+        CheckpointFlags ??= [];
+        Npcs ??= [];
+        Keys ??= [];
+        Dreams ??= [];
+        if(Cards == null) {
+            Cards = [];
+            // scan inventories for existing cards and update level (charges)
+            for(int i = 0; i < Inventory.Length; i++) {
+                ref var item = ref Inventory[i];
+                if(item.Data.Type == ItemType.Card) {
+                    item.Charges = 1;
+                    Cards.Add(item.Data.SubId);
+                }
+            }
+            if(Farm?.Inventory != null) {
+                for(int i = 0; i < Farm.Inventory.Length; i++) {
+                    ref var item = ref Farm.Inventory[i];
+                    if(item.Data.Type == ItemType.Card) {
+                        item.Charges = 1;
+                        Cards.Add(item.Data.SubId);
+                    }
+                }
+            }
+        }
         Farm ??= new Farm();
         Farm.Init(client);
         Tools ??= new InventoryItem[3];
-        QuestFlags1 ??= new Dictionary<int, uint>();
-        if(OwnedFarms == null) {
-            OwnedFarms = new List<int>();
-            OwnedFarms.Add(1); // base farm
+        QuestFlags1 ??= [];
+        OwnedFarms ??= [1]; // base farm
+        Pets ??= new PetData[3];
+        for(int i = 0; i < 3; i++) {
+            if(Pets[i]?.CardItemId == 0)
+                Pets[i] = null;
+            Pets[i]?.calcStats();
         }
 
+        // Dynamically load Display Entities
         DisplayEntities = new int[18];
         UpdateEntities();
         UpdateStats();
@@ -276,6 +303,7 @@ class PlayerData {
             Skill.Mining => 1,
             Skill.Woodcutting => 2,
             // Skill.Farming => 3,
+            _ => throw new ArgumentOutOfRangeException(nameof(type))
         };
 
         var item = Tools[ind];
@@ -307,12 +335,24 @@ class PlayerData {
             dodge += equ.DodgeValue;
         }
 
+        if(ActivePet != -1) {
+            var pet = Pets[ActivePet];
+            // pet.calcStats();
+
+            hp += pet.Hp;
+            sta += pet.Sta;
+            attack += pet.Atk;
+            defense += pet.Def;
+            crit += (ushort)pet.Crit;
+            dodge += (ushort)pet.Dodge;
+        }
+
         MaxHp = hp;
         MaxSta = sta;
         Attack = attack;
         Defense = defense;
-        Crit = (ushort)crit;
-        Dodge = (ushort)dodge;
+        Crit = (ushort)Math.Min(10000, crit);
+        Dodge = (ushort)Math.Min(10000, dodge); // capped at 100%
 
         if(Hp > MaxHp)
             Hp = MaxHp;
@@ -338,13 +378,5 @@ class PlayerData {
         }
 
         // TODO: broadcast new appearance
-    }
-
-    public void ReturnFromFarm() {
-        var map = (StandardMap)Program.maps[ReturnMap]; // potentially throws cast exception
-
-        CurrentMap = map.Id;
-        PositionX = map.MapData.FarmX;
-        PositionY = map.MapData.FarmY;
     }
 }
