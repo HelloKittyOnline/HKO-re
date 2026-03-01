@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Resource = Extractor.Resource;
 
@@ -140,7 +141,7 @@ class Farm : Instance, IWriteAble {
     }
 
     // TODO: change to one Task per farm
-    public static async void FarmThread() {
+    public static async Task FarmThread(CancellationToken token) {
         var lastTime = DateTimeOffset.UtcNow;
         while(true) {
             var now = DateTimeOffset.UtcNow;
@@ -148,25 +149,15 @@ class Farm : Instance, IWriteAble {
             lastTime = now;
 
             foreach(var client in Program.clients) {
-                if(!client.InGame)
+                if(!client.Value.InGame)
                     continue;
 
-                ProcFarm(client, passed);
+                ProcFarm(client.Value, passed);
             }
 
             // todo: optimization: calculate wait time based on shortest plant / suspend if no plants active
-            await Task.Delay(1000);
+            await Task.Delay(1000, token);
         }
-    }
-
-    private static void UpdateAsync(Client client, int i, Plant plant) {
-        Task.Run(() => {
-            try {
-                Protocols.Farm.SendSetPlant(client, i % 20, i / 20, plant);
-            } catch {
-                client.Close(); // likely network error, remove client
-            }
-        });
     }
 
     private static void ProcFarm(Client client, TimeSpan passed) {
@@ -180,7 +171,11 @@ class Farm : Instance, IWriteAble {
             passed *= 0.25f; // slow down if not on farm
         }
 
-        lock(farm) {
+        void UpdateAsync(int i, Plant plant) {
+            Protocols.Farm.SendSetPlant(client, i % 20, i / 20, plant);
+        }
+
+        lock(client.Lock) {
             var lastStep = (int)farm.DayTime.TotalMinutes / 10;
             farm.DayTime += passed;
             if(farm.DayTime > dayLength) { // if day ist over
@@ -205,7 +200,7 @@ class Farm : Instance, IWriteAble {
                         farm.ActivePlants.Remove(i);
 
                         if(isOnFarm)
-                            UpdateAsync(client, i, plant);
+                            UpdateAsync(i, plant);
                     }
                 }
 
@@ -242,14 +237,14 @@ class Farm : Instance, IWriteAble {
                     plant.State = PlantState.Growing;
 
                     if(isOnFarm)
-                        UpdateAsync(client, id, plant);
+                        UpdateAsync(id, plant);
                 } else if(plant.State == PlantState.Growing) {
                     plant.State = PlantState.FullyGrown;
                     farm.ActivePlants.RemoveAt(i);
                     i--;
 
                     if(isOnFarm)
-                        UpdateAsync(client, id, plant);
+                        UpdateAsync(id, plant);
                 } else {
                     farm.ActivePlants.RemoveAt(i); // probably withered
                     i--;

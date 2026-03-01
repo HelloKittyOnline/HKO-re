@@ -56,7 +56,7 @@ static class Store {
         var item = store.Items[itemNum];
 
         var player = client.Player;
-        lock(player) {
+        lock(client.Lock) {
             switch(store.Type) {
                 case ShopType.Money:
                     if(item.Price <= player.Money && client.AddItem(item.Id, item.Count, false)) {
@@ -99,7 +99,7 @@ static class Store {
         var npcId = req.ReadInt32();
         var itemSlot = req.ReadInt32() - 1;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var item = client.GetItem(InvType.Player, itemSlot);
             if(item.Id == 0)
                 return;

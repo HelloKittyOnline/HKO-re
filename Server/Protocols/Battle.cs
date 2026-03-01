@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -50,7 +50,7 @@ static class Battle {
                 if(token.IsCancellationRequested)
                     break;
 
-                lock(client.Player) {
+                lock(client.Lock) {
                     var playerDamage = Math.Min(client.Player.Hp, 10);
 
                     // TODO: implement player hp and stamina

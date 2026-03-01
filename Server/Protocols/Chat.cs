@@ -34,7 +34,7 @@ static class Chat {
         var username = req.ReadWString();
         var message = req.ReadWString();
 
-        var other = Program.clients.FirstOrDefault(x => x.Player.Name == username);
+        var other = Program.clients.FirstOrDefault(x => x.Value.Player.Name == username).Value;
         if(other == null || !other.InGame)
             return;
 
@@ -96,10 +96,9 @@ static class Chat {
     static void ReceiveOpenPrivateMessage(ref Req req, Client client) {
         var playerName = req.ReadWString();
 
-        var other = Program.clients.FirstOrDefault(x => x.InGame && x.Player.Name == playerName);
-
-        if(other == null) {
-
+        var other = Program.clients.FirstOrDefault(x => x.Value.Player.Name == playerName).Value;
+        if(other == null || !other.InGame) {
+            Player.SendMessage(client, Player.MessageType.Cannot_find_player);
         } else {
             SendOpenPrivateMessage(client, other);
         }

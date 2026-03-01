@@ -29,11 +29,11 @@ static class Resource {
         const int harvestTime = 5 * 1000;
 
         client.StartAction(async token => {
-            await Task.Delay(harvestTime);
+            await Task.Delay(harvestTime, token);
             if(token.IsCancellationRequested)
                 return;
 
-            lock(client.Player) {
+            lock(client.Lock) {
                 client.AddFromLootTable(action == 1 ? resource.LootTable1 : resource.LootTable2);
                 client.AddExpAction(skill, resource.Level);
                 if(client.Player.ActivePet != -1) {

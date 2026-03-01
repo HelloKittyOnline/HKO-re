@@ -93,12 +93,15 @@ static class Player {
     }
 
     public static void ChangeMap(Client client, int map, int x, int y) {
-        LeaveMap(client);
+        lock(client.Player) {
+            LeaveMap(client);
 
-        client.Player.CurrentMap = map;
-        client.Player.PositionX = x;
-        client.Player.PositionY = y;
-        EnterMap(client);        
+            client.Player.CurrentMap = map;
+            client.Player.PositionX = x;
+            client.Player.PositionY = y;
+
+            EnterMap(client);
+        }
     }
 
     static async Task DelayInvestigate(Client client, int map, byte flag) {
@@ -106,7 +109,7 @@ static class Player {
             return;
         }
 
-        await Task.Delay(10_000);
+        await Task.Delay(10_000, client.Token);
 
         // check again just to make sure
         if(client.InGame && client.Player.CurrentMap == map && client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) == QuestStatus.Running) {
@@ -131,10 +134,13 @@ static class Player {
         Program.maps[client.Player.Farm.House.Floor0.Id] = client.Player.Farm.House.Floor0;
         Program.maps[client.Player.Farm.House.Floor1.Id] = client.Player.Farm.House.Floor1;
         Program.maps[client.Player.Farm.House.Floor2.Id] = client.Player.Farm.House.Floor2;
-        client.InGame = true;
 
-        PetData.PetTask(client); // start pet process
-        EnterMap(client);
+        lock(client.Player) {
+            client.InGame = true;
+            EnterMap(client);
+        }
+
+        Task.Run(() => PetData.PetTask(client), client.Token); // start pet process
     }
 
     [Request(0x02, 0x02)] // 005df036 // sent after map load
@@ -154,8 +160,10 @@ static class Player {
         // cancel player action like harvesting
         client.CancelAction();
 
-        player.PositionX = x;
-        player.PositionY = y;
+        lock(client.Lock) {
+            player.PositionX = x;
+            player.PositionY = y;
+        }
 
         BroadcastMovePlayer(client);
     }
@@ -250,7 +258,7 @@ static class Player {
     static void EquipItem(ref Req req, Client client) {
         var inventorySlot = req.ReadByte();
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var item = client.GetItem(InvType.Player, inventorySlot - 1);
             if(item.Id == 0)
                 return;
@@ -285,7 +293,7 @@ static class Player {
     static void UnEquipItem(ref Req req, Client client) {
         var slot = req.ReadByte() - 1;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             client.GetItem(InvType.Equipment, slot).MoveTo(InvType.Player);
         }
     }
@@ -294,7 +302,7 @@ static class Player {
     static void UnEquipTool(ref Req req, Client client) {
         var slot = req.ReadByte() - 1;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             client.GetItem(InvType.Tool, slot).MoveTo(InvType.Player);
         }
     }
@@ -316,7 +324,9 @@ static class Player {
         var slot = req.ReadByte();
         var itemId = req.ReadInt32();
 
-        client.Player.Quickbar[slot - 1] = itemId;
+        lock(client.Lock) {
+            client.Player.Quickbar[slot - 1] = itemId;
+        }
     }
 
     [Request(0x02, 0x20)] // 005df763 // change player info
@@ -331,19 +341,21 @@ static class Player {
         var hobbies = Encoding.Unicode.GetString(data, 330, 160 * 2); // 330 - 649
         var introduction = Encoding.Unicode.GetString(data, 650, 160 * 2); // 650 - 969
 
-        client.Player.Location = location.TrimEnd('\0');
-        client.Player.FavoriteFood = favoriteFood;
-        client.Player.FavoriteMovie = favoriteMovie;
-        client.Player.FavoriteMusic = favoriteMusic;
-        client.Player.FavoritePerson = favoritePerson.TrimEnd('\0');
-        client.Player.Hobbies = hobbies.TrimEnd('\0');
-        client.Player.Introduction = introduction.TrimEnd('\0');
+        lock(client.Lock) {
+            client.Player.Location = location.TrimEnd('\0');
+            client.Player.FavoriteFood = favoriteFood;
+            client.Player.FavoriteMovie = favoriteMovie;
+            client.Player.FavoriteMusic = favoriteMusic;
+            client.Player.FavoritePerson = favoritePerson.TrimEnd('\0');
+            client.Player.Hobbies = hobbies.TrimEnd('\0');
+            client.Player.Introduction = introduction.TrimEnd('\0');
+        }
     }
 
     [Request(0x02, 0x21)] // 005df7d8
     static void GetPlayerInfo(ref Req req, Client client) {
         var playerId = req.ReadInt16();
-        var player = Program.clients.FirstOrDefault(x => x.Id == playerId);
+        var player = Program.clients[playerId];
 
         if(player != null)
             SendOtherPlayerInfo(client, player.Player);
@@ -431,7 +443,7 @@ static class Player {
         b.WriteByte(player.BloodType); // blood type
         b.WriteByte(player.BirthMonth); // birth month
         b.WriteByte(player.BirthDay); // birth day
-        b.WriteByte(player.GetConstellation()); // constellation // todo: calculate this from brithday
+        b.WriteByte(player.GetConstellation()); // constellation
 
         b.WriteInt(0); // guild id?
 
@@ -522,7 +534,7 @@ static class Player {
 
         // which cards have been collected
         var cardFlags = new BitVector(128);
-        foreach (var item in player.Cards) {
+        foreach(var item in player.Cards) {
             cardFlags[item] = true;
         }
         b.Write(cardFlags);

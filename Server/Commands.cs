@@ -130,7 +130,7 @@ static class Commands {
     }
 
     private static Client FindPlayer(string name) {
-        return Program.clients.FirstOrDefault(x => x.Username == name);
+        return Program.clients.FirstOrDefault(x => x.Value.Username == name).Value;
     }
 
     [Command("help", "display this info")]
@@ -142,7 +142,7 @@ static class Commands {
     public static void Online(string[] args) {
         Console.WriteLine($"There are currently {Program.clients.Count} players online");
 
-        foreach(var client in Program.clients) {
+        foreach(var client in Program.clients.Values) {
             var ip = client.TcpClient.Client.RemoteEndPoint;
 
             if(client.Username == null) {
@@ -189,7 +189,7 @@ static class Commands {
         }
         Client client = null;
         if(IPEndPoint.TryParse(args[1], out var ip)) {
-            client = Program.clients.FirstOrDefault(x => x.TcpClient.Client.RemoteEndPoint.Equals(ip));
+            client = Program.clients.FirstOrDefault(x => x.Value.TcpClient.Client.RemoteEndPoint.Equals(ip)).Value;
         } else {
             client = FindPlayer(args[1]);
         }
@@ -217,7 +217,7 @@ static class Commands {
             Console.WriteLine($"Unknown player {args[1]}");
             return;
         }
-        
+
         var map = int.Parse(args[2]);
         var x = int.Parse(args[3]);
         var y = int.Parse(args[4]);

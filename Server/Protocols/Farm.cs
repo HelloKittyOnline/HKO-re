@@ -13,8 +13,7 @@ static class Farm {
     private static void RequestEnterFarm(ref Req req, Client client) {
         var ownerId = req.ReadInt16();
 
-        var farm = Program.clients.FirstOrDefault(x => x.Id == ownerId && x.InGame)?.Player.Farm;
-        if(farm == null)
+        if(Program.maps[30000 + ownerId * 10] is not Server.Farm farm)
             return;
 
         if(ownerId != client.Id) {
@@ -29,7 +28,7 @@ static class Farm {
         // todo: check if player on valid map and near manager
         client.Player.ReturnMap = client.Player.CurrentMap;
         Player.ChangeMap(client, farm.Id, 576, 656);
-        SetDayTime(new[] { client }, (int)farm.DayTime.TotalMinutes / 10);
+        SetDayTime([client], (int)farm.DayTime.TotalMinutes / 10);
         if(farm.House.BuildingPermit != 0)
             SendHouseData(client, farm.House); // _bug in game does not initialize house on first load
     }
@@ -65,11 +64,9 @@ static class Farm {
         const int harvestTime = 5 * 1000;
 
         client.StartAction(async token => {
-            await Task.Delay(harvestTime);
-            if(token.IsCancellationRequested)
-                return;
+            await Task.Delay(harvestTime, token);
 
-            lock(farm) {
+            lock(client.Lock) {
                 var plant = farm.Plants[index];
 
                 if(plant.SeedId == 0 || plant.State == PlantState.None)
@@ -122,8 +119,7 @@ static class Farm {
     [Request(0x0A, 0x04)] // 00581504
     private static void GetFarmList(ref Req req, Client client) {
         var page = req.ReadInt16();
-
-        SendFarmList(client, page, Program.clients.Where(x => x.InGame).Select(x => x.Player.Farm).ToArray());
+        SendFarmList(client, page, Program.clients.Where(x => x.Value.InGame).Select(x => x.Value.Player.Farm).ToArray());
     }
 
     [Request(0x0A, 0x05)] // 0058153c
@@ -227,7 +223,7 @@ static class Farm {
             return true;
         }
 
-        lock(client.Player) {
+        lock(client.Lock) {
             if(client.GetInv(InvType.Player).GetItemCount(itemId) < count) {
                 return;
             }
@@ -254,13 +250,9 @@ static class Farm {
         const int buildSpeed = 6 * 5 * 10; // 5 per second - building takes 20 mins
         int target = house.Data.Workload;
 
-        client.StartAction(async x => {
+        client.StartAction(async token => {
             while(true) {
-                await Task.Delay(6 * 1000); // 6 seconds per action
-
-                if(x.IsCancellationRequested) {
-                    break;
-                }
+                await Task.Delay(6 * 1000, token); // 6 seconds per action
 
                 house.BuildProgress += buildSpeed;
 

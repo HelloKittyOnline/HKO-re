@@ -156,7 +156,6 @@ static class Database {
         playerData = null;
         discordId = 0;
 
-
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
@@ -174,7 +173,7 @@ static class Database {
 
         var dId = reader.GetUInt64("id");
         discordId = dId;
-        if(Program.clients.Any(x => x.DiscordId == dId)) {
+        if(Program.clients.Any(x => x.Value.DiscordId == dId)) {
             return LoginResponse.AlreadyOnline;
         }
 
@@ -194,7 +193,7 @@ static class Database {
         return LoginResponse.Ok;
     }
 
-    public static void LogOut(ulong discordId, PlayerData data) {
+    public static void LogOut(Client client) {
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
 
@@ -202,12 +201,14 @@ static class Database {
 
         using var command = connection.CreateCommand();
         command.CommandText = "update account set data = @data where id = @discordId";
-        command.Parameters.AddWithValue("discordId", discordId);
+        command.Parameters.AddWithValue("discordId", client.DiscordId);
 
-        if(data == null) {
+        if(client.Player == null) {
             command.Parameters.AddWithValue("data", null);
         } else {
-            command.Parameters.AddWithValue("data", JsonSerializer.Serialize(data, jsonOptions));
+            lock(client.Lock) {
+                command.Parameters.AddWithValue("data", JsonSerializer.Serialize(client.Player, jsonOptions));
+            }
         }
 
         command.ExecuteNonQuery();

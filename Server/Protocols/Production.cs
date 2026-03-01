@@ -39,12 +39,9 @@ static class Production {
         client.StartAction(async token => {
             while(true) {
                 Send01(client, 3, productionTime);
+                await Task.Delay(productionTime, token);
 
-                await Task.Delay(productionTime);
-                if(token.IsCancellationRequested)
-                    break;
-
-                lock(client.Player) {
+                lock(client.Lock) {
                     if(!CheckRequired()) {
                         Send01(client, 1, 0);
                         break;

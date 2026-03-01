@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -39,17 +38,15 @@ class Request : Attribute {
 }
 
 struct Req {
-    private byte[] buffer;
     private int position;
-
-    public byte[] Buffer => buffer;
+    public readonly byte[] Buffer;
 
     public Req(byte[] data) {
-        buffer = data;
+        Buffer = data;
     }
 
     public ReadOnlySpan<byte> ReadBytes(int numBytes) {
-        var span = new ReadOnlySpan<byte>(buffer, position, numBytes);
+        var span = new ReadOnlySpan<byte>(Buffer, position, numBytes);
         position += numBytes;
         return span;
     }
@@ -57,7 +54,7 @@ struct Req {
     public int ReadInt32() => BinaryPrimitives.ReadInt32LittleEndian(ReadBytes(4));
     public ushort ReadUInt16() => BinaryPrimitives.ReadUInt16LittleEndian(ReadBytes(2));
     public short ReadInt16() => BinaryPrimitives.ReadInt16LittleEndian(ReadBytes(2));
-    public byte ReadByte() => buffer[position++];
+    public byte ReadByte() => Buffer[position++];
 
     public string ReadWString() {
         return Encoding.Unicode.GetString(ReadBytes(ReadUInt16())).TrimEnd('\0');

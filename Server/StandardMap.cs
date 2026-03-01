@@ -118,7 +118,7 @@ class MobData : IWriteAble {
         b.WriteInt(Y); // moving?
     }
 
-    public async void QueueRespawn(Instance map) {
+    public async Task QueueRespawn(Instance map) {
         if(isRespawning)
             return;
 
@@ -139,7 +139,7 @@ class MobData : IWriteAble {
 abstract class Instance {
     [JsonIgnore] public int Id { get; set; }
 
-    [JsonIgnore] public virtual IEnumerable<Client> Players => Program.clients.Where(x => x.InGame && x.Player.CurrentMap == Id);
+    [JsonIgnore] public virtual IEnumerable<Client> Players => Program.clients.Select(x => x.Value).Where(x => x.InGame && x.Player.CurrentMap == Id);
     [JsonIgnore] public abstract IReadOnlyCollection<NpcData> Npcs { get; }
     [JsonIgnore] public abstract IReadOnlyCollection<MobData> Mobs { get; }
 
@@ -167,5 +167,5 @@ class StandardMap : Instance {
 }
 
 class DreamRoom : StandardMap {
-    public override IEnumerable<Client> Players { get; } = Enumerable.Empty<Client>();
+    public override IEnumerable<Client> Players { get; } = [];
 }

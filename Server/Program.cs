@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -16,7 +17,7 @@ using Server.Protocols;
 namespace Server;
 
 class Program {
-    internal static Dictionary<int, Instance> maps;
+    internal static ConcurrentDictionary<int, Instance> maps;
 
     internal static Dictionary<int, ManualQuest> minigameQuests;
     internal static Lookup<int, ManualQuest.Sub> questMap;
@@ -42,36 +43,8 @@ class Program {
     // internal static PetLevelup[] petLevelup;
     internal static PetExp[] petExp;
 
-
-    internal static HashSet<Client> clients = new();
+    internal static ConcurrentDictionary<int, Client> clients = new();
     internal static Dictionary<int, Request.ReceiveFunction> handlers;
-
-    static async Task<byte[]> ReadPackage(Client client, byte[] head) {
-        try {
-            if(await client.Stream.ReadAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
-                return null; // if count == 0 connection has been closed properly
-            }
-
-            var length = head[3] | head[4] << 8;
-            if(length > 16 * 1024 * 1024) {
-                return null; // limit maximum package size to prevent oom attack
-            }
-
-            var data = new byte[length];
-            if(await client.Stream.ReadAsync(data, client.Token) != length) {
-                return null;
-            }
-            return data;
-        } catch {
-            if(client.Token.IsCancellationRequested) {
-                // TODO: send disconnect reason?
-                // intentionally disconnected
-            } else {
-                // likely connection reset by peer or read timeout
-            }
-            return null;
-        }
-    }
 
     static bool HandleRequest(Client client, Req r) {
         var major = r.ReadByte();
@@ -103,9 +76,19 @@ class Program {
         var head = new byte[5];
 
         while(true) {
-            var data = await ReadPackage(client, head);
-            if(data == null)
+            if(await client.TcpClient.Client.ReceiveAsync(head, client.Token) != 5 || head[0] != '^' || head[1] != '%' || head[2] != '*') {
+                break; // if count == 0 connection has been closed properly
+            }
+
+            var length = head[3] | head[4] << 8;
+            if(length > 16 * 1024 * 1024) {
+                break; // limit maximum package size to prevent oom attack
+            }
+
+            var data = new byte[length];
+            if(await client.TcpClient.Client.ReceiveAsync(data, client.Token) != length) {
                 break;
+            }
 
             if(Logging.Logger.IsEnabled(LogEventLevel.Verbose)) { // extra check to prevent boxing
 #if DEBUG
@@ -136,40 +119,49 @@ class Program {
     }
 
     static async Task ListenClient(Client client) {
-        lock(clients)
-            clients.Add(client);
+        clients[client.Id] = client;
 
+        Login.SendLobby(client);
         try {
-            Login.SendLobby(client);
             await RecieveLoop(client);
         } catch(Exception e) {
-            Logging.Logger.Error(e, "[{username}_{userID}] Error:", client.Username, client.DiscordId);
+            if(client.Token.IsCancellationRequested) {
+                Debug.Assert(e is OperationCanceledException);
+            } else {
+                Logging.Logger.Error(e, "[{username}_{userID}] Error:", client.Username, client.DiscordId);
+            }
         }
 
-        lock(clients)
-            clients.Remove(client);
+        clients.Remove(client.Id, out var _);
 
+        client.Close();
         client.TcpClient.Close();
         IdManager.FreeId(client.Id);
 
-        if(client.Username != null) {
-            if(client.InGame) { // remove player from maps
-                client.InGame = false;
+        if(client.Username == null)
+            return; // not logged in so no need for cleanup
 
-                Player.LeaveMap(client);
+        if(client.InGame) {
+            Debug.Assert(client.Player != null);
+            client.InGame = false;
 
-                try {
-                    // TODO: kick other players from farm/house
-                    /*foreach (var player in client.Player.Farm.Players) {
-                        Player.ReturnFromFarm(player);
-                    }*/
-                    // remove player associated maps
-                    maps.Remove(client.Player.Farm.Id);
-                    maps.Remove(client.Player.Farm.House.Floor0.Id);
-                    maps.Remove(client.Player.Farm.House.Floor1.Id);
-                    maps.Remove(client.Player.Farm.House.Floor2.Id);
-                } catch { }
-            }
+            // remove player from map
+            Player.LeaveMap(client);
+
+            /*
+            try {
+                // TODO: kick other players from farm/house
+                foreach (var player in client.Player.Farm.Players) {
+                    Player.ReturnFromFarm(player);
+                }
+            } catch { }
+            */
+
+            // remove player associated maps
+            maps.Remove(client.Player.Farm.Id, out var _);
+            maps.Remove(client.Player.Farm.House.Floor0.Id, out var _);
+            maps.Remove(client.Player.Farm.House.Floor1.Id, out var _);
+            maps.Remove(client.Player.Farm.House.Floor2.Id, out var _);
 
             if(client.Player.MapType is 3 or 4) {
                 var map = maps[client.Player.ReturnMap];
@@ -185,10 +177,10 @@ class Program {
                     client.Player.PositionY = 6007;
                 }
             }
-
-            Database.LogOut(client.DiscordId, client.Player);
-            Logging.Logger.Information("[{username}_{userID}] Player disconnected", client.Username, client.DiscordId);
         }
+
+        Database.LogOut(client);
+        Logging.Logger.Information("[{username}_{userID}] Player disconnected", client.Username, client.DiscordId);
     }
 
     private static async Task Server(int port, CancellationToken token) {
@@ -203,16 +195,19 @@ class Program {
             try {
                 // throws if cancellation token is triggered
                 tcpClient = await server.AcceptTcpClientAsync(token);
-                tcpClient.ReceiveTimeout = 20 * 1000;
-                tcpClient.SendTimeout = 20 * 1000;
-            } catch when(token.IsCancellationRequested) {
+            } catch(Exception e) {
+                if(token.IsCancellationRequested) {
+                    Debug.Assert(e is OperationCanceledException);
+                } else {
+                    Logging.Logger.Error(e, "AcceptTcpClientAsync failed");
+                }
                 break;
             }
 
             Logging.Logger.Information("Connection from {ip}", tcpClient.Client.RemoteEndPoint);
 
             var client = new Client(tcpClient);
-            client.RunTask = Task.Run(() => ListenClient(client));
+            client.RunTask = Task.Run(() => ListenClient(client), client.Token);
         }
         server.Stop();
     }
@@ -350,23 +345,21 @@ class Program {
         Database.SetConnectionString(sb.ConnectionString);
         Commands.RunConsole();
 
-        Task.Run(Farm.FarmThread);
+        Task.Run(() => Farm.FarmThread(serverTokenSource.Token), serverTokenSource.Token);
         await Server(25000, serverTokenSource.Token);
 
         Logging.Logger.Information("Stopping server...");
 
         // start logging out all users
         foreach(var client in clients) {
-            client.Close();
+            client.Value.Close();
         }
 
         // wait for all users to finish logging out
-        var tasks = clients.ToArray();
-        for (int i = 0; i < tasks.Length; i++) {
-            var client = tasks[i];
+        foreach(var client in clients.Values) {
             try {
                 client.RunTask.Wait();
-            } catch (Exception e) {
+            } catch(Exception e) {
                 Logging.Logger.Error(e, "[{username}_{userID}] Error while waiting for clients to disconnect", client.Username, client.DiscordId);
             }
         }

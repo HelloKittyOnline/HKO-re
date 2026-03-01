@@ -14,7 +14,7 @@ static class Inventory {
         var toInv = req.ReadByte();
         var toPos = req.ReadByte() - 1;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var from = client.GetItem(fromInv, fromPos);
             var to = client.GetItem(toInv, toPos);
             from.MoveTo(to);
@@ -25,7 +25,7 @@ static class Inventory {
     static void MoveToInv(ref Req req, Client client) {
         var a = req.ReadByte() - 1;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             client.GetItem(InvType.Farm, a).MoveTo(InvType.Player);
         }
     }
@@ -33,7 +33,7 @@ static class Inventory {
     [Request(0x09, 0x03)] // 005870bc
     static void MoveToFarm(ref Req req, Client client) {
         var a = req.ReadByte() - 1;
-        lock(client.Player) {
+        lock(client.Lock) {
             client.GetItem(InvType.Player, a).MoveTo(InvType.Farm);
         }
     }
@@ -45,7 +45,7 @@ static class Inventory {
         if(count == 0)
             return;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var item = client.GetItem(InvType.Player, pos);
             if(item.Id == 0 || item.Count <= count)
                 return;
@@ -81,7 +81,7 @@ static class Inventory {
         var d = req.ReadInt32();
         var e = req.ReadInt32();
 
-        lock(client.Player) {
+        lock(client.Lock) {
             if(slot - 1 >= client.Player.InventorySize)
                 return;
 
@@ -360,7 +360,7 @@ static class Inventory {
         var slot = req.ReadByte() - 1;
         var inventory = req.ReadByte();
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var item = client.GetItem(inventory, slot);
             if((item.Item.Data.Transferable & TransferFlag.NON_DROPPABLE) != 0) {
                 Player.SendMessage(client, Player.MessageType.You_cannot_drop_this_item);
@@ -391,7 +391,7 @@ static class Inventory {
         if(order == null)
             return;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             if(client.AddItem(order.ItemId, 1, true)) {
                 SendGotDelivery(client, "", orderId);
                 Database.DeleteOrder(orderId);

@@ -152,10 +152,10 @@ class PetData : IWriteAble {
     public static async Task PetTask(Client client) {
         bool odd = false;
 
-        while(client.InGame) {
-            await Task.Delay(60 * 1000); // wait 1 minute
+        while(true) {
+            await Task.Delay(60 * 1000, client.Token); // wait 1 minute
 
-            lock(client.Player) {
+            lock(client.Lock) {
                 for(int i = 0; i < 3; i++) {
                     var p = client.Player.Pets[i];
                     if(p == null)

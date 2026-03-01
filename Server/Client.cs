@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,34 +11,35 @@ using Server.Protocols;
 namespace Server;
 
 class Client {
-    public short Id { get; }
+    public readonly short Id;
     public bool InGame { get; set; }
 
-    public TcpClient TcpClient { get; }
-    public NetworkStream Stream { get; }
+    public readonly TcpClient TcpClient;
 
     public string Username { get; set; }
     public ulong DiscordId { get; set; }
     public PlayerData Player { get; set; }
 
-    private CancellationTokenSource ConnectionSource;
+    private readonly CancellationTokenSource ConnectionSource;
     public CancellationToken Token => ConnectionSource.Token;
     public Task RunTask;
 
     private CancellationTokenSource actionToken;
 
-    private Queue<ArraySegment<byte>> sendBuffer = new();
-    private bool sending = false;
+    private readonly SemaphoreSlim sem = new(0);
+    private readonly Queue<ArraySegment<byte>> sendBuffer = new();
+
+    public readonly Lock Lock = new();
 
     public Client(TcpClient client) {
         Id = (short)IdManager.GetId();
         InGame = false;
 
         TcpClient = client;
-        Stream = TcpClient.GetStream();
 
         ConnectionSource = new CancellationTokenSource();
         ResetTimeout();
+        Task.Run(SendTask, Token);
     }
 
     // called from 00_63. will time out if ping does not arrive in 20 seconds
@@ -116,7 +118,7 @@ class Client {
     }
 
     public void SetQuestFlag(int questId, byte flag) {
-        lock(Player) {
+        lock(Lock) {
             Player.QuestFlags1.TryGetValue(questId, out var val); // defaults to 0
             if((val & (1u << flag)) != 0)
                 return; // skip if flag already set
@@ -135,6 +137,7 @@ class Client {
             try {
                 onCancel();
             } catch {
+                Logging.Logger.Error("[{username}_{userID}] onCancel failed", Username, DiscordId);
                 Close();
             }
             if(actionToken == source)
@@ -143,13 +146,13 @@ class Client {
 
         try {
             await action(actionToken.Token);
-        } catch(ObjectDisposedException e) when(e.ObjectName == "System.Net.Sockets.NetworkStream") {
-            Logging.Logger.Information("[{username}_{userID}] Disconnected while performing action", Username, DiscordId);
-
-            Close();
         } catch(Exception e) {
-            Logging.Logger.Write(LogEventLevel.Error, e, "[{username}_{userID}] Async error", Username, DiscordId);
-            Close();
+            if(actionToken.Token.IsCancellationRequested) {
+                Debug.Assert(e is OperationCanceledException);
+            } else {
+                Logging.Logger.Write(LogEventLevel.Error, e, "[{username}_{userID}] Async error", Username, DiscordId);
+                Close();
+            }
         }
 
         // action completed
@@ -172,32 +175,26 @@ class Client {
     public void Send(ArraySegment<byte> data) {
         lock(sendBuffer) {
             sendBuffer.Enqueue(data);
-            if(sending)
-                return;
-
-            sending = true;
-            Task.Run(SendTask);
         }
+        sem.Release();
     }
 
     private async Task SendTask() {
-        while(true) {
-            ArraySegment<byte> buffer;
-            lock(sendBuffer) {
-                if(sendBuffer.Count == 0) {
-                    sending = false;
-                    return;
+        try {
+            while(true) {
+                await sem.WaitAsync(Token);
+
+                ArraySegment<byte> buffer;
+                lock(sendBuffer) {
+                    Debug.Assert(sendBuffer.Count > 0, "sendBuffer.Count has to be > 0 before semaphore fires");
+                    buffer = sendBuffer.Dequeue();
                 }
 
-                buffer = sendBuffer.Dequeue();
+                await TcpClient.Client.SendAsync(buffer, Token);
             }
-
-            try {
-                await Stream.WriteAsync(buffer);
-            } catch {
-                Close();
-            }
+        } catch {
+            // IOException, ObjectDisposedException or OperationCanceledException
+            Close();
         }
     }
-
 }

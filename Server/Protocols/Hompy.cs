@@ -147,7 +147,7 @@ static class Hompy {
     public static void RemoveAllFurniture(ref Req req, Client client) {
         var house = client.Player.Farm.House;
 
-        lock(house) {
+        lock(client.Lock) {
             var inv = client.GetInv(InvType.Player);
             var fi = client.GetInv(InvType.Farm);
 

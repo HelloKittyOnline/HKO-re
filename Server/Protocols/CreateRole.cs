@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Text;
 
 namespace Server.Protocols;
@@ -10,7 +11,7 @@ static class CreateRole {
         req.ReadByte(); // 0
 
         var data = req.DecodeCrazy();
-        // data.length == 124
+        Debug.Assert(data.Length == 124);
 
         var name = Encoding.Unicode.GetString(data[..64]);
         // cut of null terminated
@@ -19,28 +20,33 @@ static class CreateRole {
         var entities = new int[18];
         Buffer.BlockCopy(data, 68, entities, 0, 14 * 4);
 
-        client.Player = new PlayerData(
-            name,
-            data[64], // 1 = male, 2 = female
-            data[65], // 1 = O, 2 = A, 3 = B, 4 = AB
-            data[66], // birthMonth
-            data[67], // birthDay
-            entities);
+        lock(client.Lock) {
+            client.Player = new PlayerData(
+                name,
+                data[64], // 1 = male, 2 = female
+                data[65], // 1 = O, 2 = A, 3 = B, 4 = AB
+                data[66], // birthMonth
+                data[67], // birthDay
+                entities);
 
-        client.Player.Init(client);
-
-        SendCharacterData(client);
+            client.Player.Init(client);
+            SendCharacterData(client);
+        }
     }
 
     [Request(0x01, 0x02)] // 00566b72
     static void GetCharacter(ref Req req, Client client) {
-        SendCharacterData(client);
+        lock(client.Player) {
+            SendCharacterData(client);
+        }
     }
 
     [Request(0x01, 0x03)] // 00566bce // Delete character
     static void DeleteCharacter(ref Req req, Client client) {
-        client.Player = null;
-        SendCharacterData(client);
+        lock(client.Player) {
+            client.Player = null;
+            SendCharacterData(client);
+        }
     }
 
     [Request(0x01, 0x05)] // 00566c47 // check character name
@@ -55,7 +61,7 @@ static class CreateRole {
     #region Response
     // 01_02
     // triggers character creation
-    public static void SendCharacterData(Client client) {
+    static void SendCharacterData(Client client) {
         var b = new PacketBuilder(0x01, 0x02);
 
         if(client.Player == null) {

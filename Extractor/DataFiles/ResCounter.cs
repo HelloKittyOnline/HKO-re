@@ -5,8 +5,6 @@ namespace Extractor;
 
 [SeanItem(51)]
 public struct ResCounter {
-    private static readonly Random rng = new();
-
     [SeanField(0)] public int Id { get; set; }
     [SeanField(1, 25)] public Item[] Items { get; set; }
     private int _max;
@@ -21,8 +19,8 @@ public struct ResCounter {
         _max = Items.Sum(x => x.Chance);
     }
 
-    public int GetRandom() {
-        var rand = rng.Next(_max);
+    public readonly int GetRandom() {
+        var rand = Random.Shared.Next(_max);
 
         var total = 0;
         foreach(var el in Items) {

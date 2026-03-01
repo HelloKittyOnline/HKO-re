@@ -39,7 +39,7 @@ static class Npc {
         var npcId = req.ReadInt32();
         int dialog = GetNextDialog(client, npcId);
 
-        lock(client.Player) {
+        lock(client.Lock) {
             if(Program.npcEncyclopedia.TryGetValue(npcId, out var id)) {
                 client.Player.Npcs.Add(id);
             }
@@ -63,7 +63,7 @@ static class Npc {
         if(sub is null)
             return; // wrong id?
 
-        lock(client.Player) {
+        lock(client.Lock) {
             if(rewardSelect == 0 && sub.Rewards.Any(x => x is Reward.Select))
                 return; // no reward selected
 
@@ -109,9 +109,12 @@ static class Npc {
     static void CancelQuest(ref Req req, Client client) {
         var questId = req.ReadInt32();
 
-        // TODO: gracefully handle canceling quests
-        if(client.Player.QuestFlags[questId] == QuestStatus.Running)
-            client.Player.QuestFlags[questId] = QuestStatus.None;
+        lock(client.Lock) {
+            // TODO: gracefully handle canceling quests (take back given items etc..)
+            if(client.Player.QuestFlags[questId] == QuestStatus.Running)
+                client.Player.QuestFlags[questId] = QuestStatus.None;
+        }
+
         SendDeleteQuest(client, questId);
     }
 
@@ -137,12 +140,12 @@ static class Npc {
         if(quest.Minigame.Score > score)
             return; // score not met
 
-        if(client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10) {
-            Player.SendMessage(client, Player.MessageType.Quest_Log_is_full);
-            return; // quest limit reached
-        }
+        lock(client.Lock) {
+            if(client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10) {
+                Player.SendMessage(client, Player.MessageType.Quest_Log_is_full);
+                return; // quest limit reached
+            }
 
-        lock(client.Player) {
             if(!quest.Sections.Any(x => x.Rewards.Any(y => y is Reward.StartMinigame) && x.CheckRequirements(client)))
                 return; // starting condition not met
 
@@ -150,9 +153,10 @@ static class Npc {
                 return; // quest already completed so no reward
 
             client.Player.QuestFlags[quest.Id] = QuestStatus.Running;
+
+            SendNewQuest(client, quest.Id);
+            UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
         }
-        SendNewQuest(client, quest.Id);
-        UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
     }
 
     [Request(0x05, 0x0B)] // // 0057431e
@@ -162,7 +166,7 @@ static class Npc {
     static void CollectCheckpoint(ref Req req, Client client) {
         var id = req.ReadInt32();
 
-        lock(client.Player) {
+        lock(client.Lock) {
             client.Player.CheckpointFlags.TryGetValue(id, out var val);
             if(val != 1)
                 return;

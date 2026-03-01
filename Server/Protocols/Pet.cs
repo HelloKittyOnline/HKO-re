@@ -26,12 +26,11 @@ static class Pet {
     public const int pettingCooldown = 60; // 004f323d
     public const int pettingGain = 5;
 
-    static Random feed_rng = new();
     public static void DoFeed(Client owner, Client actor, ItemRef item) {
         Debug.Assert(item.type == InvType.Player);
         Debug.Assert(item.Item.Data.Type == ItemType.Pet_Food);
 
-        // todo: whate are the actual times?
+        // todo: what are the actual times?
         const int duration = 5 * 1000; // in ms
         const int cooldown = 120; // 004f3247
 
@@ -51,12 +50,9 @@ static class Pet {
             SendFeedingProgress(actor, owner == actor ? 0 : 3);
         }
 
-        actor.StartAction(async (token) => {
+        actor.StartAction(async token => {
             SendFeedingProgress(actor, 1, duration);
-            await Task.Delay(duration);
-
-            if(token.IsCancellationRequested)
-                return;
+            await Task.Delay(duration, token);
 
             // technically this is not 100% thread safe but making multiplayer interactions atomic is very hard
             if(pet != owner.Player.Pet) { // pet changed
@@ -65,7 +61,7 @@ static class Pet {
             }
 
             // try to remove food from actors inventory
-            lock(actor.Player) {
+            lock(actor.Lock) {
                 var nItem = actor.GetItem(InvType.Player, itemSlot);
                 if(nItem.Id == itemId && nItem.Count > 0) {
                     nItem.Remove(1);
@@ -75,12 +71,10 @@ static class Pet {
                 }
             }
 
-            lock(owner.Player) {
+            lock(owner.Lock) {
                 pet.Hunger = Math.Clamp(pet.Hunger + food.Fullness, 0, 240);
-                lock(feed_rng) {
-                    if(feed_rng.Next(10000) < food.ExpChance) {
-                        pet.AddExp(food.ExpAmount, owner);
-                    }
+                if(Random.Shared.Next(10000) < food.ExpChance) {
+                    pet.AddExp(food.ExpAmount, owner);
                 }
 
                 // pet.NextFeedTime = DateTimeOffset.UtcNow.AddSeconds(cooldown);
@@ -90,12 +84,10 @@ static class Pet {
                     SendSetEatingCooldown(owner, id, cooldown);
                     Task.Run(async () => {
                         for(int i = cooldown - 1; i >= 0; i--) {
-                            await Task.Delay(1000);
-                            if(!owner.InGame)
-                                break;
+                            await Task.Delay(1000, owner.Token);
                             SendSetEatingCooldown(owner, id, i);
                         }
-                    });
+                    }, owner.Token);
                 }
 
                 // after 2 minutes becomes dirty
@@ -103,8 +95,11 @@ static class Pet {
                     // only start if pet is clean and no other cooldown is running
                     pet.DirtyState = 1;
 
-                    Task.Delay(cooldown * 1000).ContinueWith((t) => {
-                        lock(owner.Player) {
+                    Task.Delay(cooldown * 1000, owner.Token).ContinueWith((t) => {
+                        if(owner.Token.IsCancellationRequested)
+                            return;
+
+                        lock(owner.Lock) {
                             // not the same pet anymore
                             if(pet != owner.Player.Pets[id])
                                 return;
@@ -126,7 +121,7 @@ static class Pet {
     static void DoClean(Client owner, Client actor) {
         const int duration = 5 * 1000; // in ms
 
-        lock(owner.Player) {
+        lock(owner.Lock) {
             var pet = owner.Player.Pet;
             if(pet == null)
                 return;
@@ -137,12 +132,9 @@ static class Pet {
 
             actor.StartAction(async (token) => {
                 SendCleaningProgress(actor, 1, duration);
-                await Task.Delay(duration);
+                await Task.Delay(duration, token);
 
-                if(token.IsCancellationRequested)
-                    return;
-
-                lock(owner.Player) {
+                lock(owner.Lock) {
                     if(pet != owner.Player.Pet)
                         return; // pet changed
                     if(pet.DirtyState != 2)
@@ -170,7 +162,7 @@ static class Pet {
         if(id < 0 || id >= 3)
             return;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var pet = client.Player.Pets[id];
             if(pet == null)
                 return;
@@ -189,7 +181,7 @@ static class Pet {
 
     [Request(0x0D, 0x03)] // 0053698a
     static void RemoveActivePet(ref Req req, Client client) {
-        lock(client.Player) {
+        lock(client.Lock) {
             if(client.Player.ActivePet == -1)
                 return;
             client.Player.ActivePet = -1;
@@ -207,7 +199,7 @@ static class Pet {
         if(id < 0 || id >= 3)
             return;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var pet = client.Player.Pets[id];
             if(pet == null)
                 return;
@@ -237,7 +229,7 @@ static class Pet {
 
     [Request(0x0D, 0x09)] // 00536bea
     static void PetPet(ref Req req, Client client) {
-        lock(client.Player) {
+        lock(client.Lock) {
             if(client.Player.ActivePet == -1)
                 return;
 
@@ -249,7 +241,9 @@ static class Pet {
             SendShowEmoji(client.Player.Map.Players, client.Id, 1);
 
             SendSetPettingCooldown(client, pettingCooldown);
-            Task.Delay(pettingCooldown * 1000).ContinueWith((t) => {
+            Task.Delay(pettingCooldown * 1000, client.Token).ContinueWith((t) => {
+                if(client.Token.IsCancellationRequested)
+                    return;
                 // game does not clear cooldown by itself
                 SendSetPettingCooldown(client, 0);
             });
@@ -271,7 +265,7 @@ static class Pet {
         if(id == -1)
             return;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             var pet = client.Player.Pets[id];
 
             if(client.AddItem(new InventoryItem { Id = pet.CardItemId, Count = 1, Charges = (byte)pet.Level }, false)) {
@@ -299,7 +293,7 @@ static class Pet {
         if(petInfo.parent1_id == 0 || petInfo.parent2_id == 0)
             return;
 
-        lock(client.Player) {
+        lock(client.Lock) {
             if(client.Player.Levels[(int)Skill.General] < 20) {
                 SendBreedResult(client, 1, itemInfo.SubId, 20, 0); // player level too low
                 return;
@@ -376,9 +370,9 @@ static class Pet {
     static void PetOtherPet(ref Req req, Client client) {
         var ownerId = req.ReadInt32();
 
-        var owner = Program.clients.FirstOrDefault(x => x.Id == ownerId);
+        var owner = Program.clients[ownerId];
         if(owner != null) {
-            lock(owner.Player) {
+            lock(owner.Lock) {
                 if(owner.Player.ActivePet == -1)
                     return;
 
@@ -402,7 +396,7 @@ static class Pet {
         if(item.Item.Data.Type != ItemType.Pet_Food)
             return;
 
-        var owner = Program.clients.FirstOrDefault(x => x.Id == ownerId);
+        var owner = Program.clients[ownerId];
         if(owner != null) {
             DoFeed(owner, client, item);
         }
@@ -412,7 +406,7 @@ static class Pet {
     static void OpenOtherPetInfo(ref Req req, Client client) {
         var ownerId = req.ReadInt32();
 
-        var other = Program.clients.FirstOrDefault(x => x.Id == ownerId);
+        var other = Program.clients[ownerId];
         if(other != null && other.Player.ActivePet != -1) {
             SendOtherPetInfo(client, other);
         }
@@ -423,7 +417,7 @@ static class Pet {
         // Clean other pet
         var ownerId = req.ReadInt32();
 
-        var owner = Program.clients.FirstOrDefault(x => x.Id == ownerId);
+        var owner = Program.clients[ownerId];
         if(owner != null) {
             DoClean(owner, client);
         }
