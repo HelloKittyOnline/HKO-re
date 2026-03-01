@@ -85,16 +85,17 @@ class PlayerData {
 
     public int PositionX { get; set; } = 352;
     public int PositionY { get; set; } = 688;
-    public byte Rotation { get; set; }
-    [JsonIgnore]
-    public byte Speed => 200;
+    [JsonIgnore] public byte Rotation { get; set; } = 4;
+    [JsonIgnore] public byte Speed => 200;
 
     // animation state
-    [JsonIgnore]
-    public byte State { get; set; }
+    // 1 = standing
+    // 3 = sitting
+    // 4 = gathering
+    [JsonIgnore] public byte State { get; set; }
+
     // status icon
-    [JsonIgnore]
-    public int Status { get; set; }
+    [JsonIgnore] public int Status { get; set; }
 
     public string Name { get; set; }
     public byte Gender { get; set; }
@@ -127,13 +128,14 @@ class PlayerData {
     // TODO: cache active quests?
     public Dictionary<int, QuestStatus> QuestFlags { get; set; } // todo: eventually rename to globalFlags
     public Dictionary<int, int> CheckpointFlags { get; set; }
-    public Dictionary<int, uint> QuestFlags1 { get; set; } // TODO: cache active quests?
+    public Dictionary<int, uint> QuestFlags1 { get; set; }
 
     // used for encyclopedia
     public HashSet<int> Npcs { get; set; }
     public HashSet<int> Keys { get; set; }
     public HashSet<int> Dreams { get; set; }
     public HashSet<int> Cards { get; set; }
+    public BitVector VisitedMaps { get; set; }
 
     [JsonIgnore]
     public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
@@ -154,7 +156,7 @@ class PlayerData {
     public string Hobbies { get; set; } = "";
     public string Introduction { get; set; } = "";
 
-    public byte[] ProductionFlags { get; set; }
+    public BitVector ProductionFlags { get; set; }
 
     public List<int> OwnedFarms { get; set; }
     public Farm Farm { get; set; }
@@ -184,7 +186,6 @@ class PlayerData {
         Levels = new short[9];
         Exp = new int[9];
         Friendship = new short[7];
-        ProductionFlags = new byte[576];
 
         for(int i = 0; i < 9; i++) {
             Levels[i] = 1;
@@ -193,7 +194,7 @@ class PlayerData {
 
     internal void Init(Client client) {
         // todo: remove down the line
-        ProductionFlags ??= new byte[576];
+        ProductionFlags ??= new BitVector(576);
         CheckpointFlags ??= [];
         Npcs ??= [];
         Keys ??= [];
@@ -229,6 +230,11 @@ class PlayerData {
                 Pets[i] = null;
             Pets[i]?.calcStats();
         }
+
+        VisitedMaps ??= new BitVector(32);
+        VisitedMaps[1] = true; // starting map: Dream Room 1
+
+        // todo: ensure all fixed arrays are the right size in case something changes
 
         // Dynamically load Display Entities
         DisplayEntities = new int[18];

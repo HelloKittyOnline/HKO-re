@@ -65,13 +65,6 @@ static class Inventory {
         }
     }
 
-    static bool GetBit(this byte[] data, int index) {
-        return (data[index >> 3] & (1 << (index & 7))) != 0;
-    }
-    static void SetBit(this byte[] data, int index) {
-        data[index >> 3] |= (byte)(1 << (index & 7));
-    }
-
     [Request(0x09, 0x0F)] // 00587207
     static void UseItem(ref Req req, Client client) {
         var slot = req.ReadByte();
@@ -184,12 +177,12 @@ static class Inventory {
             return;
         }
 
-        if(client.Player.ProductionFlags.GetBit(prodRule)) {
+        if(client.Player.ProductionFlags[prodRule]) {
             SendUsedSkillBook(client, SkillUsedFlag.AlreadyKnow, prodRule);
             return;
         }
 
-        client.Player.ProductionFlags.SetBit(prodRule);
+        client.Player.ProductionFlags[prodRule] = true;
         item.Remove(1);
 
         SendUsedSkillBook(client, SkillUsedFlag.Success, prodRule);
@@ -439,6 +432,8 @@ static class Inventory {
 
         b.Send(client);
     }
+
+    // 09_04 - tool broke message?
 
     // 09_05
     public static void SendSetFarmItem(Client client, InventoryItem item, byte index) {

@@ -26,8 +26,8 @@ public enum ItemType {
     Pet_Bag = 20,
     // 21
     // 22
-    // 23
-    // 24
+    Item_Mall_Consumable = 23,
+    Reusable_Express_Ticket = 24,
     Bingo_Card = 25,
     // 26
     Guild_Petition_Form = 27,

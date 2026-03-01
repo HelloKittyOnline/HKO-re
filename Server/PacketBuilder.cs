@@ -69,6 +69,9 @@ struct PacketBuilder {
     public void WriteInt(int v) {
         writer.Write(v);
     }
+    public void WriteDouble(double v) {
+        writer.Write(v);
+    }
     public void Write0(int bytes) {
         Span<byte> buffer = stackalloc byte[Math.Min(bytes, 1024)];
 

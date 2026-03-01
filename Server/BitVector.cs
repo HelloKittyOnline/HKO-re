@@ -1,5 +1,10 @@
-﻿namespace Server;
+﻿using System;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
+namespace Server;
+
+[JsonConverter(typeof(Converter))]
 internal class BitVector : IWriteAble {
     private byte[] Bytes { get; }
 
@@ -22,4 +27,11 @@ internal class BitVector : IWriteAble {
     }
 
     public void Write(ref PacketBuilder b) => b.Write(Bytes);
+
+    public class Converter : JsonConverter<BitVector> {
+        public override BitVector Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            new(reader.GetBytesFromBase64());
+        public override void Write(Utf8JsonWriter writer, BitVector temperature, JsonSerializerOptions options) => 
+            writer.WriteBase64StringValue(temperature.Bytes);
+    }
 }

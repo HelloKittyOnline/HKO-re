@@ -96,6 +96,9 @@ static class Player {
         lock(client.Player) {
             LeaveMap(client);
 
+            if(map < 256)
+                client.Player.VisitedMaps[map] = true;
+
             client.Player.CurrentMap = map;
             client.Player.PositionX = x;
             client.Player.PositionY = y;
@@ -207,9 +210,6 @@ static class Player {
     [Request(0x02, 0x08)] // 005df2b4
     static void SetPlayerState(ref Req req, Client client) {
         var state = req.ReadInt16();
-        // 1 = standing
-        // 3 = sitting
-        // 4 = gathering
 
         client.Player.State = (byte)state;
         SendPlayerState(client);
@@ -314,9 +314,10 @@ static class Player {
         client.CancelAction();
     }
 
-    [Request(0x02, 0x1A)] // 005df655 // sent after 02_09
-    static void Recieve_02_1A(ref Req req, Client client) {
+    [Request(0x02, 0x1A)] // 005df655
+    static void RecieveGetServerTime(ref Req req, Client client) {
         var winmTime = req.ReadInt32();
+        SendServerTime(client, winmTime);
     }
 
     [Request(0x02, 0x1f)] // 005df6e3 // set quickbar item
@@ -361,17 +362,60 @@ static class Player {
             SendOtherPlayerInfo(client, player.Player);
     }
 
-    /*
     [Request(0x02, 0x28)] // 005df86e
+    static void Recv28(ref Req req, Client client) { throw new NotImplementedException(); }
+
     [Request(0x02, 0x29)] // 005df8e4
-    [Request(0x02, 0x2B)] // 005df9cb
-    [Request(0x02, 0x2C)] // 005dfa40
-    [Request(0x02, 0x2D)] // 005dfab4
-    */
+    static void Recv29(ref Req req, Client client) { throw new NotImplementedException(); }
+
     [Request(0x02, 0x2A)] // 005df946 // sent from the same function as 0x0A why?
-    static void Recv2A(ref Req req, Client client) {
-        // todo: what to do with this?
+    static void Recv2A(ref Req req, Client client) { throw new NotImplementedException(); }
+
+    [Request(0x02, 0x2B)] // 005df9cb
+    static void RecvTakeSunbrightExpress(ref Req req, Client client) {
+        var mapId = req.ReadInt32();
+        var npcId = req.ReadInt32();
+
+        // the train system was changed from the original implementation quite a bit
+        // instead of having premium tickets and a reusable bronze tickets from a quest
+        // we made the train conductor sell single use bronze tickets
+
+        if(mapId < 249 || mapId > 256) {
+            return; // not a valid destination
+        }
+
+        // from "game_const.txt"
+        const int Train_Waiting_Time = 2;
+        const int Train_Boarding_Time = 2;
+        if(DateTimeOffset.Now.Minute % (Train_Waiting_Time + Train_Boarding_Time) < Train_Waiting_Time) {
+            SendTakeSunbrightExpress(client, 1);
+            return;
+        }
+
+        lock(client.Lock) {
+            // depends on ticket type but we don't support premium tickets yet
+            if(!client.Player.VisitedMaps[mapId]) {
+                SendTakeSunbrightExpress(client, 4);
+                return;
+            }
+            // bronze ticket sold by conductor
+            if(!client.RemoveItem(106, 1)) {
+                SendTakeSunbrightExpress(client, 2);
+                return;
+            }
+            // keep position since all train stations are the same
+            // todo: is there some kind of cutscene
+
+            SendTakeSunbrightExpress(client, 0);
+            ChangeMap(client, mapId, client.Player.PositionX, client.Player.PositionY);
+        }
     }
+
+    [Request(0x02, 0x2C)] // 005dfa40
+    static void Recv2C(ref Req req, Client client) { throw new NotImplementedException(); }
+
+    [Request(0x02, 0x2D)] // 005dfab4
+    static void Recv2D(ref Req req, Client client) { throw new NotImplementedException(); }
 
     [Request(0x02, 0x32)] // 005dfb8c //  client version information
     static void CheckPackageVersions(ref Req req, Client client) {
@@ -395,10 +439,14 @@ static class Player {
         */
     }
 
-    /*
     [Request(0x02, 0x33)] // 005dfc04
+    static void Recv33(ref Req req, Client client) { throw new NotImplementedException(); }
+
     [Request(0x02, 0x34)] // 005dfc78
-    [Request(0x02, 0x63)] // 005dfcee*/
+    static void Recv34(ref Req req, Client client) { throw new NotImplementedException(); }
+
+    [Request(0x02, 0x63)] // 005dfcee
+    static void Recv63(ref Req req, Client client) { throw new NotImplementedException(); }
     #endregion
 
     static void writeFriend(PacketBuilder w) {
@@ -563,7 +611,13 @@ static class Player {
         b.WritePadWString(player.Introduction, 160 * 2);
 
         // 0x86aa
-        b.Write0(0x92E0 - 0x86aa);
+        b.Write0(0x8cb8 - 0x86aa);
+
+        // 0x8cb8
+        b.Write(player.VisitedMaps);
+
+        // 0x8cd8
+        b.Write0(0x92E0 - 0x8cd8);
         // 0x92E0
 
         var npcFlags = new BitVector(64);
@@ -801,6 +855,8 @@ static class Player {
         b.Send(client);
     }
 
+    // 02_0D
+
     // 02_0E
     public static void SendSkillChange(Client client, Skill skill, bool showMessage) {
         var b = new PacketBuilder(0x02, 0x0E);
@@ -837,7 +893,7 @@ static class Player {
     }
 
     // 02_12
-    public static void SendPlayerHpSta(Client client) {
+    public static void SendPlayerHpSta(Client client) { // can also be used to update other player stats?
         var b = new PacketBuilder(0x02, 0x12);
 
         b.WriteShort(client.Id); // player id
@@ -867,6 +923,8 @@ static class Player {
         w.WriteShort((short)tp.WarningStringId);
         w.WriteInt(0); // keyItem
     }
+
+    // 02_13
 
     // 02_14 / 02_15
     static void SendTeleporters(Client client, IReadOnlyCollection<Teleport> teleporters) {
@@ -946,6 +1004,8 @@ static class Player {
         b.Send(client);
     }
 
+    // 02_18
+
     // 02_19
     static void SendCheckpoints(Client client, IReadOnlyCollection<Checkpoint> checkpoints) {
         var b = new PacketBuilder(0x02, 0x19);
@@ -959,6 +1019,20 @@ static class Player {
             b.WriteInt(checkpoint.Y);
         }
         b.EndCompress();
+
+        b.Send(client);
+    }
+
+    // 02_1a
+    static void SendServerTime(Client client, int winmTime) {
+        var b = new PacketBuilder(0x02, 0x1a);
+
+        b.WriteInt(winmTime);
+        b.BeginCompress();
+        var start = new DateTime(1899, 12, 30);
+        b.WriteDouble((DateTimeOffset.Now - start).TotalDays); // days since December 30, 1899
+        b.EndCompress();
+        b.WriteInt(0); // idk
 
         b.Send(client);
     }
@@ -1035,6 +1109,7 @@ static class Player {
         Wrong_Birth_Day = 0x93,
     }
 
+    // 02_1F
     public static void SendMessage(Client client, MessageType message) {
         var b = new PacketBuilder(0x02, 0x1F);
 
@@ -1080,6 +1155,50 @@ static class Player {
         b.Send(client);
     }
 
+    // 02_28
+    // 02_29
+    // 02_2a
+
+    // 02_2b
+    static void SendTakeSunbrightExpress(Client client, byte status) {
+        var b = new PacketBuilder(0x02, 0x2B);
+
+        // 0 = play boarding animation
+        // 1 = "The train has not arrived yet."
+        // 2 = "You have no Sunbright Express ticket."
+        // 3 = "Your Sunbright Express ticket can be used only once in %d hours."
+        // 4 = "You must visit the other cities before you can travel to them."
+        b.WriteByte(status);
+        if(status == 3) {
+            b.WriteShort(48); // n hours
+        }
+
+        b.Send(client);
+    }
+
+    // 02_2c
+    // 02_2d set bio strings (food, movie, locatio, etc)
+    // 02_2e
+    // 02_2f
+    // 02_33
+    // 02_34
+    // 02_35
+    // 02_36
+    // 02_37
+    // 02_38
+    // 02_39
+    // 02_3a
+    // 02_3b
+    // 02_3c
+    // 02_3d
+    // 02_3e
+    // 02_3f
+    // 02_40
+    // 02_41
+    // 02_42
+    // 02_43
+    // 02_46
+
     // 02_61_01
     public static void Send61_01(Client client, string msg) {
         var b = new PacketBuilder(0x02, 0x61);
@@ -1090,6 +1209,21 @@ static class Player {
 
         b.Send(client);
     }
+
+    // 02_61_02
+    // 02_61_11
+    // 02_61_12
+    // 02_61_13
+
+    // 02_62
+    // 02_63
+    // 02_64
+    // 02_65
+    // 02_66
+    // 02_67
+    // 02_68
+    // 02_69
+    // 02_6a
 
     // 02_6E
     static void SendUpdatePackage(Client client, int mapId, string package) {
@@ -1110,6 +1244,16 @@ static class Player {
 
         b.Send(client);
     }
+
+    // 02_70
+    // 02_71
+    // 02_72
+    // 02_73
+    // 02_74
+    // 02_78
+    // 02_7d set bloodtype
+    // 02_7e set birthday
+    // 02_c7
 
     #endregion
 }
