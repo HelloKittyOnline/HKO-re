@@ -9,32 +9,55 @@ static class Inventory {
     [Request(0x09, 0x01)] // 00586fd2
     static void MoveItem(ref Req req, Client client) {
         var fromInv = req.ReadByte();
-        var fromPos = req.ReadByte() - 1;
+        var fromSlot = req.ReadByte() - 1;
 
         var toInv = req.ReadByte();
-        var toPos = req.ReadByte() - 1;
+        var toSlot = req.ReadByte() - 1;
 
         lock(client.Lock) {
-            var from = client.GetItem(fromInv, fromPos);
-            var to = client.GetItem(toInv, toPos);
-            from.MoveTo(to);
+            var from = client.GetItem(fromInv, fromSlot);
+            var to = client.GetItem(toInv, toSlot);
+
+            var a = from.Item;
+            var b = to.Item;
+
+            if(a.Id == 0) // can't move empty item
+                return;
+
+            if(a.Id == b.Id && b.Count < b.Data.StackLimit) { // merge items
+                var sum = a.Count + b.Count;
+                var limit = b.Data.StackLimit;
+
+                if(sum > limit) {
+                    to.Item.Count = (byte)limit;
+                    from.Item.Count = (byte)(sum - limit);
+                } else {
+                    to.Item.Count = (byte)sum;
+                    from.Item = new InventoryItem();
+                }
+            } else { // swap
+                to.Item = a;
+                from.Item = b;
+            }
+
+            from.SendUpdate(false);
+            to.SendUpdate(false);
         }
     }
 
     [Request(0x09, 0x02)] // 00587048
-    static void MoveToInv(ref Req req, Client client) {
-        var a = req.ReadByte() - 1;
-
+    static void MoveFarmToInv(ref Req req, Client client) {
+        var slot = req.ReadByte() - 1;
         lock(client.Lock) {
-            client.GetItem(InvType.Farm, a).MoveTo(InvType.Player);
+            client.GetItem(InvType.Farm, slot).MoveTo(InvType.Player);
         }
     }
 
     [Request(0x09, 0x03)] // 005870bc
-    static void MoveToFarm(ref Req req, Client client) {
-        var a = req.ReadByte() - 1;
+    static void MoveInvToFarm(ref Req req, Client client) {
+        var slot = req.ReadByte() - 1;
         lock(client.Lock) {
-            client.GetItem(InvType.Player, a).MoveTo(InvType.Farm);
+            client.GetItem(InvType.Player, slot).MoveTo(InvType.Farm);
         }
     }
 

@@ -7,32 +7,6 @@ using System.Text.Json.Serialization;
 
 namespace Server;
 
-struct InventoryItem : IWriteAble {
-    public int Id { get; set; }
-    public byte Count { get; set; }
-    // public byte Durability { get; set; }
-    public byte Charges { get; set; }
-
-    [JsonIgnore] public ItemAtt Data => Program.items[Id];
-
-    public void Write(ref PacketBuilder w) {
-        w.WriteInt(Id); // id
-
-        w.WriteByte(Count); // count
-        w.WriteByte(0); // durability - unused
-        w.WriteByte(Charges); // charges
-        w.WriteByte(0); // unused?
-
-        w.WriteByte(0); // idk
-        w.WriteByte(0); // idk
-        w.WriteByte(0); // idk
-        w.WriteByte(0); // flags
-        // f & 1 = 
-        // f & 2 = 
-        // f & 4 = scrapped?
-    }
-}
-
 enum QuestStatus {
     None = 0,
     Running = 1,

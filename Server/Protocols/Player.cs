@@ -256,10 +256,10 @@ static class Player {
 
     [Request(0x02, 0x0C)] // 005df48c
     static void EquipItem(ref Req req, Client client) {
-        var inventorySlot = req.ReadByte();
+        var slot = req.ReadByte();
 
         lock(client.Lock) {
-            var item = client.GetItem(InvType.Player, inventorySlot - 1);
+            var item = client.GetItem(InvType.Player, slot - 1);
             if(item.Id == 0)
                 return;
 
@@ -281,10 +281,8 @@ static class Player {
                     return;
 
                 var type = (byte)equ.Type;
-                if(0 >= type || type >= 14)
-                    return;
-
-                item.Swap(client.GetItem(InvType.Equipment, type - 1));
+                if(0 < type && type < 14)
+                    item.Swap(client.GetItem(InvType.Equipment, type - 1));
             }
         }
     }

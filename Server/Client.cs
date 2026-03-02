@@ -99,17 +99,11 @@ class Client {
         Debug.Assert(item.Id != 0 && item.Count != 0);
         if(item.Id == 0)
             return true;
-        var inv = GetInv(InvType.Player);
-        return inv.AddItem(item, notification);
+        return GetInv(InvType.Player).AddItem(item, notification);
     }
 
     public bool RemoveItem(int itemId, int count) {
-        if(itemId == 0)
-            return true;
-
-        // bug: removing quest requirement does not toggle dialog marker
-        var inv = GetInv(InvType.Player);
-        return inv.RemoveItem(itemId, count);
+        return GetInv(InvType.Player).RemoveItem(itemId, count);
     }
 
     /// <summary>Adds an item randomly chose from a loot table to the players inventory and sends chat notification for it</summary>

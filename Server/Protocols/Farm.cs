@@ -224,11 +224,8 @@ static class Farm {
         }
 
         lock(client.Lock) {
-            if(client.GetInv(InvType.Player).GetItemCount(itemId) < count) {
+            if(!client.RemoveItem(itemId, count))
                 return;
-            }
-
-            client.RemoveItem(itemId, count);
             house.BuildingItems[ind] += count;
 
             if(CheckRequirement()) {

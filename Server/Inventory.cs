@@ -1,9 +1,38 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 using Extractor;
 using Server.Protocols;
 
 namespace Server;
+
+struct InventoryItem : IWriteAble {
+    public int Id { get; set; }
+    public byte Count { get; set; }
+    // public byte Durability { get; set; }
+
+    // currently only used to store pet level
+    public byte Charges { get; set; }
+
+    [JsonIgnore] public readonly ItemAtt Data => Program.items[Id];
+
+    public void Write(ref PacketBuilder w) {
+        w.WriteInt(Id); // id
+
+        w.WriteByte(Count); // count
+        w.WriteByte(0); // durability - unused
+        w.WriteByte(Charges); // charges
+        w.WriteByte(0); // unused?
+
+        w.WriteByte(0); // idk
+        w.WriteByte(0); // idk
+        w.WriteByte(0); // idk
+        w.WriteByte(0); // flags
+        // f & 1 = 
+        // f & 2 = 
+        // f & 4 = scrapped?
+    }
+}
 
 enum InvType {
     Player = 1,
@@ -19,7 +48,7 @@ readonly ref struct InvRef {
     private readonly InvType type;
     private readonly Span<InventoryItem> inv;
 
-    public ItemRef this[int index] => new ItemRef(client, type, index, ref inv[index]);
+    public ItemRef this[int index] => new(client, type, index, ref inv[index]);
 
     public InvRef(Client client, InvType type) {
         this.client = client;
@@ -35,10 +64,11 @@ readonly ref struct InvRef {
         };
     }
 
+    /// <summary>Try to find an emtpy inventory slot</summary>
     public bool FindEmpty(out ItemRef item) {
         for(int i = 0; i < inv.Length; i++) {
             if(inv[i].Id == 0) {
-                item = new ItemRef(client, type, i, ref inv[i]);
+                item = this[i];
                 return true;
             }
         }
@@ -52,13 +82,22 @@ readonly ref struct InvRef {
         return item != 0 && AddItem(item, 1, true);
     }
     public bool AddItem(int id, int count, bool notification, bool sendUpdate = true) {
-        Debug.Assert(count >= 0 && count < 256);
         return AddItem(new InventoryItem { Id = id, Count = (byte)count, Charges = 0 }, notification, sendUpdate);
     }
 
+    /// <summary>
+    /// Adds item to this inventory
+    /// </summary>
+    /// <param name="item_">Item to add</param>
+    /// <param name="notification">If true displays a message in chat</param>
+    /// <param name="sendUpdate">Should an update be sent at all</param>
+    /// <returns></returns>
     public bool AddItem(InventoryItem item_, bool notification, bool sendUpdate = true) {
-        Debug.Assert(item_.Count <= item_.Data.StackLimit);
-        Debug.Assert(item_.Charges == 0 || item_.Data.StackLimit == 1);
+        Debug.Assert(item_.Id != 0);
+        Debug.Assert(item_.Count > 0 && item_.Count <= item_.Data.StackLimit);
+        Debug.Assert(item_.Charges == 0 || item_.Data.StackLimit == 1, "Item with charges should not be stackable");
+
+        // todo: implement adding with count > stacklimit
 
         if(!FindInsert(item_.Id, item_.Count, out var item)) {
             if(sendUpdate)
@@ -77,7 +116,7 @@ readonly ref struct InvRef {
         } else {
             Debug.Assert(item.Id == item_.Id);
             Debug.Assert(item_.Charges == 0);
-            Debug.Assert(item.Count + item_.Count < item_.Data.StackLimit);
+            Debug.Assert(item.Count + item_.Count <= item_.Data.StackLimit);
             item.Count += item_.Count;
         }
 
@@ -87,11 +126,11 @@ readonly ref struct InvRef {
 
     }
 
-    public bool FindInsert(int itemId, int count, out ItemRef item) {
+    private bool FindInsert(int itemId, int count, out ItemRef item) {
         var limit = Program.items[itemId].StackLimit;
 
         if(limit > 1) {
-            // find existing stack
+            // find existing stack with enough capacity
             for(int i = 0; i < inv.Length; i++) {
                 var _item = inv[i];
                 if(_item.Id == itemId && _item.Count + count <= limit) {
@@ -103,18 +142,25 @@ readonly ref struct InvRef {
 
         // no fitting item found make new stack
         for(int i = 0; i < inv.Length; i++) {
-            var _item = inv[i];
-            if(_item.Id == 0) {
+            if(inv[i].Id == 0) {
                 item = this[i];
                 return true;
             }
         }
 
+        // no free space found
         item = new ItemRef();
         return false;
     }
 
     public bool RemoveItem(int itemId, int count) {
+        // bug: removing quest requirement does not toggle dialog marker
+        if(itemId == 0 || count == 0)
+            return true;
+
+        if(GetItemCount(itemId) < count)
+            return false;
+
         for(int i = 0; i < inv.Length; i++) {
             if(inv[i].Id != itemId)
                 continue;
@@ -163,13 +209,13 @@ readonly ref struct InvRef {
     }
 }
 
-ref struct ItemRef {
+readonly ref struct ItemRef {
     private readonly Client client;
     public readonly InvType type;
     public readonly int Index;
-    public ref InventoryItem Item;
+    public readonly ref InventoryItem Item;
 
-    public int Id => Item.Id;
+    public readonly int Id => Item.Id;
     public byte Count {
         get => Item.Count;
         set => Item.Count = value;
@@ -182,50 +228,18 @@ ref struct ItemRef {
         Item = ref item;
     }
 
-    public bool MoveTo(ItemRef to) {
-        var a = Item;
-        var b = to.Item;
+    public bool MoveTo(InvType inv) {
+        Debug.Assert(type != inv);
 
-        if(a.Id == 0)
+        if(Id == 0)
             return false;
 
-        if(b.Id == 0) {
-            to.Item = a;
-            Item = new InventoryItem();
-
-            SendUpdate(false);
-            to.SendUpdate(false);
-            return true;
-        }
-        if(a.Id == b.Id && a.Count + b.Count <= a.Data.StackLimit) {
-            to.Item = a with {
-                Count = (byte)(a.Count + b.Count)
-            };
-            Item = new InventoryItem();
-
-            SendUpdate(false);
-            to.SendUpdate(false);
+        if(client.GetInv(inv).AddItem(Item, false)) {
+            Clear();
             return true;
         }
 
         return false;
-    }
-    public bool MoveTo(InvRef inv) {
-        if(Id == 0)
-            return false;
-
-        if(!inv.FindInsert(Id, Count, out var empty)) {
-            return false;
-        }
-
-        empty.Item = Item;
-        Clear();
-        empty.SendUpdate(false);
-
-        return true;
-    }
-    public bool MoveTo(InvType inv) {
-        return MoveTo(client.GetInv(inv));
     }
 
     public void Swap(ItemRef other) {
@@ -250,6 +264,10 @@ ref struct ItemRef {
         SendUpdate(false);
     }
 
+    /// <summary>
+    /// Send updated inventory slot to player
+    /// </summary>
+    /// <param name="notification">If true displays a message in chat</param>
     public void SendUpdate(bool notification) {
         switch(type) {
             case InvType.Player when notification:
