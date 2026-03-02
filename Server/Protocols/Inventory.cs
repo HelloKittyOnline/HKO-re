@@ -179,7 +179,6 @@ static class Inventory {
         item.Remove(1);
 
         var p = farm.Plants[i] = new() {
-            IsItem = false,
             SeedId = data.SubId,
             State = PlantState.Seed
         };

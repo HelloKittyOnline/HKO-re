@@ -58,13 +58,13 @@ static class Player {
 
             // handle map investigate for quest 167 "Lost in the Forest"
             case 32:
-                DelayInvestigate(client, 32, 0);
+                _ = DelayInvestigate(client, 32, 0);
                 break;
             case 31:
-                DelayInvestigate(client, 31, 1);
+                _ = DelayInvestigate(client, 31, 1);
                 break;
             case 33:
-                DelayInvestigate(client, 33, 2);
+                _ = DelayInvestigate(client, 33, 2);
                 break;
         }
 

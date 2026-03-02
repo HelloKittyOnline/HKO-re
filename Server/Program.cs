@@ -59,7 +59,7 @@ class Program {
                 // case 0x12_02: // 005280f6
 
                 f(ref r, client);
-            } catch(NotImplementedException e) {
+            } catch(NotImplementedException) {
                 Logging.Logger.Debug("[{username}_{userID}] Packet not implemented {data}", client.Username, client.DiscordId, r.Buffer);
             } catch(Exception e) {
                 Logging.Logger.Error(e, "[{username}_{userID}] Error handling packet {data}", client.Username, client.DiscordId, r.Buffer);

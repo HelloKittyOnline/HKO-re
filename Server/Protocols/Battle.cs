@@ -22,9 +22,7 @@ static class Battle {
         client.StartAction(async token => {
             // TODO: improve damage formula
             while(true) {
-                await Task.Delay(500);
-                if(token.IsCancellationRequested)
-                    break;
+                await Task.Delay(500, token);
 
                 lock(mob) {
                     if(mob.Hp == 0) // other player has killed mob
@@ -37,7 +35,7 @@ static class Battle {
                     if(mob.Hp <= 0) {
                         mob.Hp = 0;
                         mob.State = 4;
-                        mob.QueueRespawn(map);
+                        _ = mob.QueueRespawn(map);
 
                         var mobAtt = Program.mobAtts[mob.MobId];
                         client.AddFromLootTable(mobAtt.LootTable);
@@ -46,9 +44,7 @@ static class Battle {
                     }
                 }
 
-                await Task.Delay(500);
-                if(token.IsCancellationRequested)
-                    break;
+                await Task.Delay(500, token);
 
                 lock(client.Lock) {
                     var playerDamage = Math.Min(client.Player.Hp, 10);

@@ -294,8 +294,7 @@ static class Database {
     }
 
     private static byte[] HashPassword(byte[] salt, string password) {
-        var rfc = new Rfc2898DeriveBytes(password, salt, 10000, HashAlgorithmName.SHA1); // consider switching hashing algorithm
-        return rfc.GetBytes(256 / 8);
+        return Rfc2898DeriveBytes.Pbkdf2(password, salt, 10000, HashAlgorithmName.SHA1, 256 / 8); // consider switching hashing algorithm
     }
 
     private static bool VerifyPassword(string password, byte[] account) {

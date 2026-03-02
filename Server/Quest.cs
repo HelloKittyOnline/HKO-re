@@ -94,7 +94,7 @@ abstract class Requirement {
     }
     public class Quest : Requirement {
         public int Id { get; set; }
-        public QuestFlag Flags { get; set; }
+        public new QuestFlag Flags { get; set; }
 
         public Quest() { }
         public Quest(int id, QuestFlag flags) {

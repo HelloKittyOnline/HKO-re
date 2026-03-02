@@ -1,9 +1,9 @@
-﻿using Extractor;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Extractor;
 using Resource = Extractor.Resource;
 
 namespace Server;
@@ -18,7 +18,7 @@ enum PlantState {
 
 struct Plant : IWriteAble {
     public int SeedId { get; init; }
-    public bool IsItem { get; init; }
+    public bool IsItem => false;
 
     public TimeSpan LiveTime { get; set; }
     public PlantState State { get; set; } // 3 = done?
@@ -31,8 +31,8 @@ struct Plant : IWriteAble {
 
         b.WriteInt(SeedId);
         if(IsItem) {
-            throw new NotImplementedException();
             b.WriteShort(0);
+            throw new NotImplementedException();
         } else {
             b.WriteShort((short)data.PlantAppearanceId);
         }

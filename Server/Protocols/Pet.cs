@@ -23,6 +23,7 @@ struct PetEntData : IWriteAble {
 }
 
 static class Pet {
+    // from "game_const.txt"
     public const int pettingCooldown = 60; // 004f323d
     public const int pettingGain = 5;
 
@@ -32,7 +33,8 @@ static class Pet {
 
         // todo: what are the actual times?
         const int duration = 5 * 1000; // in ms
-        const int cooldown = 120; // 004f3247
+        // from "game_const.txt"
+        const int cooldown = 100;
 
         var id = owner.Player.ActivePet;
         if(id == -1)
