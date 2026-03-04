@@ -38,8 +38,12 @@ static class Battle {
                         _ = mob.QueueRespawn(map);
 
                         var mobAtt = Program.mobAtts[mob.MobId];
-                        client.AddFromLootTable(mobAtt.LootTable);
-
+                        // if quest is done use secondary drop table
+                        if(mobAtt.Quest != 0 && client.Player.QuestFlags.GetValueOrDefault(mobAtt.Quest, QuestStatus.None) == QuestStatus.Done) {
+                            client.AddFromLootTable(mobAtt.LootTable2);
+                        } else {
+                            client.AddFromLootTable(mobAtt.LootTable1);
+                        }
                         break;
                     }
                 }

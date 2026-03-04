@@ -6,9 +6,11 @@ namespace Server.Protocols;
 
 static class Npc {
     static int GetNextDialog(Client client, int npcId) {
-        var dialogs = Program.questMap[npcId];
+        if(!Program.questsByNPC.TryGetValue(npcId, out var sections)) {
+            return 0;
+        }
 
-        foreach(var item in dialogs) {
+        foreach(var item in sections) {
             if(item.CheckRequirements(client)) {
                 return item.Dialog;
             }
@@ -58,24 +60,25 @@ static class Npc {
         var dialogId = req.ReadInt32();
         var rewardSelect = req.ReadInt32();
 
-        // todo: use questID instead of dialogID?
-        var sub = Program.questMap[npcId].FirstOrDefault(x => x.Dialog == dialogId);
-        if(sub is null)
+        var sub = Program.questsByNPC.GetValueOrDefault(npcId)?.FirstOrDefault(x => x.Dialog == dialogId);
+        if(sub == null)
             return; // wrong id?
 
         lock(client.Lock) {
-            if(rewardSelect == 0 && sub.Rewards.Any(x => x is Reward.Select))
-                return; // no reward selected
+            var sel = sub.Rewards.OfType<Reward.Select>().FirstOrDefault();
+            if(sel != null && !sel.Sub.Any(x => (client.Player.Gender == 1 ? x.Male : x.Female) == rewardSelect)) {
+                return; // invalid reward selection
+            }
 
             if(!sub.CheckRequirements(client))
                 return; // requirements not met
 
-            if(!sub.CheckRewards(client)) {
+            if(client.GetInv(InvType.Player).FreeSlots() < sub.Rewards.Count(x => x is Reward.Item or Reward.Select)) {
                 Player.SendMessage(client, Player.MessageType.Inventory_full);
                 return; // not enough inv space for reward
             }
 
-            if(client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10) {
+            if(sub.Rewards.Any(x => x is Reward.StartQuest) && client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10) {
                 Player.SendMessage(client, Player.MessageType.Quest_Log_is_full);
                 return; // quest limit reached
             }
@@ -131,31 +134,20 @@ static class Npc {
         var score = req.ReadInt32();
 
         // could be used to store quest id
-        var param1 = req.ReadInt32(); // arbitrary param 1
-        var param2 = req.ReadInt32(); // arbitrary param 2
+        var param1 = req.ReadInt32(); // arbitrary param 1 - questId
+        var param2 = req.ReadInt32(); // arbitrary param 2 - requiredScore
 
-        if(!Program.minigameQuests.TryGetValue(gameId, out var quest))
-            return; // quest not found?
+        // var quest = Program.quests[param1];
+        // TODO: validation?
 
-        if(quest.Minigame.Score > score)
+        if(score < param2)
             return; // score not met
 
         lock(client.Lock) {
-            if(client.Player.QuestFlags.Count(x => x.Value == QuestStatus.Running) >= 10) {
-                Player.SendMessage(client, Player.MessageType.Quest_Log_is_full);
-                return; // quest limit reached
-            }
+            if(client.Player.QuestFlags.GetValueOrDefault(param1, QuestStatus.None) != QuestStatus.Running)
+                return; // quest not running
 
-            if(!quest.Sections.Any(x => x.Rewards.Any(y => y is Reward.StartMinigame) && x.CheckRequirements(client)))
-                return; // starting condition not met
-
-            if(client.Player.QuestFlags.TryGetValue(quest.Id, out var flag) && flag == QuestStatus.Done)
-                return; // quest already completed so no reward
-
-            client.Player.QuestFlags[quest.Id] = QuestStatus.Running;
-
-            SendNewQuest(client, quest.Id);
-            UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
+            client.SetQuestFlag(param1, 0);
         }
     }
 
@@ -280,8 +272,11 @@ static class Npc {
         var b = new PacketBuilder(0x05, 0x09);
 
         b.WriteInt(minigameId);
+
+        // passed to flash game
         b.WriteInt(0); // para1
         b.WriteInt(0); // para2
+
         b.WriteInt(requiredScore);
         b.WriteInt(0); // (10000 = play movie)
 

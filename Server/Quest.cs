@@ -243,11 +243,12 @@ abstract class Reward {
         }
     }
     public class StartMinigame : Reward {
+        public int QuestId;
         public int Id;
         public int Score;
 
         public override void Handle(Client client, int select) {
-            Npc.SendOpenMinigame(client, Id, Score, 0, 0);
+            Npc.SendOpenMinigame(client, Id, Score, QuestId, Score);
         }
     }
     public class Flag : Reward {
@@ -278,14 +279,6 @@ record ManualQuest {
         public bool CheckRequirements(Client client) {
             return Requirements.All(x => x.Check(client));
         }
-        public bool CheckRewards(Client client) {
-            var inv = client.GetInv(InvType.Player);
-
-            var count = Rewards.Count(x => x is Reward.Item); // max number of required inv slots
-            var free = inv.FreeSlots();
-
-            return free >= count;
-        }
     }
 
     public int Id { get; set; }
@@ -313,6 +306,7 @@ record ManualQuest {
                 foreach(var rew in section.Rewards) {
                     switch(rew) {
                         case Reward.StartMinigame q:
+                            q.QuestId = item.Id;
                             q.Id = item.Minigame.Id;
                             q.Score = item.Minigame.Score;
                             break;

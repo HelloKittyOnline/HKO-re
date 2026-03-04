@@ -19,8 +19,7 @@ namespace Server;
 class Program {
     internal static ConcurrentDictionary<int, Instance> maps;
 
-    internal static Dictionary<int, ManualQuest> minigameQuests;
-    internal static Lookup<int, ManualQuest.Sub> questMap;
+    internal static Dictionary<int, ManualQuest.Sub[]> questsByNPC;
 
     internal static Teleport[] teleporters;
     internal static Extractor.Resource[] resources;
@@ -214,9 +213,8 @@ class Program {
 
     static void LoadData(string path) {
         var quests = ManualQuest.Load($"{path}/quests.json");
-        minigameQuests = quests.Where(x => x.Minigame != null).ToDictionary(x => x.Minigame.Id);
         // order so that minigames have the least priority
-        questMap = (Lookup<int, ManualQuest.Sub>)quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Sections).ToLookup(x => x.Npc);
+        questsByNPC = quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Sections).GroupBy(x => x.Npc).ToDictionary(x => x.Key, x => x.ToArray());
 
         var archive = SeanArchive.Extract($"{path}/client_table_eng.sdb");
         T[] GetItem<T>(string name) where T : struct => SeanDatabase.Load<T>(archive.First(x => x.Name == name).Contents);

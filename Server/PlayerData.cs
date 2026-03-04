@@ -106,6 +106,7 @@ class PlayerData {
 
     // used for encyclopedia
     public HashSet<int> Npcs { get; set; }
+    // offset by 7000 because falgs start at that index
     public HashSet<int> Keys { get; set; }
     public HashSet<int> Dreams { get; set; }
     public HashSet<int> Cards { get; set; }
