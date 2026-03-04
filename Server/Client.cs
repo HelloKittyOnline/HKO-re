@@ -139,9 +139,9 @@ class Client {
         });
 
         try {
-            await action(actionToken.Token);
+            await action(source.Token);
         } catch(Exception e) {
-            if(actionToken.Token.IsCancellationRequested) {
+            if(source.Token.IsCancellationRequested) {
                 Debug.Assert(e is OperationCanceledException);
             } else {
                 Logging.Logger.Write(LogEventLevel.Error, e, "[{username}_{userID}] Async error", Username, DiscordId);
