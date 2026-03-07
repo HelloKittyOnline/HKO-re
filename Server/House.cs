@@ -39,13 +39,13 @@ class HouseFloor : Instance {
 
     [JsonIgnore] public House House { get; set; }
 
-    [JsonIgnore] public override IReadOnlyCollection<NpcData> Npcs => Array.Empty<NpcData>();
-    [JsonIgnore] public override IReadOnlyCollection<MobData> Mobs => Array.Empty<MobData>();
+    [JsonIgnore] public override NpcData[] Npcs => [];
+    [JsonIgnore] public override MobData[] Mobs => [];
     [JsonIgnore]
-    public override IReadOnlyCollection<Teleport> Teleporters {
+    public override Teleport[] Teleporters {
         get {
             if(House.Data.Level == 1) {
-                return Array.Empty<Teleport>();
+                return [];
             }
 
             const int n = 352 + 10;
@@ -70,12 +70,12 @@ class HouseFloor : Instance {
                 });
             }
 
-            return tel;
+            return tel.ToArray();
         }
     }
 
-    [JsonIgnore] public override IReadOnlyCollection<Resource> Resources => Array.Empty<Resource>();
-    [JsonIgnore] public override IReadOnlyCollection<Checkpoint> Checkpoints => Array.Empty<Checkpoint>();
+    [JsonIgnore] public override Resource[] Resources => [];
+    [JsonIgnore] public override Checkpoint[] Checkpoints => [];
 
     public void Reset() {
         ViewId = 20;

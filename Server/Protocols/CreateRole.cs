@@ -36,14 +36,14 @@ static class CreateRole {
 
     [Request(0x01, 0x02)] // 00566b72
     static void GetCharacter(ref Req req, Client client) {
-        lock(client.Player) {
+        lock(client.Lock) {
             SendCharacterData(client);
         }
     }
 
     [Request(0x01, 0x03)] // 00566bce // Delete character
     static void DeleteCharacter(ref Req req, Client client) {
-        lock(client.Player) {
+        lock(client.Lock) {
             client.Player = null;
             SendCharacterData(client);
         }

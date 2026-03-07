@@ -26,7 +26,6 @@ static class Farm {
         }
 
         // todo: check if player on valid map and near manager
-        client.Player.ReturnMap = client.Player.CurrentMap;
         Player.ChangeMap(client, farm.Id, 576, 656);
         SetDayTime([client], (int)farm.DayTime.TotalMinutes / 10);
         if(farm.House.BuildingPermit != 0)

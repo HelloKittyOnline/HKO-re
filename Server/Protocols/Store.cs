@@ -59,7 +59,7 @@ static class Store {
         lock(client.Lock) {
             switch(store.Type) {
                 case ShopType.Money:
-                    if(item.Price <= player.Money && client.AddItem(item.Id, item.Count, false)) {
+                    if(item.Price <= player.Money && client.AddItem(item.Id, item.Count, true)) {
                         client.Player.Money -= item.Price;
                         Inventory.SendSetMoney(client);
                     }
@@ -67,25 +67,25 @@ static class Store {
                 case ShopType.DreamFragments: {
                     var inv = client.GetInv(InvType.Player);
                     const int dreamFragmentId = 10204;
-                    if(item.Price <= inv.GetItemCount(dreamFragmentId) && client.AddItem(item.Id, item.Count, false)) {
+                    if(item.Price <= inv.GetItemCount(dreamFragmentId) && client.AddItem(item.Id, item.Count, true)) {
                         client.RemoveItem(dreamFragmentId, item.Price);
                     }
                     break;
                 }
                 case ShopType.TokenNormal:
-                    if(item.Price <= player.NormalTokens && client.AddItem(item.Id, item.Count, false)) {
+                    if(item.Price <= player.NormalTokens && client.AddItem(item.Id, item.Count, true)) {
                         player.NormalTokens -= item.Price;
                         Inventory.SendSetNormalTokens(client);
                     }
                     break;
                 case ShopType.TokenSpecial:
-                    if(item.Price <= player.SpecialTokens && client.AddItem(item.Id, item.Count, false)) {
+                    if(item.Price <= player.SpecialTokens && client.AddItem(item.Id, item.Count, true)) {
                         player.SpecialTokens -= item.Price;
                         Inventory.SendSetSpecialTokens(client);
                     }
                     break;
                 case ShopType.Ticket:
-                    if(item.Price <= player.Tickets && client.AddItem(item.Id, item.Count, false)) {
+                    if(item.Price <= player.Tickets && client.AddItem(item.Id, item.Count, true)) {
                         player.Tickets -= item.Price;
                         Inventory.SendSetTickets(client);
                     }

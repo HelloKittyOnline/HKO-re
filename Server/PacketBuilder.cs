@@ -154,7 +154,7 @@ struct PacketBuilder {
         UpdateLength();
         buffer.TryGetBuffer(out var buf); // normal GetBuffer returns unused space
 
-        if(Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63)) {
+        if(Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63) && !(buf[5] == 0x0C && buf[6] == 0x02)) {
             Logging.Logger.Verbose("[{username}_{userID}] S -> C: {data}", client.Username, client.DiscordId, buf.AsMemory(5));
         }
 
@@ -165,7 +165,7 @@ struct PacketBuilder {
         UpdateLength();
         buffer.TryGetBuffer(out var buf);
 
-        var doLog = Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63);
+        var doLog = Logging.Logger.IsEnabled(LogEventLevel.Verbose) && buf.Count >= 7 && !(buf[5] == 0x00 && buf[6] == 0x63) && !(buf[5] == 0x0C && buf[6] == 0x02);
 
         foreach(var client in clients) {
             if(doLog) {

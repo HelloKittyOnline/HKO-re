@@ -15,9 +15,9 @@ enum QuestStatus {
 
 class PlayerData {
     public int CurrentMap { get; set; } = 1; // Dream Room 1
-    public int ReturnMap = 8; // map to return to when entering special maps for example farms
+    public int RespawnMap = 8; // map to return to when entering special maps for example farms
 
-    [JsonIgnore] public Instance Map => Program.maps[CurrentMap];
+    [JsonIgnore] public Instance Map => Program.maps.GetValueOrDefault(CurrentMap);
 
     [JsonIgnore]
     public int MapType {
@@ -59,6 +59,9 @@ class PlayerData {
 
     public int PositionX { get; set; } = 352;
     public int PositionY { get; set; } = 688;
+
+    [JsonIgnore] public int TargetX;
+    [JsonIgnore] public int TargetY;
     [JsonIgnore] public byte Rotation { get; set; } = 4;
     [JsonIgnore] public byte Speed => 200;
 
@@ -78,8 +81,7 @@ class PlayerData {
     public byte BirthDay { get; set; }
 
     public int[] BaseEntities { get; set; }
-    [JsonIgnore]
-    public int[] DisplayEntities { get; private set; }
+    [JsonIgnore] public int[] DisplayEntities { get; private set; }
 
     public int Money { get; set; }
     public int NormalTokens { get; set; }
@@ -112,8 +114,7 @@ class PlayerData {
     public HashSet<int> Cards { get; set; }
     public BitVector VisitedMaps { get; set; }
 
-    [JsonIgnore]
-    public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
+    [JsonIgnore] public int InventorySize => Math.Min(50, 24 + Levels[(int)Skill.General]);
     public InventoryItem[] Inventory { get; set; }
     public InventoryItem[] Equipment { get; set; }
     public InventoryItem[] Tools { get; set; }
@@ -138,11 +139,13 @@ class PlayerData {
 
     public PetData[] Pets { get; set; }
     public int ActivePet { get; set; } = -1;
-    [JsonIgnore]
-    public PetData Pet => ActivePet == -1 ? null : Pets[ActivePet];
+    [JsonIgnore] public PetData Pet => ActivePet == -1 ? null : Pets[ActivePet];
 
-    [JsonIgnore]
-    public int TutorialState = 0;
+    [JsonIgnore] public int TutorialState = 0;
+
+    // 1 = combat
+    // 2 = gathering
+    [JsonIgnore] public int CurrentAction = 0;
 
     public PlayerData() { }
     public PlayerData(string name, byte gender, byte bloodType, byte birthMonth, byte birthDay, int[] entities) {
@@ -209,6 +212,8 @@ class PlayerData {
         VisitedMaps ??= new BitVector(32);
         VisitedMaps[1] = true; // starting map: Dream Room 1
 
+        TargetX = PositionX;
+        TargetY = PositionY;
         // todo: ensure all fixed arrays are the right size in case something changes
 
         // Dynamically load Display Entities

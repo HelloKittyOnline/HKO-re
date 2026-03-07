@@ -17,7 +17,7 @@ public struct MobAtt {
     [SeanField(10)] public int Type { get; set; }
 
     [SeanField(11)] public int Quest { get; set; }
-    [SeanField(12)] public int Unknown12 { get; set; }
+    [SeanField(12)] public int RespawnTime { get; set; } // in seconds
     [SeanField(13)] public int Unknown13 { get; set; }
 
     [SeanField(14)] public string File { get; set; }

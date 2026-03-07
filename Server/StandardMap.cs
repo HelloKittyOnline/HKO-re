@@ -2,9 +2,7 @@
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using Extractor;
-using Server.Protocols;
 using Resource = Extractor.Resource;
 
 namespace Server;
@@ -63,89 +61,16 @@ struct NpcData {
     }
 }
 
-class MobData : IWriteAble {
-    public int Id { get; set; }
-
-    // data
-    public int MobId { get; set; }
-    public int X { get; set; }
-    public int Y { get; set; }
-    public byte Direction { get; set; }
-    public int Hp { get; set; }
-    public int IsPet { get; set; }
-    public byte State { get; set; }
-
-    public byte Speed => 10;
-    public int MaxHp => Data.Hp;
-
-    public MobAtt Data => Program.mobAtts[MobId];
-
-    private bool isRespawning = false;
-
-    public MobData(int id, int mobId, int x, int y) {
-        Id = id;
-        MobId = mobId;
-        X = x;
-        Y = y;
-        Direction = 5;
-        Hp = MaxHp;
-        IsPet = 0;
-
-        State = 1;
-        // 1 = normal
-        // 2 = alert
-        // 3 = squigly
-        // 4 = sleeping
-        // 5 = gone?
-        // 6 = squigly also gone
-        // 7 = normal
-    }
-
-    public void Write(ref PacketBuilder b) {
-        b.WriteInt(Id);
-        b.WriteInt(X);
-        b.WriteInt(Y);
-        b.WriteInt(MobId);
-
-        b.WriteShort(Speed);
-        b.WriteByte(Direction);
-        b.WriteByte(State);
-
-        b.WriteInt(Hp);
-        b.WriteInt(MaxHp);
-        b.WriteInt(IsPet);
-        b.WriteInt(X); // moving?
-        b.WriteInt(Y); // moving?
-    }
-
-    public async Task QueueRespawn(Instance map) {
-        if(isRespawning)
-            return;
-
-        isRespawning = true;
-
-        // TODO: actual respawn time?
-        await Task.Delay(10 * 1000);
-        Hp = MaxHp;
-        State = 1;
-        isRespawning = false;
-
-        try {
-            Battle.SendMobState(map.Players, this);
-        } catch { }
-    }
-}
-
 abstract class Instance {
     [JsonIgnore] public int Id { get; set; }
 
     [JsonIgnore] public virtual IEnumerable<Client> Players => Program.clients.Select(x => x.Value).Where(x => x.InGame && x.Player.CurrentMap == Id);
-    [JsonIgnore] public abstract IReadOnlyCollection<NpcData> Npcs { get; }
-    [JsonIgnore] public abstract IReadOnlyCollection<MobData> Mobs { get; }
+    [JsonIgnore] public abstract NpcData[] Npcs { get; }
+    [JsonIgnore] public abstract MobData[] Mobs { get; }
 
-    [JsonIgnore] public abstract IReadOnlyCollection<Teleport> Teleporters { get; }
-    [JsonIgnore] public abstract IReadOnlyCollection<Resource> Resources { get; }
-    [JsonIgnore] public abstract IReadOnlyCollection<Checkpoint> Checkpoints { get; }
+    [JsonIgnore] public abstract Teleport[] Teleporters { get; }
+    [JsonIgnore] public abstract Resource[] Resources { get; }
+    [JsonIgnore] public abstract Checkpoint[] Checkpoints { get; }
 }
 
 class StandardMap : Instance {
@@ -158,12 +83,12 @@ class StandardMap : Instance {
     public NpcData[] _npcs;
     public MobData[] _mobs;
 
-    public override IReadOnlyCollection<NpcData> Npcs => _npcs;
-    public override IReadOnlyCollection<MobData> Mobs => _mobs;
+    public override NpcData[] Npcs => _npcs;
+    public override MobData[] Mobs => _mobs;
 
-    public override IReadOnlyCollection<Teleport> Teleporters => _teleporters;
-    public override IReadOnlyCollection<Extractor.Resource> Resources => _resources;
-    public override IReadOnlyCollection<Checkpoint> Checkpoints => _checkpoints;
+    public override Teleport[] Teleporters => _teleporters;
+    public override Resource[] Resources => _resources;
+    public override Checkpoint[] Checkpoints => _checkpoints;
 }
 
 class DreamRoom : StandardMap {

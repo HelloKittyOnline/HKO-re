@@ -108,6 +108,9 @@ static class Inventory {
             var itemData = Program.items[item.Id];
 
             switch(itemData.Type) {
+                case ItemType.Consumable_Item:
+                    UseFood(client, item);
+                    break;
                 case ItemType.Fertilizer:
                     UseFertilizer(client, item, c, d);
                     break;
@@ -141,6 +144,32 @@ static class Inventory {
                     break;
             }
         }
+    }
+
+    static void UseFood(Client client, ItemRef item) {
+        var dat = Program.food[item.Item.Data.SubId];
+
+        // todo: buffs
+        if(dat.BuffId != 0) {
+            // even though there are 12 buff slots the game only supports one at a time
+            // client.Player.Buff.Id = (byte)dat.BuffId;
+            // client.Player.Buff.Duration = Program.buffs[dat.BuffId].Duration;
+            return;
+        }
+
+        if(dat.TransformationDuration != 0) {
+            // todo: apply transformation?
+            return;
+        }
+
+        if(dat.EnergyRestored != 0) {
+            client.Player.Hp = Math.Clamp(client.Player.Hp + dat.EnergyRestored, 0, client.Player.MaxHp);
+        }
+        if(dat.ActionPointsRestored != 0) {
+            client.Player.Sta = Math.Clamp(client.Player.Sta + dat.ActionPointsRestored, 0, client.Player.MaxSta);
+        }
+        item.Remove(1);
+        Player.SendPlayerHpSta(client);
     }
 
     static void UseFertilizer(Client client, ItemRef item, int y, int x) {

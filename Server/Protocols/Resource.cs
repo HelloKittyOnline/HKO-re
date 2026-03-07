@@ -25,13 +25,18 @@ static class Resource {
             return;
         }
 
-        // TODO: harvest time??
+        if(client.Player.Sta < 2) {
+            return;
+        }
+
+        // todo: resources get used up after a couple of times and have to regrow
+
+        // TODO: actual harvest time
         const int harvestTime = 5 * 1000;
 
         client.StartAction(async token => {
+            client.Player.CurrentAction = 2;
             await Task.Delay(harvestTime, token);
-            if(token.IsCancellationRequested)
-                return;
 
             lock(client.Lock) {
                 client.AddFromLootTable(action == 1 ? resource.LootTable1 : resource.LootTable2);
@@ -39,10 +44,15 @@ static class Resource {
                 if(client.Player.ActivePet != -1) {
                     client.Player.Pet.AddExp(1, client);
                 }
+
+                client.Player.Sta -= 2;
+                Player.SendPlayerHpSta(client);
             }
 
+            client.Player.CurrentAction = 0;
             SendMessage(client, 7);
         }, () => {
+            client.Player.CurrentAction = 0;
             SendMessage(client, 8);
         });
 

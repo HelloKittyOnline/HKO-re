@@ -10,9 +10,9 @@ namespace Server.Protocols;
 
 static class Player {
     public static void ReturnFromFarm(Client client) {
-        var map = Program.maps[client.Player.ReturnMap];
+        var map = Program.maps.GetValueOrDefault(client.Player.RespawnMap);
 
-        if(map is StandardMap s) {
+        if(map is StandardMap s && s.MapData.FarmX != 0) {
             ChangeMap(client, map.Id, s.MapData.FarmX, s.MapData.FarmY);
         } else {
             Logging.Logger.Error("[{username}_{userID}] Failed to return from farm {mapId}", client.Username, client.DiscordId, client.Player.CurrentMap);
@@ -21,8 +21,34 @@ static class Player {
         }
     }
 
+    public static void LoadReturnMap(Client client) {
+        var map = Program.maps.GetValueOrDefault(client.Player.RespawnMap);
+
+        if(map is StandardMap s_ && s_.MapData.SpawnX != 0) {
+            client.Player.CurrentMap = client.Player.RespawnMap;
+            client.Player.PositionX = s_.MapData.SpawnX;
+            client.Player.PositionY = s_.MapData.SpawnY;
+        } else {
+            Logging.Logger.Error("[{username}_{userID}] Player respawn map is invalid {mapFrom} -> {mapTo}", client.Username, client.DiscordId, client.Player.CurrentMap);
+            client.Player.CurrentMap = 8;
+            client.Player.PositionX = 7705;
+            client.Player.PositionY = 6007;
+        }
+    }
+
     private static void EnterMap(Client client) {
         var map = client.Player.Map;
+        if(map == null) {
+            Logging.Logger.Error("[{username}_{userID}] Player tried to enter invalid map {mapId}", client.Username, client.DiscordId, client.Player.CurrentMap);
+            LoadReturnMap(client);
+        }
+        client.Player.TargetX = client.Player.PositionX;
+        client.Player.TargetY = client.Player.PositionY;
+
+        // store respawn point for aplicable maps
+        if(map is StandardMap s && s.MapData.SpawnX != 0) {
+            client.Player.RespawnMap = client.Player.CurrentMap;
+        }
 
         SendChangeMap(client);
 
@@ -164,8 +190,8 @@ static class Player {
         client.CancelAction();
 
         lock(client.Lock) {
-            player.PositionX = x;
-            player.PositionY = y;
+            player.TargetX = x;
+            player.TargetY = y;
         }
 
         BroadcastMovePlayer(client);
@@ -202,6 +228,10 @@ static class Player {
         // 6 = south west
         // 7 = west
         // 8 = north west
+
+        // player is most likely not moving anymore
+        client.Player.PositionX = client.Player.TargetX;
+        client.Player.PositionY = client.Player.TargetY;
 
         client.Player.Rotation = (byte)rotation;
         SendRotatePlayer(client);
@@ -837,7 +867,11 @@ static class Player {
     // static void DeletePlayer
 
     // 02_0B
-    // knocked out?
+    public static void SendTakeBreak(Client client, bool knockedOut) {
+        var b = new PacketBuilder(0x2, 0xB);
+        b.WriteByte(!knockedOut); // == 0 triggers take break text
+        b.Send(client);
+    }
 
     // 02_0C
     public static void SendPlayerAtt(Client client) {
@@ -1235,10 +1269,10 @@ static class Player {
     }
 
     // 02_6F
-    static void Send02_6F(Client client) {
+    public static void Send02_6F(Client client, byte val) {
         var b = new PacketBuilder(0x02, 0x6F);
 
-        b.WriteByte(0);
+        b.WriteByte(val);
 
         b.Send(client);
     }

@@ -36,6 +36,7 @@ class Program {
     internal static FarmData[] farms;
     internal static BuildingAgreement[] buildings;
     internal static Furniture[] furniture;
+    internal static FoodAtt[] food;
 
     internal static PetInitData[] petInitData;
     internal static PetFood[] petFood;
@@ -148,12 +149,11 @@ class Program {
             Player.LeaveMap(client);
 
             /*
-            try {
-                // TODO: kick other players from farm/house
-                foreach (var player in client.Player.Farm.Players) {
-                    Player.ReturnFromFarm(player);
-                }
-            } catch { }
+            // TODO: kick other players from farm/house
+            foreach (var player in client.Player.Farm.Players) Player.ReturnFromFarm(player);
+            foreach (var player in client.Player.Farm.House.Floor0.Players) Player.ReturnFromFarm(player);
+            foreach (var player in client.Player.Farm.House.Floor1.Players) Player.ReturnFromFarm(player);
+            foreach (var player in client.Player.Farm.House.Floor2.Players) Player.ReturnFromFarm(player);
             */
 
             // remove player associated maps
@@ -161,21 +161,6 @@ class Program {
             maps.Remove(client.Player.Farm.House.Floor0.Id, out var _);
             maps.Remove(client.Player.Farm.House.Floor1.Id, out var _);
             maps.Remove(client.Player.Farm.House.Floor2.Id, out var _);
-
-            if(client.Player.MapType is 3 or 4) {
-                var map = maps[client.Player.ReturnMap];
-                if(map is StandardMap s) {
-                    client.Player.CurrentMap = s.Id;
-                    client.Player.PositionX = s.MapData.FarmX;
-                    client.Player.PositionY = s.MapData.FarmY;
-                } else {
-                    // put player back to sanrio harbour
-                    Logging.Logger.Error("[{username}_{userID}] Failed to return from farm {mapId}", client.Username, client.DiscordId, client.Player.CurrentMap);
-                    client.Player.CurrentMap = 8;
-                    client.Player.PositionX = 7705;
-                    client.Player.PositionY = 6007;
-                }
-            }
         }
 
         Database.LogOut(client);
@@ -211,7 +196,7 @@ class Program {
         server.Stop();
     }
 
-    static void LoadData(string path) {
+    static void LoadData(string path, CancellationToken token) {
         var quests = ManualQuest.Load($"{path}/quests.json");
         // order so that minigames have the least priority
         questsByNPC = quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Sections).GroupBy(x => x.Npc).ToDictionary(x => x.Key, x => x.ToArray());
@@ -232,6 +217,7 @@ class Program {
         farms       = GetItem<FarmData>("farm_list.txt");
         buildings   = GetItem<BuildingAgreement>("building_agreement.txt");
         furniture   = GetItem<Furniture>("furniture_list.txt");
+        food        = GetItem<FoodAtt>("food_att.txt");
         var mapList = GetItem<MapList>("map_list.txt");
         npcEncyclopedia = GetItem<NpcEncyclopedia>("npc_encyclopedia.txt").Where(x => x.NpcId != 0).ToDictionary(x => x.NpcId, x => x.Id);
 
@@ -343,7 +329,8 @@ class Program {
         Database.SetConnectionString(sb.ConnectionString);
         Commands.RunConsole();
 
-        Task.Run(() => Farm.FarmThread(serverTokenSource.Token), serverTokenSource.Token);
+        _ = Task.Run(() => Farm.FarmThread(serverTokenSource.Token), serverTokenSource.Token);
+        _ = Task.Run(() => GameUpdateLoop(serverTokenSource.Token), serverTokenSource.Token);
         await Server(25000, serverTokenSource.Token);
 
         Logging.Logger.Information("Stopping server...");
@@ -360,6 +347,135 @@ class Program {
             } catch(Exception e) {
                 Logging.Logger.Error(e, "[{username}_{userID}] Error while waiting for clients to disconnect", client.Username, client.DiscordId);
             }
+        }
+    }
+
+    public static async Task GameUpdateLoop(CancellationToken token) {
+        // 500 ~ half screen width
+        // 400 ~ half screen height
+        // 640 ~ half screen diagonal
+
+        // 1 step = 500ms
+        long step = 0;
+        const int dt = 2; // 2 steps per second
+
+        while(true) {
+            await Task.Delay(1000 / dt, token);
+
+            if(clients.IsEmpty)
+                continue;
+
+            // player update
+            foreach(var (_, client) in clients) {
+                lock(client.Lock) {
+                    if(!client.InGame || client.Player.Hp == 0)
+                        continue;
+
+                    var p = client.Player;
+
+                    // every 2 seconds
+                    if(step % 4 == 0) {
+                        bool changed = false;
+
+                        // regens while not in combat
+                        if(p.CurrentAction != 1 && p.Hp < p.MaxHp) {
+                            changed = true;
+                            p.Hp++;
+                        }
+
+                        // only regens while not in action
+                        if(p.CurrentAction == 0 && p.Sta < p.MaxSta) {
+                            changed = true;
+                            p.Sta++;
+                        }
+
+                        if(changed)
+                            Player.SendPlayerHpSta(client);
+                    }
+
+                    // update approximate player position
+                    var dx = p.TargetX - p.PositionX;
+                    var dy = p.TargetY - p.PositionY;
+                    var dist = Math.Sqrt(dx * dx + dy * dy);
+                    if(dist != 0) {
+                        var l = Math.Min(dist, p.Speed / dt);
+                        p.PositionX += (int)(dx / dist * l);
+                        p.PositionY += (int)(dy / dist * l);
+                    }
+                }
+            }
+
+            var activeMaps = clients.Select(x => x.Value).Where(x => x.InGame).ToLookup(x => x.Player.CurrentMap);
+            foreach(var item in activeMaps) {
+                if(!maps.TryGetValue(item.Key, out var map))
+                    continue;
+
+                var clients = item;
+
+                foreach(var mob in map.Mobs) {
+                    lock(mob) {
+                        if(mob.Hp == 0)
+                            continue; // sleeping
+
+                        if(mob.Data.Aggressive && mob.Target == null) {
+                            // check near players
+                            foreach(var client in map.Players) {
+                                if(!client.InGame || client.Player.Hp == 0)
+                                    continue;
+
+                                var dx = mob.X - client.Player.PositionX;
+                                var dy = mob.Y - client.Player.PositionY;
+                                if(Math.Sqrt((dx * dx) + (dy * dy)) < 100) {
+                                    mob.Target = client;
+                                    Battle.SendMobState(clients, mob, 2);
+                                }
+                            }
+                        }
+
+                        if(mob.Target != null) {
+                            if(!mob.Target.InGame || mob.Target.Player.CurrentMap != map.Id) {
+                                // player left game or map
+                                mob.AbortFollow(clients);
+                            } else {
+                                var dx = mob.X - mob.Target.Player.PositionX;
+                                var dy = mob.Y - mob.Target.Player.PositionY;
+                                var pd = Math.Sqrt((dx * dx) + (dy * dy));
+
+                                if(pd < 75) {
+                                    if(pd < 25) { // too close. move back to circle around player
+                                        if(pd == 0) {
+                                            dx = 1;
+                                            pd = 1;
+                                        }
+                                        mob.X = mob.Target.Player.PositionX + (int)(dx / (float)pd * 50);
+                                        mob.Y = mob.Target.Player.PositionY + (int)(dy / (float)pd * 50);
+                                        Battle.SendMobMove(clients, mob, mob.Speed * 2);
+                                    }
+
+                                    // attack
+                                    if(step % 2 == 0)
+                                        mob.AttackTarget(clients);
+                                } else {
+                                    // move within 5 units of player
+                                    var l = Math.Max(pd - 5, mob.Speed * 2 / dt);
+                                    mob.X -= (int)(dx / (float)pd * l);
+                                    mob.Y -= (int)(dy / (float)pd * l);
+
+                                    if(mob.DistanceToSpawn() > 400) {
+                                        mob.AbortFollow(clients);
+                                    } else {
+                                        Battle.SendMobMove(clients, mob, mob.Speed * 2);
+                                    }
+                                }
+                            }
+                        } else if(step % 8 == 0) { // move every 4 seconds
+                            _ = Task.Delay(mob.MoveDelay + Random.Shared.Next(100, 2000)).ContinueWith((t) => MobData.RandomMove(mob, map.Players));
+                        }
+                    }
+                }
+            }
+
+            step++;
         }
     }
 }

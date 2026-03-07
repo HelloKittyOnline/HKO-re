@@ -22,6 +22,7 @@ static class Production {
         var level = client.Player.Levels[(int)skill];
 
         if(level < data.RequiredLevel) {
+            Send01(client, 5, 0);
             return;
         }
 
@@ -29,6 +30,10 @@ static class Production {
             return data.Ingredients.All(item => item.ItemId == 0 || client.GetInv(InvType.Player).GetItemCount(item.ItemId) >= item.Count);
         }
 
+        if(client.Player.Sta < 2) {
+            Send01(client, 2, 0);
+            return;
+        }
         if(!CheckRequired()) {
             Send01(client, 1, 0);
             return;
@@ -37,6 +42,8 @@ static class Production {
         const int productionTime = 5 * 1000;
 
         client.StartAction(async token => {
+            client.Player.CurrentAction = 2;
+
             while(true) {
                 Send01(client, 3, productionTime);
                 await Task.Delay(productionTime, token);
@@ -50,20 +57,27 @@ static class Production {
                     foreach(var item in data.Ingredients) {
                         if(item.ItemId == 0)
                             continue;
-
                         client.RemoveItem(item.ItemId, item.Count);
                     }
 
                     client.AddItem(data.ItemId, data.Count, true);
                     client.AddExpAction(skill, data.RequiredLevel);
+                    client.Player.Sta -= 2;
+                    Player.SendPlayerHpSta(client);
 
                     if(produce1 || !CheckRequired()) {
                         Send01(client, 7, 0);
                         break;
                     }
+                    if(client.Player.Sta < 2) {
+                        Send01(client, 2, 0);
+                        break;
+                    }
                 }
             }
+            client.Player.CurrentAction = 0;
         }, () => {
+            client.Player.CurrentAction = 0;
             Send01(client, 4, 0);
         });
     }

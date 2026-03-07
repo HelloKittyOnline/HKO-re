@@ -74,11 +74,11 @@ class Farm : Instance, IWriteAble {
     [JsonIgnore] public byte Size => 9; // TODO: look up
     [JsonIgnore] public byte Level => (byte)Program.farms[Type].Level;
 
-    [JsonIgnore] public override IReadOnlyCollection<NpcData> Npcs => Array.Empty<NpcData>();
-    [JsonIgnore] public override IReadOnlyCollection<MobData> Mobs => Array.Empty<MobData>();
-    [JsonIgnore] public override IReadOnlyCollection<Teleport> Teleporters => Array.Empty<Teleport>();
-    [JsonIgnore] public override IReadOnlyCollection<Resource> Resources => Array.Empty<Resource>();
-    [JsonIgnore] public override IReadOnlyCollection<Checkpoint> Checkpoints => Array.Empty<Checkpoint>();
+    [JsonIgnore] public override NpcData[] Npcs => [];
+    [JsonIgnore] public override MobData[] Mobs => [];
+    [JsonIgnore] public override Teleport[] Teleporters => [];
+    [JsonIgnore] public override Resource[] Resources => [];
+    [JsonIgnore] public override Checkpoint[] Checkpoints => [];
 
     public void Init(Client client) {
         Plants ??= new Plant[20 * 20];

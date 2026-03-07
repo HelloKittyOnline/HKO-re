@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Extractor;
 
 namespace Server.Protocols;
 
@@ -20,24 +21,30 @@ static class Battle {
             return;
 
         client.StartAction(async token => {
-            // TODO: improve damage formula
+            var mobAtt = Program.mobAtts[mob.MobId];
+            client.Player.CurrentAction = 1;
+
             while(true) {
-                await Task.Delay(500, token);
+                await Task.Delay(1000, token);
 
                 lock(mob) {
-                    if(mob.Hp == 0) // other player has killed mob
+                    if(mob.Hp == 0 || client.Player.Hp == 0)
                         break;
 
-                    var mobDamage = Math.Min(mob.Hp, 10);
+                    mob.Target ??= client;
 
-                    mob.Hp -= mobDamage;
-                    SendDamageToMob(map.Players, client.Id, mob.Id, (short)mobDamage, 0, 0);
+                    var damage = Math.Max(client.Player.Attack - mobAtt.Defense / 20 + (client.Player.Levels[(int)Skill.General] - mobAtt.Level) + 1, 1);
+                    if(Random.Shared.Next(10000) < client.Player.Crit) {
+                        damage *= 2;
+                    }
+
+                    mob.Hp -= damage;
+                    SendDamageToMob(map.Players, client.Id, mob.Id, (short)damage, 0, 0);
                     if(mob.Hp <= 0) {
                         mob.Hp = 0;
-                        mob.State = 4;
+                        mob.Target = null;
                         _ = mob.QueueRespawn(map);
 
-                        var mobAtt = Program.mobAtts[mob.MobId];
                         // if quest is done use secondary drop table
                         if(mobAtt.Quest != 0 && client.Player.QuestFlags.GetValueOrDefault(mobAtt.Quest, QuestStatus.None) == QuestStatus.Done) {
                             client.AddFromLootTable(mobAtt.LootTable2);
@@ -47,30 +54,28 @@ static class Battle {
                         break;
                     }
                 }
-
-                await Task.Delay(500, token);
-
-                lock(client.Lock) {
-                    var playerDamage = Math.Min(client.Player.Hp, 10);
-
-                    // TODO: implement player hp and stamina
-                    // client.Player.Hp -= playerDamage;
-                    SendDamageToPlayer(map.Players, client.Id, mob.Id, (short)playerDamage, 0, 0);
-                    if(client.Player.Hp <= 0) {
-                        client.Player.Hp = 0;
-                        break;
-                    }
-                }
             }
+            client.Player.CurrentAction = 0;
         }, () => {
-
+            client.Player.CurrentAction = 0;
         });
     }
 
     [Request(0x0C, 0x07)] // 00537e23
     private static void TakeBreak(ref Req req, Client client) {
         // after defeat message box ok
-        throw new NotImplementedException();
+        var playerId = req.ReadInt32();
+
+        lock(client.Lock) {
+            client.Player.Hp = client.Player.MaxHp / 10;
+            client.Player.Sta = client.Player.MaxSta / 10;
+
+            Player.LoadReturnMap(client);
+            Player.ChangeMap(client, client.Player.CurrentMap, client.Player.PositionX, client.Player.PositionY);
+        }
+
+        Player.SendPlayerHpSta(client);
+        Player.SendTakeBreak(client, false);
     }
 
     [Request(0x0C, 0x08)] // pet mob? 00537e98
@@ -104,7 +109,7 @@ static class Battle {
     }
 
     // 0C_02
-    public static void SendMobMove(IEnumerable<Client> clients, MobData mob) {
+    public static void SendMobMove(IEnumerable<Client> clients, MobData mob, int speed) {
         // if (mob.Hp == 0) return;
 
         var b = new PacketBuilder(0x0C, 0x02);
@@ -112,7 +117,7 @@ static class Battle {
         b.WriteInt(mob.Id); // count
         b.WriteShort((short)mob.X);
         b.WriteShort((short)mob.Y);
-        b.WriteShort(mob.Speed);
+        b.WriteShort((short)speed);
 
         b.WriteByte(0); // unused
         b.WriteByte(0); // if == 2 play sound
@@ -135,11 +140,28 @@ static class Battle {
     }
 
     // 0C_04
-    public static void SendMobState(IEnumerable<Client> clients, MobData mob) {
+    public static void SendMobState(IEnumerable<Client> clients, MobData mob, byte state) {
         var b = new PacketBuilder(0x0C, 0x04);
 
         b.WriteInt(mob.Id);
-        b.WriteByte(mob.State);
+
+        // 1 = normal
+        // 2 = alert
+        // 3 = squigly
+        // 4 = sleeping
+        // 5 = gone?
+        // 6 = squigly also gone
+        // 7 = normal
+        b.WriteByte(state);
+
+        b.Send(clients);
+    }
+
+    // 0C_05
+    public static void SendPinataMessage(IEnumerable<Client> clients, byte type) {
+        var b = new PacketBuilder(0x0C, 0x05);
+
+        b.WriteByte(type);
 
         b.Send(clients);
     }
@@ -162,6 +184,11 @@ static class Battle {
 
         b.Send(clients);
     }
+
+    // 0C_07
+    // 0C_08
+    // 0C_09
+    // 0C_0A
 
     #endregion
 }
