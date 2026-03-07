@@ -196,7 +196,7 @@ class Program {
         server.Stop();
     }
 
-    static void LoadData(string path, CancellationToken token) {
+    static void LoadData(string path) {
         var quests = ManualQuest.Load($"{path}/quests.json");
         // order so that minigames have the least priority
         questsByNPC = quests.OrderBy(x => x.Minigame != null).SelectMany(x => x.Sections).GroupBy(x => x.Npc).ToDictionary(x => x.Key, x => x.ToArray());
