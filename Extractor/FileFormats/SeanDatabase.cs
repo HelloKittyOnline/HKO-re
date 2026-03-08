@@ -186,15 +186,23 @@ public class SeanDatabase {
         var usedStrings = new HashSet<int>();
 #endif
 
+        // cache reflected data to improve performance
+        var refCache = new Dictionary<Type, (PropertyInfo, SeanField)[]>();
+        (PropertyInfo, SeanField)[] getProps(Type type) {
+            if(refCache.TryGetValue(type, out var res)) {
+                return res;
+            }
+
+            res = type.GetProperties().Select(x => (x, x.GetCustomAttribute<SeanField>())).Where(x => x.Item2 != null).ToArray();
+            refCache[type] = res;
+            return res;
+        }
+
         (object, int) WriteValues(Type type, int i, int offset) {
             var el = Activator.CreateInstance(type);
 
             int size = 0;
-            foreach(var prop in type.GetProperties()) {
-                var att = prop.GetCustomAttribute<SeanField>();
-                if(att == null)
-                    continue;
-
+            foreach(var (prop, att) in getProps(type)) {
                 int j = offset + att.Id;
 
                 if(!prop.CanWrite) {
