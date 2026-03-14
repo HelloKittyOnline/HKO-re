@@ -53,7 +53,7 @@ static class Player {
         SendChangeMap(client);
 
         SendNpcs(client, map.Npcs);
-        Npc.UpdateQuestMarkers(client, map.Npcs.Select(x => x.Id));
+        Npc.UpdateQuestMarkers(client, map.Npcs);
 
         SendTeleporters(client, map.Teleporters);
         SendRes(client, map.Resources);

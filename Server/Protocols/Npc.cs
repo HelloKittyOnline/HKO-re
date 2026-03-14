@@ -19,17 +19,17 @@ static class Npc {
         return 0;
     }
 
-    public static void UpdateQuestMarkers(Client client, IEnumerable<int> npcs) {
+    public static void UpdateQuestMarkers(Client client, Span<NpcData> npcs) {
         var disable = new List<int>();
         var enable = new List<(int, int)>();
 
         foreach(var npc in npcs) {
-            var dialog = GetNextDialog(client, npc);
+            var dialog = GetNextDialog(client, npc.Id);
 
             if(dialog == 0)
-                disable.Add(npc);
+                disable.Add(npc.Id);
             else
-                enable.Add((npc, dialog));
+                enable.Add((npc.Id, dialog));
         }
 
         SetQuestMarkers(client, disable, enable);
@@ -94,7 +94,7 @@ static class Npc {
             }
 
             // TODO: make this more efficient - could build a quest graph to determine which npcs have to be updated
-            UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
+            UpdateQuestMarkers(client, client.Player.Map.Npcs);
         }
     }
 
@@ -180,7 +180,7 @@ static class Npc {
             UpdateFlag(client, dat.ActiveQuestFlag, false);
             if(dat.CollectedQuestFlag != 0)
                 UpdateFlag(client, dat.CollectedQuestFlag, true);
-            UpdateQuestMarkers(client, client.Player.Map.Npcs.Select(x => x.Id));
+            UpdateQuestMarkers(client, client.Player.Map.Npcs);
         }
     }
 
