@@ -7,15 +7,15 @@ public struct Seed {
     [SeanField(1)] public int PlantAppearanceId { get; set; }
     [SeanField(2)] public int Level { get; set; }
 
-    [SeanField(03)] public int Unknown03 { get; set; }
-    [SeanField(04)] public int Unknown04 { get; set; }
+    [SeanField(3)] public int Unknown03 { get; set; }
+    [SeanField(4)] public int Unknown04 { get; set; }
 
     [SeanField(5)] public int MaxPlantAmount { get; set; } // always 10
 
-    [SeanField(06)] public int Unknown06 { get; set; }
-    [SeanField(07)] public int Unknown07 { get; set; }
-    [SeanField(08)] public int Unknown08 { get; set; }
-    [SeanField(09)] public int Unknown09 { get; set; }
+    [SeanField(6)] public int Unknown06 { get; set; }
+    [SeanField(7)] public int Unknown07 { get; set; }
+    [SeanField(8)] public int Unknown08 { get; set; }
+    [SeanField(9)] public int Unknown09 { get; set; }
     [SeanField(10)] public int Unknown10 { get; set; }
 
     [SeanField(11)] public int GatherLoot { get; set; }

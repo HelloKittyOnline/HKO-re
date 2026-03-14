@@ -7,5 +7,5 @@ public struct FarmItem {
     [SeanField(2)] public int Var2 { get; set; }
     [SeanField(3)] public int Var3 { get; set; }
     [SeanField(4)] public string File { get; set; }
-    [SeanField(5)] public int Var5 { get; set; }
+    [SeanField(5)] public int Var5 => 0;
 }

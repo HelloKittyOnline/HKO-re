@@ -5,14 +5,14 @@ public struct CheerMobAtt {
     [SeanField(0)] public int Id { get; set; }
     [SeanField(1)] public string Name { get; set; }
 
-    [SeanField(02)] public int Unknown02 { get; set; }
-    [SeanField(03)] public int Unknown03 { get; set; }
-    [SeanField(04)] public int Unknown04 { get; set; }
-    [SeanField(05)] public int Unknown05 { get; set; }
-    [SeanField(06)] public int Unknown06 { get; set; }
-    [SeanField(07)] public int Unknown07 => 0;
-    [SeanField(08)] public int Unknown08 => 0;
-    [SeanField(09)] public int Unknown09 { get; set; }
+    [SeanField(2)] public int Unknown02 { get; set; }
+    [SeanField(3)] public int Unknown03 { get; set; }
+    [SeanField(4)] public int Unknown04 { get; set; }
+    [SeanField(5)] public int Unknown05 { get; set; }
+    [SeanField(6)] public int Unknown06 { get; set; }
+    [SeanField(7)] public int Unknown07 => 0;
+    [SeanField(8)] public int Unknown08 => 0;
+    [SeanField(9)] public int Unknown09 { get; set; }
     [SeanField(10)] public int Unknown10 { get; set; }
     [SeanField(11)] public int Unknown11 { get; set; }
     [SeanField(12)] public int Unknown12 { get; set; }

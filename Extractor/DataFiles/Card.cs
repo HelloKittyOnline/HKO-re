@@ -13,7 +13,7 @@ public struct Card {
     [SeanField(7)] public int crit => 0;
     [SeanField(8)] public int dodge => 0;
     [SeanField(9)] public int exp => 0;
-    [SeanField(10)] public string Unknown10 { get; set; }
+    [SeanField(10)] public int Unknown10 => 0; // string
     [SeanField(11)] public int collectionPos => 0;
-    [SeanField(12)] public string Unknown12 { get; set; }
+    [SeanField(12)] public int Unknown12 => 0; // string
 }

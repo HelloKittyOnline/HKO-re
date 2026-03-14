@@ -9,12 +9,12 @@ public struct ProdRule {
     [SeanField(2)] public int ItemId { get; set; }
     [SeanField(3)] public int Count { get; set; }
     [SeanField(4, 5)] public Item[] Ingredients { get; set; }
-    
+
     public struct Item {
         [SeanField(0)] public int ItemId { get; set; }
         [SeanField(1)] public int Count { get; set; }
     }
-    
+
     [SeanField(14)] public int Unused14 => 0;
     [SeanField(15)] public int Unused15 => 0;
     [SeanField(16)] public int Unused16 => 0;

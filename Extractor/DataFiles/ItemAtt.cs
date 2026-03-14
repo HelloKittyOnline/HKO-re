@@ -33,7 +33,7 @@ public enum ItemType {
     Guild_Petition_Form = 27,
     Bundle_Item = 28,
     Emoticon = 29,
-    // 30
+    Currency_Container = 30,
     Farm_Draw_Pattern = 31,
     Crop_Remover = 32,
     Teleport_Tool = 33
@@ -59,24 +59,25 @@ public struct ItemAtt {
 
     [SeanField(6)] public int Unknown6 { get; set; }
     [SeanField(7)] public TransferFlag Transferable { get; set; }
-    [SeanField(8)] public int Unknown8 { get; set; }
-    [SeanField(9)] public bool Unknown9 { get; set; }
+    [SeanField(8)] public int Unknown8 { get; set; } // related to StartQuestFlag?
+    [SeanField(9)] public bool CountSingle { get; set; }
 
     [SeanField(10)] public int _stackLimit { get; set; }
-    [JsonIgnore] public int StackLimit => (Type is ItemType.Equipment or ItemType.Tool) ? 1 : _stackLimit;
     [SeanField(11)] public int Level { get; set; }
 
     [SeanField(12)] public string Icon { get; set; }
     [SeanField(13)] public string Description { get; set; }
     [SeanField(14)] public string CardImage { get; set; }
 
-    [SeanField(15)] public int Unknown15 { get; set; }
+    [SeanField(15)] public int Unknown15 { get; set; } // 1 = clear_item, 2 = guild petition?, 3 = special wand? // items that have some type of counter?
     [SeanField(16)] public int LifeTime { get; set; } // in minutes
     [SeanField(17)] public int TimeoutItemId { get; set; } // resulting item after LifeTime runs out
     [SeanField(18)] public int Durability { get; set; } // never fully implemented
-    [SeanField(19)] public int DurabilityPriceFactor { get; set; } // Price - (maxDurability - durability) / (DurabilityPriceFactor / 10.0)
+    [SeanField(19)] public int DurabilityPriceFactor { get; set; } // Price - (maxDurability - durability) / (DurabilityPriceFactor / 10.0) 
     [SeanField(20)] public int ItemQuality => 0;
-    [SeanField(21)] public int Unknown21 => 0;
+    [SeanField(21)] public int Unknown21 => 0; // string
+
+    [JsonIgnore] public int StackLimit => (Type is ItemType.Equipment or ItemType.Tool) ? 1 : _stackLimit;
 
     public int GetCharges() {
         // is this actually ever used in game?

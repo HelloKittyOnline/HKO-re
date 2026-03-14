@@ -212,11 +212,19 @@ public class SeanDatabase {
                     var subType = prop.PropertyType.GetElementType()!;
                     var arr = Array.CreateInstance(subType, att.Size);
 
-                    for(int k = 0; k < att.Size; k++) {
-                        var (v, s) = WriteValues(subType, i, j);
-                        arr.SetValue(v, k);
-                        j += s;
-                        size += s;
+                    if(subType == typeof(int)) {
+                        for(int k = 0; k < att.Size; k++) {
+                            arr.SetValue(db.Items[i, j], k);
+                            j += 1;
+                        }
+                        size += att.Size;
+                    } else {
+                        for(int k = 0; k < att.Size; k++) {
+                            var (v, s) = WriteValues(subType, i, j);
+                            arr.SetValue(v, k);
+                            j += s;
+                            size += s;
+                        }
                     }
 
                     prop.SetValue(el, arr);

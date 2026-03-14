@@ -3,7 +3,7 @@
 [SeanItem(17)]
 public struct InGameTutorialData {
     [SeanField(0)] public int Id { get; set; }
-    [SeanField(1)] public int Section { get; set; }
+    [SeanField(1)] public int DreamRoom { get; set; }
     [SeanField(2)] public int Step { get; set; }
     [SeanField(3)] public int SubStep { get; set; }
 
@@ -23,5 +23,5 @@ public struct InGameTutorialData {
     [SeanField(13)] public int X3 { get; set; }
     [SeanField(14)] public int Y3 { get; set; }
     [SeanField(15)] public int X4 { get; set; }
-    [SeanField(16)] public int Y5 { get; set; }
+    [SeanField(16)] public int Y4 { get; set; }
 }
