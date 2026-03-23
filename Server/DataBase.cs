@@ -145,7 +145,8 @@ static class Database {
     private static string _connectionString;
 
     private static JsonSerializerOptions jsonOptions = new() {
-        Converters = { new IntDictionaryConverter() }
+        Converters = { new IntDictionaryConverter() },
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
     };
 
     public static void SetConnectionString(string str) {
@@ -206,9 +207,7 @@ static class Database {
         if(client.Player == null) {
             command.Parameters.AddWithValue("data", null);
         } else {
-            lock(client.Lock) {
-                command.Parameters.AddWithValue("data", JsonSerializer.Serialize(client.Player, jsonOptions));
-            }
+            command.Parameters.AddWithValue("data", JsonSerializer.Serialize(client.Player, jsonOptions));
         }
 
         command.ExecuteNonQuery();

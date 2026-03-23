@@ -90,7 +90,3 @@ class StandardMap : Instance {
     public override Resource[] Resources => _resources;
     public override Checkpoint[] Checkpoints => _checkpoints;
 }
-
-class DreamRoom : StandardMap {
-    public override IEnumerable<Client> Players { get; } = [];
-}

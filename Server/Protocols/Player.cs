@@ -37,20 +37,37 @@ static class Player {
     }
 
     private static void EnterMap(Client client) {
-        var map = client.Player.Map;
-        if(map == null) {
+        if(client.Player.MapType == 8) { // dream room 4
+            client.Player.CurrentMap = Tutorial.CreateInstance();
+            client.Player.VisitedMaps[4] = true;
+        }
+        if(client.Player.Map == null) {
             Logging.Logger.Error("[{username}_{userID}] Player tried to enter invalid map {mapId}", client.Username, client.DiscordId, client.Player.CurrentMap);
             LoadReturnMap(client);
         }
+        // reset movement target
         client.Player.TargetX = client.Player.PositionX;
         client.Player.TargetY = client.Player.PositionY;
 
+        var map = client.Player.Map;
         // store respawn point for aplicable maps
         if(map is StandardMap s && s.MapData.SpawnX != 0) {
             client.Player.RespawnMap = client.Player.CurrentMap;
         }
+        if(map.Id < 256) {
+            client.Player.VisitedMaps[map.Id] = true;
+        }
+
+        if(client.Player.RespawnMap == 15) { // dream carnival or dream carnival farm
+            SendSetTutorialState(client, 2);
+            Pet.SendSetTempPet(client, client.Player.DreamCarnival.guardianPet);
+        }
 
         SendChangeMap(client);
+
+        if(map.Id <= 7 || client.Player.MapType == 8) {
+            Tutorial.HandleEnterMap(client);
+        }
 
         SendNpcs(client, map.Npcs);
         Npc.UpdateQuestMarkers(client, map.Npcs);
@@ -59,26 +76,11 @@ static class Player {
         SendRes(client, map.Resources);
         SendCheckpoints(client, map.Checkpoints);
 
-        switch(client.Player.CurrentMap) {
-            case 1: // Dream room 1
-                Tutorial.Send01(client, 1, 1, 1, true, false, true);
-                break;
-            case 2: // Dream room 2
-                client.Player.QuestFlags.Remove(99); // clear tutorial quest
-                Npc.SendDeleteQuest(client, 99);
-                Tutorial.Send01(client, 2, 1, 1, true, false, false);
-                Tutorial.Send02(client, 1, 445, 404);
-                break;
-            case 3: // Dream room 3
-                Tutorial.Send01(client, 3, 1, 1, true, false, false);
-                break;
-            case 50007: // Dream room 4
-                client.Player.QuestFlags.Remove(100); // clear tutorial quest
-                Npc.SendDeleteQuest(client, 100);
-                Tutorial.Send01(client, 4, 1, 1, true, false, false);
-                break;
+        Battle.SendMobs(client, map.Mobs);
 
-            case 92 when client.Player.QuestFlags.GetValueOrDefault(1008, QuestStatus.None) == QuestStatus.Running: // handle map visit for quest 1008 "Check Out The View"
+        switch(client.Player.CurrentMap) {
+            // handle map visit for quest 1008 "Check Out The View"
+            case 92 when client.Player.QuestFlags.GetValueOrDefault(1008, QuestStatus.None) == QuestStatus.Running:
                 client.SetQuestFlag(1008, 0);
                 break;
 
@@ -94,8 +96,6 @@ static class Player {
                 break;
         }
 
-        Battle.SendMobs(client, map.Mobs);
-
         var others = map.Players.Where(other => other != client).ToArray();
         if(others.Length != 0) {
             var temp = new Span<Client>(ref client);
@@ -106,24 +106,98 @@ static class Player {
         }
 
         if(client.Player.ActivePet != -1)
-            Pet.SendAddPetEnt(map.Players, client.Player.Pets[client.Player.ActivePet].EntData(client));
+            Pet.SendAddPetEnt(map.Players, client.Player.Pet.EntData(client));
     }
 
     public static void LeaveMap(Client client) {
-        var oldMap = client.Player.Map;
+        var map = client.Player.Map;
 
-        // delete player from old map
-        SendDeletePlayer(oldMap.Players, client);
+        if(client.Player.MapType == 8) {
+            // delete dream room instance
+            Program.maps.Remove(client.Player.CurrentMap, out var _);
+        }
+
+        // delete player from map
+        SendDeletePlayer(map.Players, client);
         if(client.Player.ActivePet != -1)
-            Pet.SendRemovePet(oldMap.Players, client.Id);
+            Pet.SendRemovePet(map.Players, client.Id);
     }
 
     public static void ChangeMap(Client client, int map, int x, int y) {
         lock(client.Player) {
             LeaveMap(client);
 
-            if(map < 256)
-                client.Player.VisitedMaps[map] = true;
+            if((map == 15 || map == 8) && (client.Player.CurrentMap <= 7 || client.Player.MapType == 8)) {
+                // exiting tutorial
+                Tutorial.SendStep(client, 0, 0, 0, false, false, false); // clear tutorial state
+
+                // restore dream carnival inventory
+                Debug.Assert(client.Player.DreamCarnival.invCache != null);
+                client.Player.Inventory = client.Player.DreamCarnival.invCache;
+                client.Player.Equipment = client.Player.DreamCarnival.equCache;
+                client.Player.Tools = client.Player.DreamCarnival.toolCache;
+
+                client.Player.DreamCarnival.invCache = null;
+                client.Player.DreamCarnival.equCache = null;
+                client.Player.DreamCarnival.toolCache = null;
+
+                SendSetItem(client, InvType.Player, 1, client.Player.Inventory);
+                SendSetItem(client, InvType.Equipment, 1, client.Player.Equipment);
+                SendSetItem(client, InvType.Tool, 1, client.Player.Tools);
+            }
+
+            if(map == 8 && (client.Player.CurrentMap == 15 || client.Player.CurrentMap <= 7 || client.Player.MapType == 8)) {
+                // leaving dream carnival / entering sanrion harbour for the first time
+                // clear currency
+                client.Player.Money = 0;
+                client.Player.NormalTokens = 0;
+                client.Player.SpecialTokens = 0;
+                client.Player.Tickets = 0;
+
+                // clear all inventories
+                // delete everything but pure dream tickets
+                static void ClearInv(InventoryItem[] inv) {
+                    foreach(ref var item in inv.AsSpan()) {
+                        var data = item.Data;
+                        // dream tickets or Accessory
+                        if(item.Id >= 10293 && item.Id <= 10299 || (data.Type == ItemType.Equipment && Program.equipment[data.SubId].Type is EquipType.AccessoryTop or EquipType.Pants or EquipType.AccessoryShoes or EquipType.AccessoryHeld)) {
+                            // keep
+                        } else {
+                            item = new InventoryItem();
+                        }
+                    }
+                }
+                ClearInv(client.Player.Inventory);
+                ClearInv(client.Player.Equipment);
+                ClearInv(client.Player.Tools);
+                ClearInv(client.Player.Farm.Inventory);
+                foreach(var item in client.Player.Pets) {
+                    if(item != null)
+                        ClearInv(item.Inventory);
+                }
+
+                // clear quests
+                client.Player.QuestFlags.Clear();
+                client.Player.CheckpointFlags.Clear();
+                client.Player.QuestFlags1.Clear();
+
+                // clear farm
+                client.Player.Farm.Plants.AsSpan().Clear();
+                client.Player.Farm.ActivePlants.Clear();
+
+                // clear levels
+                client.Player.Levels.AsSpan().Fill(1);
+                client.Player.Exp.AsSpan().Clear();
+
+                // todo: clear other stuff? idk
+
+                // trigger cutscene
+                SendSetTutorialState(client, 0);
+
+                // todo: send smaller updates?
+                SendPlayerData(client);
+                SendPlayerHpSta(client);
+            }
 
             client.Player.CurrentMap = map;
             client.Player.PositionX = x;
@@ -140,12 +214,10 @@ static class Player {
 
         await Task.Delay(10_000, client.Token);
 
-        // check again just to make sure
-        if(client.InGame && client.Player.CurrentMap == map && client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) == QuestStatus.Running) {
-            try {
+        lock(client.Lock) {
+            // check again just to make sure
+            if(client.InGame && client.Player.CurrentMap == map && client.Player.QuestFlags.GetValueOrDefault(167, QuestStatus.None) == QuestStatus.Running) {
                 client.SetQuestFlag(167, flag);
-            } catch {
-                client.Close();
             }
         }
     }
@@ -251,10 +323,11 @@ static class Player {
         var idk = req.ReadByte(); // always 1?
 
         var player = client.Player;
+        var mapType = player.MapType;
 
-        if(player.MapType == 3) {
+        if(mapType == 3) {
             ReturnFromFarm(client);
-        } else if(client.Player.MapType == 4) {
+        } else if(mapType == 4) {
             // tp from house
 
             if(tpId == 352 + 10 - 1 && player.CurrentMap % 10 > 0) { // to previous room
@@ -267,7 +340,9 @@ static class Player {
             }
         } else {
             var tp = Program.teleporters[tpId];
-            if(tp.FromMap != player.CurrentMap || tp.ToMap == 0)
+
+            var cm = mapType == 8 ? 4 : player.CurrentMap;
+            if(tp.FromMap != cm || tp.ToMap == 0)
                 return;
 
             if(tp.KeyItem != 0 && client.GetInv(InvType.Player).GetItemCount(tp.KeyItem) < tp.KeyItemCount) {
@@ -442,8 +517,18 @@ static class Player {
     [Request(0x02, 0x2C)] // 005dfa40
     static void Recv2C(ref Req req, Client client) { throw new NotImplementedException(); }
 
-    [Request(0x02, 0x2D)] // 005dfab4
-    static void Recv2D(ref Req req, Client client) { throw new NotImplementedException(); }
+    [Request(0x02, 0x2D)] // 005dfab4 // seen dream carnival message?
+    static void RecvGuardianMsg(ref Req req, Client client) {
+        var id = req.ReadInt32();
+
+        if(id < 128) {
+            lock(client.Lock) {
+                // game uses reverse bit order for some reason
+                id = (id & (~7)) | (7 - (id & 7));
+                client.Player.DreamCarnival.gaurdianDialog[id] = true;
+            }
+        }
+    }
 
     [Request(0x02, 0x32)] // 005dfb8c //  client version information
     static void CheckPackageVersions(ref Req req, Client client) {
@@ -566,24 +651,27 @@ static class Player {
             }
         }
 
-        var questBytes = new BitVector(1000);
+        //    0 - 7000: quests
+        // 7001 - 7300: keys
+        // 7301 - 7999: pure dreams
+        var gameFlags = new BitVector(1000);
         foreach(var (key, val) in player.QuestFlags) {
             if(val == QuestStatus.Done) {
-                questBytes[key] = true;
+                gameFlags[key] = true;
             }
         }
         foreach(var (key, val) in player.CheckpointFlags) {
             var data = Program.checkpoints[key];
             if(val == 1)
-                questBytes[data.ActiveQuestFlag] = true;
+                gameFlags[data.ActiveQuestFlag] = true;
             if(val == 2 && data.CollectedQuestFlag != 0)
-                questBytes[data.CollectedQuestFlag] = true;
+                gameFlags[data.CollectedQuestFlag] = true;
         }
         foreach(var val in player.Keys)
-            questBytes[val] = true;
+            gameFlags[val + 7000] = true;
         foreach(var val in player.Dreams)
-            questBytes[val] = true;
-        b.Write(questBytes); // quest flags
+            gameFlags[val + 7300] = true;
+        b.Write(gameFlags); // quest flags
 
         var currentQuests = player.QuestFlags.Where(x => x.Value == QuestStatus.Running).ToArray();
         // active quests
@@ -645,8 +733,14 @@ static class Player {
         b.Write(player.VisitedMaps);
 
         // 0x8cd8
-        b.Write0(0x92E0 - 0x8cd8);
-        // 0x92E0
+        b.Write0(0x92CC - 0x8cd8);
+        // 0x92CC
+
+        b.WriteByte(0); // tutorialState will be set when entering map
+        b.Write(client.Player.DreamCarnival.gaurdianDialog);
+        b.WriteByte(0); // unknown maybe padding
+
+        b.WriteShort(0); // guardianPet
 
         var npcFlags = new BitVector(64);
         foreach(var val in player.Npcs) {
@@ -741,7 +835,7 @@ static class Player {
         b.WriteShort(client.Id);
         b.WriteInt(client.Player.Status);
 
-        b.Send(client.Player.Map.Players.Where(x => x != client));
+        b.Send(client.Player.Map.Players);
     }
 
     // 02_06
@@ -874,17 +968,14 @@ static class Player {
     }
 
     // 02_0C
-    public static void SendPlayerAtt(Client client) {
+    public static void SendPlayerAtt(IEnumerable<Client> clients, Client client) {
         var b = new PacketBuilder(0x2, 0xC);
 
         b.WriteShort(client.Id);
-
         b.WriteShort(18 * 4); // size
-        for(int i = 0; i < 18; i++) {
-            b.WriteInt(client.Player.DisplayEntities[i]);
-        }
+        client.Player.WriteEntities(b);
 
-        b.Send(client);
+        b.Send(clients);
     }
 
     // 02_0D
@@ -953,7 +1044,7 @@ static class Player {
         w.WriteByte((byte)tp.SomethingRotation);
         w.WriteByte(0); // unused
         w.WriteShort((short)tp.WarningStringId);
-        w.WriteInt(0); // keyItem
+        w.WriteInt(tp.EquipItem);
     }
 
     // 02_13
@@ -1252,7 +1343,37 @@ static class Player {
     // 02_64
     // 02_65
     // 02_66
-    // 02_67
+
+    // 02_67 genereic set item for all invs
+    public static void SendSetItem(Client client, InvType type, int startSlot, ReadOnlySpan<InventoryItem> items, byte petSlot = 0) {
+        var b = new PacketBuilder(0x02, 0x67);
+
+        b.WriteByte(type switch {
+            InvType.Player => 1,
+            InvType.Pet => 2,
+            InvType.Equipment => 3,
+            InvType.Tool => 4,
+            InvType.Farm => 5,
+            _ => 0,
+        });
+        b.WriteInt(startSlot);
+
+        // this function allows writing arbitrary length data except for pets
+        if(type == InvType.Pet) {
+            Debug.Assert(items.Length == 1);
+            b.WriteCompressed(items[0]);
+            b.WriteByte(petSlot);
+        } else {
+            b.BeginCompress();
+            foreach(var item in items) {
+                b.Write(item);
+            }
+            b.EndCompress();
+        }
+
+        b.Send(client);
+    }
+
     // 02_68
     // 02_69
     // 02_6a
@@ -1269,9 +1390,12 @@ static class Player {
     }
 
     // 02_6F
-    public static void Send02_6F(Client client, byte val) {
+    public static void SendSetTutorialState(Client client, byte val) {
         var b = new PacketBuilder(0x02, 0x6F);
 
+        // 0 = none
+        // 1 = dream carnival
+        // 2 = dream room
         b.WriteByte(val);
 
         b.Send(client);

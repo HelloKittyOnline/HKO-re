@@ -21,7 +21,7 @@ class ShopItem {
 
 class Shop {
     public int[] Npcs { get; set; }
-    public int Village { get; set; }
+    public Village Village { get; set; }
     public ShopType Type { get; set; }
     public ShopItem[] Items { get; set; }
 
@@ -57,6 +57,11 @@ static class Store {
 
         var player = client.Player;
         lock(client.Lock) {
+            if(store.Village != 0 && client.Player.Friendship[(int)store.Village - 1] < item.Friendship) {
+                // not enough friendship
+                return;
+            }
+
             switch(store.Type) {
                 case ShopType.Money:
                     if(item.Price <= player.Money && client.AddItem(item.Id, item.Count, true)) {
@@ -125,7 +130,7 @@ static class Store {
 
         b.WriteInt(npc);
 
-        b.WriteInt(store.Village);
+        b.WriteInt((int)store.Village);
         b.WriteByte((byte)store.Type);
 
         foreach(var item in store.Items) {

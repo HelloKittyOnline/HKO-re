@@ -138,33 +138,35 @@ class Program {
         client.TcpClient.Close();
         IdManager.FreeId(client.Id);
 
-        if(client.Username == null)
-            return; // not logged in so no need for cleanup
+        lock(client.Lock) {
+            if(client.Username == null)
+                return; // not logged in so no need for cleanup
 
-        if(client.InGame) {
-            Debug.Assert(client.Player != null);
-            client.InGame = false;
+            if(client.InGame) {
+                Debug.Assert(client.Player != null);
+                client.InGame = false;
 
-            // remove player from map
-            Player.LeaveMap(client);
+                // remove player from map
+                Player.LeaveMap(client);
 
-            /*
-            // TODO: kick other players from farm/house
-            foreach (var player in client.Player.Farm.Players) Player.ReturnFromFarm(player);
-            foreach (var player in client.Player.Farm.House.Floor0.Players) Player.ReturnFromFarm(player);
-            foreach (var player in client.Player.Farm.House.Floor1.Players) Player.ReturnFromFarm(player);
-            foreach (var player in client.Player.Farm.House.Floor2.Players) Player.ReturnFromFarm(player);
-            */
+                /*
+                // TODO: kick other players from farm/house
+                foreach (var player in client.Player.Farm.Players) Player.ReturnFromFarm(player);
+                foreach (var player in client.Player.Farm.House.Floor0.Players) Player.ReturnFromFarm(player);
+                foreach (var player in client.Player.Farm.House.Floor1.Players) Player.ReturnFromFarm(player);
+                foreach (var player in client.Player.Farm.House.Floor2.Players) Player.ReturnFromFarm(player);
+                */
 
-            // remove player associated maps
-            maps.Remove(client.Player.Farm.Id, out var _);
-            maps.Remove(client.Player.Farm.House.Floor0.Id, out var _);
-            maps.Remove(client.Player.Farm.House.Floor1.Id, out var _);
-            maps.Remove(client.Player.Farm.House.Floor2.Id, out var _);
+                // remove player associated maps
+                maps.Remove(client.Player.Farm.Id, out var _);
+                maps.Remove(client.Player.Farm.House.Floor0.Id, out var _);
+                maps.Remove(client.Player.Farm.House.Floor1.Id, out var _);
+                maps.Remove(client.Player.Farm.House.Floor2.Id, out var _);
+            }
+
+            Database.LogOut(client);
+            Logging.Logger.Information("[{username}_{userID}] Player disconnected", client.Username, client.DiscordId);
         }
-
-        Database.LogOut(client);
-        Logging.Logger.Information("[{username}_{userID}] Player disconnected", client.Username, client.DiscordId);
     }
 
     private static async Task Server(int port, CancellationToken token) {
@@ -272,30 +274,16 @@ class Program {
                 }
             }
 
-            if(i <= 7) {
-                maps[i] = new DreamRoom {
-                    Id = i,
-                    MapData = item,
-                    _mobs = mobs.ToArray(),
-                    _npcs = npcs.Where(x => x.MapId == i).ToArray(),
-                    _resources = resources.Where(x => x.MapId == i).ToArray(),
-                    _teleporters = teleporters.Where(x => x.FromMap == i).ToArray(),
-                    _checkpoints = checkpoints.Where(x => x.Map == i).ToArray()
-                };
-            } else {
-                maps[i] = new StandardMap {
-                    Id = i,
-                    MapData = item,
-                    _mobs = mobs.ToArray(),
-                    _npcs = npcs.Where(x => x.MapId == i).ToArray(),
-                    _resources = resources.Where(x => x.MapId == i).ToArray(),
-                    _teleporters = teleporters.Where(x => x.FromMap == i).ToArray(),
-                    _checkpoints = checkpoints.Where(x => x.Map == i).ToArray()
-                };
-            }
+            maps[i] = new StandardMap {
+                Id = i,
+                MapData = item,
+                _mobs = mobs.ToArray(),
+                _npcs = npcs.Where(x => x.MapId == i).ToArray(),
+                _resources = resources.Where(x => x.MapId == i).ToArray(),
+                _teleporters = teleporters.Where(x => x.FromMap == i).ToArray(),
+                _checkpoints = checkpoints.Where(x => x.Map == i).ToArray()
+            };
         }
-
-        maps[50007] = maps[4]; // "dream room 4" for some reason
 
         Debug.Assert(teleporters.All(x => x.FromMap == 0 || maps[x.FromMap] != null)); // all teleporters registered
         Debug.Assert(npcs.All(x => x.MapId == 0 || maps[x.MapId] != null)); // all npcs registered

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text.Json.Serialization;
 using Extractor;
 using Server.Protocols;
@@ -13,9 +14,24 @@ enum QuestStatus {
     Done = 2
 }
 
+class DreamCarnivalData {
+    public InventoryItem[] invCache { get; set; } = null;
+    public InventoryItem[] equCache { get; set; } = null;
+    public InventoryItem[] toolCache { get; set; } = null;
+
+    public BitVector gaurdianDialog { get; set; } = new BitVector(16);
+
+    public short guardianPet { get; set; } = 0;
+
+    // used for some tutorial dialog
+    [JsonIgnore] public int TutorialState = 0;
+
+    public DreamCarnivalData() { }
+}
+
 class PlayerData {
-    public int CurrentMap { get; set; } = 1; // Dream Room 1
-    public int RespawnMap = 8; // map to return to when entering special maps for example farms
+    public int CurrentMap { get; set; } = 15; // Dream Room 1
+    public int RespawnMap { get; set; } = 15; // map to return to when entering special maps for example farms
 
     [JsonIgnore] public Instance Map => Program.maps.GetValueOrDefault(CurrentMap);
 
@@ -57,8 +73,8 @@ class PlayerData {
         }
     }
 
-    public int PositionX { get; set; } = 352;
-    public int PositionY { get; set; } = 688;
+    public int PositionX { get; set; } = 7450;
+    public int PositionY { get; set; } = 5420;
 
     [JsonIgnore] public int TargetX;
     [JsonIgnore] public int TargetY;
@@ -81,16 +97,15 @@ class PlayerData {
     public byte BirthDay { get; set; }
 
     public int[] BaseEntities { get; set; }
-    [JsonIgnore] public int[] DisplayEntities { get; private set; }
 
     public int Money { get; set; }
     public int NormalTokens { get; set; }
     public int SpecialTokens { get; set; }
     public int Tickets { get; set; }
 
-    [JsonIgnore] public int Hp { get; set; }
+    public int Hp { get; set; } = 100;
+    public int Sta { get; set; } = 20;
     [JsonIgnore] public int MaxHp { get; set; }
-    [JsonIgnore] public int Sta { get; set; }
     [JsonIgnore] public int MaxSta { get; set; }
     [JsonIgnore] public int Attack { get; set; }
     [JsonIgnore] public int Defense { get; set; }
@@ -101,14 +116,13 @@ class PlayerData {
     public int[] Exp { get; set; }
     public short[] Friendship { get; set; }
 
-    // TODO: cache active quests?
+    // TODO: split into completed and runing quests
     public Dictionary<int, QuestStatus> QuestFlags { get; set; } // todo: eventually rename to globalFlags
     public Dictionary<int, int> CheckpointFlags { get; set; }
     public Dictionary<int, uint> QuestFlags1 { get; set; }
 
     // used for encyclopedia
     public HashSet<int> Npcs { get; set; }
-    // offset by 7000 because falgs start at that index
     public HashSet<int> Keys { get; set; }
     public HashSet<int> Dreams { get; set; }
     public HashSet<int> Cards { get; set; }
@@ -121,8 +135,7 @@ class PlayerData {
 
     public int[] Quickbar { get; set; }
 
-    [JsonIgnore]
-    public ChatFlags ChatFlags { get; set; } = ChatFlags.All;
+    [JsonIgnore] public ChatFlags ChatFlags { get; set; } = ChatFlags.All;
 
     public string Location { get; set; } = "";
     public string FavoriteFood { get; set; } = "";
@@ -141,11 +154,11 @@ class PlayerData {
     public int ActivePet { get; set; } = -1;
     [JsonIgnore] public PetData Pet => ActivePet == -1 ? null : Pets[ActivePet];
 
-    [JsonIgnore] public int TutorialState = 0;
-
     // 1 = combat
     // 2 = gathering
     [JsonIgnore] public int CurrentAction = 0;
+
+    public DreamCarnivalData DreamCarnival { get; set; } = new();
 
     public PlayerData() { }
     public PlayerData(string name, byte gender, byte bloodType, byte birthMonth, byte birthDay, int[] entities) {
@@ -155,8 +168,6 @@ class PlayerData {
         BirthMonth = birthMonth;
         BirthDay = birthDay;
         BaseEntities = entities;
-        DisplayEntities = (int[])entities.Clone();
-
         Inventory = new InventoryItem[50];
         Equipment = new InventoryItem[14];
         QuestFlags = new Dictionary<int, QuestStatus>();
@@ -165,9 +176,7 @@ class PlayerData {
         Exp = new int[9];
         Friendship = new short[7];
 
-        for(int i = 0; i < 9; i++) {
-            Levels[i] = 1;
-        }
+        Levels.AsSpan().Fill(1);
     }
 
     internal void Init(Client client) {
@@ -175,7 +184,8 @@ class PlayerData {
         ProductionFlags ??= new BitVector(576);
         CheckpointFlags ??= [];
         Npcs ??= [];
-        Keys ??= [];
+        // adjust indecies
+        Keys = Keys?.Select(x => x > 7000 ? x - 7000 : x)?.ToHashSet() ?? [];
         Dreams ??= [];
         if(Cards == null) {
             Cards = [];
@@ -216,17 +226,44 @@ class PlayerData {
         TargetY = PositionY;
         // todo: ensure all fixed arrays are the right size in case something changes
 
-        // Dynamically load Display Entities
-        DisplayEntities = new int[18];
-        UpdateEntities();
+        // remove dream room pants and dream ticket
+        static void ClearInv(InventoryItem[] inv) {
+            foreach(ref var item in inv.AsSpan()) {
+                if(item.Id is 15200 or 10300) {
+                    item = new InventoryItem();
+                }
+            }
+        }
+        ClearInv(client.Player.Inventory);
+        ClearInv(client.Player.Equipment);
+        ClearInv(client.Player.Tools);
+        ClearInv(client.Player.Farm.Inventory);
+        foreach(var item in client.Player.Pets) {
+            if(item != null)
+                ClearInv(item.Inventory);
+        }
+
         UpdateStats();
-        Hp = MaxHp;
-        Sta = MaxSta;
     }
 
     public void WriteEntities(PacketBuilder b) {
+        var entities = (int[])BaseEntities.Clone();
+
+        foreach(var item in Equipment) {
+            if(item.Id == 0)
+                continue;
+
+            var att = Program.items[item.Id];
+
+            Debug.Assert(att.Type == ItemType.Equipment);
+            var equ = Program.equipment[att.SubId];
+            var slot = equ.GetEntSlot();
+
+            entities[slot] = item.Id;
+        }
+
         for(int i = 0; i < 18; i++) {
-            b.WriteInt(DisplayEntities[i]);
+            b.WriteInt(entities[i]);
         }
     }
 
@@ -345,24 +382,5 @@ class PlayerData {
 
         if(Sta > MaxSta)
             Sta = MaxSta;
-    }
-
-    public void UpdateEntities() {
-        BaseEntities.CopyTo(DisplayEntities, 0);
-
-        foreach(var item in Equipment) {
-            if(item.Id == 0)
-                continue;
-
-            var att = Program.items[item.Id];
-
-            Debug.Assert(att.Type == ItemType.Equipment);
-            var equ = Program.equipment[att.SubId];
-            var slot = equ.GetEntSlot();
-
-            DisplayEntities[slot] = item.Id;
-        }
-
-        // TODO: broadcast new appearance
     }
 }

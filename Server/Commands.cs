@@ -200,9 +200,10 @@ static class Commands {
         client.Close();
     }
 
-    [ChatCommand("stuck", "Teleports you back to sanrio harbour", false)]
+    [ChatCommand("stuck", "Teleports you back to your last save point", false)]
     public static void Stuck(Client client, string[] args) {
-        Player.ChangeMap(client, 8, 7705, 6007);
+        Player.LoadReturnMap(client);
+        Player.ChangeMap(client, client.Player.CurrentMap, client.Player.PositionX, client.Player.PositionY);
     }
 
     [Command("teleport [username] [map] [x] [y]", "")]

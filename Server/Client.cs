@@ -87,9 +87,9 @@ class Client {
 
     /// <summary>Adds an item to the players inventory and sends chat notification for it</summary>
     public bool AddItem(int itemId, int count, bool notification) {
-        Debug.Assert(itemId != 0 && count != 0);
         if(itemId == 0)
             return true;
+        Debug.Assert(count != 0);
         var inv = GetInv(InvType.Player);
         return inv.AddItem(itemId, count, notification);
     }
@@ -160,10 +160,12 @@ class Client {
     }
 
     public void UpdateStats() {
-        if(Player != null) {
-            Player.UpdateStats();
-            Protocols.Player.SendPlayerHpSta(this);
-        }
+        Player.UpdateStats();
+        Protocols.Player.SendPlayerHpSta(this);
+    }
+    public void UpdateEquip() {
+        Protocols.Player.SendPlayerAtt(Player.Map.Players, this);
+        UpdateStats();
     }
 
     public void Send(ArraySegment<byte> data) {

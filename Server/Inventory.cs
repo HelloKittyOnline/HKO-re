@@ -285,9 +285,7 @@ readonly ref struct ItemRef {
                 break;
             case InvType.Equipment:
                 Player.SendSetEquItem(client, Item, (byte)(Index + 1), false);
-                client.Player.UpdateEntities();
-                Player.SendPlayerAtt(client);
-                client.UpdateStats();
+                client.UpdateEquip();
                 break;
             case InvType.Tool:
                 Player.SendSetEquItem(client, Item, (byte)(Index + 1), true);

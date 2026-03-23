@@ -53,7 +53,7 @@ abstract class Requirement {
         public int Count { get; set; }
 
         public override bool Check(Client client) {
-            throw new NotImplementedException();
+            return false;
         }
     }
     public class HaveItem : Requirement {
@@ -254,9 +254,28 @@ abstract class Reward {
     public class Flag : Reward {
         public int QuestId;
         public byte Id { get; set; }
+        public string Desc { get; set; }
 
         public override void Handle(Client client, int select) {
             client.SetQuestFlag(QuestId, Id);
+        }
+    }
+
+    public class Tokens : Reward {
+        public int Amount { get; set; }
+
+        public override void Handle(Client client, int select) {
+            client.Player.NormalTokens += Amount;
+            Inventory.SendSetNormalTokens(client);
+        }
+    }
+
+    public class GuardianPet : Reward {
+        public int Id { get; set; }
+
+        public override void Handle(Client client, int select) {
+            client.Player.DreamCarnival.guardianPet = (short)Id;
+            Pet.SendSetTempPet(client, (short)Id);
         }
     }
 
