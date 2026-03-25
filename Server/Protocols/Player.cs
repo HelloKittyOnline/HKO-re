@@ -144,6 +144,7 @@ static class Player {
                 SendSetItem(client, InvType.Player, 1, client.Player.Inventory);
                 SendSetItem(client, InvType.Equipment, 1, client.Player.Equipment);
                 SendSetItem(client, InvType.Tool, 1, client.Player.Tools);
+                client.UpdateEquip();
             }
 
             if(map == 8 && (client.Player.CurrentMap == 15 || client.Player.CurrentMap <= 7 || client.Player.MapType == 8)) {
@@ -579,7 +580,7 @@ static class Player {
         b.BeginCompress(); // player data - should be 38608 bytes
         b.WriteInt(client.Id); // something to do with farms?
 
-        b.WritePadString("", 66); // idk
+        b.WritePadString(client.Username, 66); // username
         b.WritePadWString(player.Name, 32 * 2); // null terminated wchar string
 
         b.Write0(18); // idk

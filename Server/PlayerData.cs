@@ -158,7 +158,7 @@ class PlayerData {
     // 2 = gathering
     [JsonIgnore] public int CurrentAction = 0;
 
-    public DreamCarnivalData DreamCarnival { get; set; } = new();
+    public DreamCarnivalData DreamCarnival { get; set; }
 
     public PlayerData() { }
     public PlayerData(string name, byte gender, byte bloodType, byte birthMonth, byte birthDay, int[] entities) {
@@ -220,11 +220,11 @@ class PlayerData {
         }
 
         VisitedMaps ??= new BitVector(32);
-        VisitedMaps[1] = true; // starting map: Dream Room 1
 
         TargetX = PositionX;
         TargetY = PositionY;
         // todo: ensure all fixed arrays are the right size in case something changes
+        DreamCarnival ??= new DreamCarnivalData();
 
         // remove dream room pants and dream ticket
         static void ClearInv(InventoryItem[] inv) {
@@ -234,13 +234,15 @@ class PlayerData {
                 }
             }
         }
-        ClearInv(client.Player.Inventory);
-        ClearInv(client.Player.Equipment);
-        ClearInv(client.Player.Tools);
-        ClearInv(client.Player.Farm.Inventory);
-        foreach(var item in client.Player.Pets) {
-            if(item != null)
-                ClearInv(item.Inventory);
+        if(client.Player.RespawnMap != 15) { // if not in dream carnival
+            ClearInv(client.Player.Inventory);
+            ClearInv(client.Player.Equipment);
+            ClearInv(client.Player.Tools);
+            ClearInv(client.Player.Farm.Inventory);
+            foreach(var item in client.Player.Pets) {
+                if(item != null)
+                    ClearInv(item.Inventory);
+            }
         }
 
         UpdateStats();

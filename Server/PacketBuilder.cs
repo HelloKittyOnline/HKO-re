@@ -113,6 +113,9 @@ struct PacketBuilder {
     public void WritePadString(string str, int length) {
         var bytes = Window1252.GetBytes(str);
 
+        if(bytes.Length > length - 1)
+            throw new ArgumentOutOfRangeException(nameof(str), "string too long");
+
         WriteByte((byte)bytes.Length);
         Write(bytes);
         Write0(length - bytes.Length - 1);
@@ -123,7 +126,7 @@ struct PacketBuilder {
         var dat = Encoding.Unicode.GetBytes(str);
 
         if(dat.Length > 65535) {
-            throw new ArgumentOutOfRangeException("str", "string too long");
+            throw new ArgumentOutOfRangeException(nameof(str), "string too long");
         }
         WriteShort((short)dat.Length);
         writer.Write(dat);
