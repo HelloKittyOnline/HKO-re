@@ -112,6 +112,11 @@ static class Player {
     public static void LeaveMap(Client client) {
         var map = client.Player.Map;
 
+        if(map == null) {
+            Logging.Logger.Error("[{username}_{userID}] Tried to leave null map", client.Username, client.DiscordId);
+            return;
+        }
+
         if(client.Player.MapType == 8) {
             // delete dream room instance
             Program.maps.Remove(client.Player.CurrentMap, out var _);
@@ -125,10 +130,8 @@ static class Player {
 
     public static void ChangeMap(Client client, int map, int x, int y) {
         lock(client.Player) {
-            LeaveMap(client);
-
+            // exiting tutorial
             if((map == 15 || map == 8) && (client.Player.CurrentMap <= 7 || client.Player.MapType == 8)) {
-                // exiting tutorial
                 Tutorial.SendStep(client, 0, 0, 0, false, false, false); // clear tutorial state
 
                 // restore dream carnival inventory
@@ -147,8 +150,8 @@ static class Player {
                 client.UpdateEquip();
             }
 
+            // leaving dream carnival / entering sanrion harbour for the first time
             if(map == 8 && (client.Player.CurrentMap == 15 || client.Player.CurrentMap <= 7 || client.Player.MapType == 8)) {
-                // leaving dream carnival / entering sanrion harbour for the first time
                 // clear currency
                 client.Player.Money = 0;
                 client.Player.NormalTokens = 0;
@@ -199,6 +202,8 @@ static class Player {
                 SendPlayerData(client);
                 SendPlayerHpSta(client);
             }
+
+            LeaveMap(client);
 
             client.Player.CurrentMap = map;
             client.Player.PositionX = x;
