@@ -211,7 +211,7 @@ abstract class Reward {
 
         public override void Handle(Client client, int select) {
             client.Player.Keys.Add(Id);
-            Npc.UpdateFlag(client, Id, true);
+            Npc.UpdateFlag(client, Id + 7000, true);
         }
     }
 
@@ -220,7 +220,7 @@ abstract class Reward {
 
         public override void Handle(Client client, int select) {
             client.Player.Dreams.Add(Id);
-            Npc.UpdateFlag(client, Id, true);
+            Npc.UpdateFlag(client, Id + 7300, true);
         }
     }
 
