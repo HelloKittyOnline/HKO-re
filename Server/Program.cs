@@ -243,7 +243,6 @@ class Program {
         }
 
         var mob_data = JsonNode.Parse(File.ReadAllText($"{path}/maps.json")).AsArray();
-        var cutMobs = mobAtts.Where(x => x.Name != null).ToArray();
 
         // bundle all entities together to make lookup easier
         maps = new();
@@ -266,7 +265,7 @@ class Program {
                     } else {
                         mobs.Add(new MobData(
                             j + 1,
-                            cutMobs[id - 1].Id,
+                            id,
                             (int)mob["X"],
                             (int)mob["Y"])
                         );
